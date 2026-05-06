@@ -19,7 +19,7 @@ Use this table directly in the thesis as Table 1 of the comparative-analysis cha
 | **Published throughput (single DC)** | ~10³–10⁴ ops/s (implementation-dependent) | ~10⁴–10⁵ ops/s (etcd, KRaft) | ~10⁴ ops/s (ZK metadata) | ~10⁴ ops/s (fast path dominant) | ~10²–10³ tx/s | ~10⁴–10⁵ tx/s (large cluster) |
 | **Scales well with cluster size** | Yes (leader amortizes) | Yes | Limited (epoch change grows) | Not above ~5 (conflict frequency) | Poor (O(N²) messages) | Yes (linear voting) |
 | **Production implementations** | Chubby (Google), Spanner | etcd, Kafka KRaft, Consul | Apache ZooKeeper | Research (efficient/epaxos, Paxi) | CometBFT, Cosmos SDK | Diem/Aptos (fork), research |
-| **Reference paper in bundle** | 3299869_3319893.pdf (benchmarks) | atc14paperongaro.pdf | 279227_279229.pdf | 3299869_3319893.pdf | Buchman_Ethan_201606_Msater_thesis.pdf | HotStuff_BFT_Consensus.pdf |
+| **Reference paper in bundle** | 3299869_3319893.pdf (benchmarks) + 279227_279229.pdf (original) | atc14paperongaro.pdf | (ZAB paper not in corpus — cite Junqueira et al. DSN 2011) | 3299869_3319893.pdf | Buchman_Ethan_201606_Msater_thesis.pdf | HotStuff_BFT_Consensus.pdf |
 | **Our experimental target** | Paxi (paxi-paxos.yml) | etcd (etcd.yml), Kafka KRaft (kafka-kraft.yml) | Kafka+ZK (kafka-zk.yml) | Paxi (paxi-epaxos.yml) | CometBFT (tendermint.yml) | asonnino/hotstuff (hotstuff.yml) |
 | **Knowledge doc** | `paxos.md` | `raft.md` + `kraft.md` + `etcd.md` | `zab.md` | `epaxos.md` | `tendermint.md` | `hotstuff.md` |
 

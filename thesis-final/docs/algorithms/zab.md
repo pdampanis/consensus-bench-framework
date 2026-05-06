@@ -47,7 +47,7 @@ When describing experimental results:
 
 ## Papers to cite
 
-- **`279227_279229.pdf`** in the project bundle — Junqueira et al., *ZooKeeper: Wait-free coordination for Internet-scale systems*, USENIX ATC 2010. The original ZooKeeper paper.
+- **`279227_279229.pdf`** in the project bundle — **Lamport 1998, "The Part-Time Parliament"** (the original Paxos paper). The ZAB-specific paper (Junqueira, Reed, Serafini, *Zab: High-performance Broadcast for Primary-Backup Systems*, DSN 2011) is not in the corpus but should be cited alongside the ZooKeeper paper (Hunt et al., USENIX ATC 2010).
 - **`2023397.pdf`** — Wang et al., *Building a Replicated Logging System with Apache Kafka*, VLDB 2015. Describes Kafka's original ZK-based architecture.
 - For the ZAB protocol specifically, the canonical reference is Junqueira, Reed, and Serafini, *ZAB: High-performance broadcast for primary-backup systems*, DSN 2011. Not in the bundle; cite by title.
 
