@@ -1,0 +1,152 @@
+# =============================================================================
+# Kafka KRaft - 3 nodes, combined mode, sized for Latitude 7390 (16 GB RAM)
+# =============================================================================
+#
+# This version fixes the listener misconfiguration from the previous bundle.
+# Three listeners with cleanly separated purposes:
+#
+#   CONTROLLER :9093  - controller quorum voting (KRaft internal Raft)
+#   INTERNAL   :9094  - inter-broker replication
+#   CLIENT     :9092  - external clients (perf-test container, host tools)
+#
+# Each listener has its own advertised address:
+#   INTERNAL advertised as the container hostname (k1/k2/k3) so brokers
+#     reach each other via docker DNS.
+#   CLIENT advertised as the container hostname AND as localhost with a
+#     per-broker host port. We use KAFKA_ADVERTISED_LISTENERS to hand back
+#     *both* to clients so host tools reach brokers via localhost:19092 and
+#     container clients (the perf-test container on thesis-net) reach them
+#     via k1:9092.
+#
+# Why combined mode: 3 processes instead of 6 cuts memory from 13.5 GB to
+# 4.5 GB. Confluent documents combined mode as suitable for small-scale
+# testing. Each process is BOTH broker and controller.
+# =============================================================================
+
+volumes:
+  k1-data:
+  k2-data:
+  k3-data:
+
+networks:
+  thesis-net:
+    external: true
+
+# Common service settings shared across k1, k2, k3 via YAML anchors.
+x-kafka-service: &kafka-service
+  image: apache/kafka:3.9.0
+  restart: unless-stopped
+  networks:
+    - thesis-net
+  mem_limit: 1500m
+  cpus: 1.0
+
+# Common environment shared across all three brokers.
+x-kafka-env: &kafka-env
+  # Combined mode: this process plays both roles.
+  KAFKA_PROCESS_ROLES: "broker,controller"
+
+  # Listen on three separate ports inside the container. Each serves a
+  # distinct purpose; see the header comment above.
+  KAFKA_LISTENERS: "CLIENT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,INTERNAL://0.0.0.0:9094"
+  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CLIENT:PLAINTEXT,CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT"
+
+  # Inter-broker traffic goes over INTERNAL.
+  KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"
+  KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+  KAFKA_CONTROLLER_QUORUM_VOTERS: "1@k1:9093,2@k2:9093,3@k3:9093"
+
+  # Cluster id is a constant 22-char base64 value. All three brokers must
+  # use the same id. Generate a new one with `kafka-storage.sh random-uuid`
+  # if you ever need to rebuild.
+  CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qg"
+
+  # Keep the log retention short so volumes don't grow unbounded between
+  # runs. 10 minutes is plenty for an 8-minute benchmark.
+  KAFKA_LOG_RETENTION_MINUTES: 10
+  KAFKA_LOG_SEGMENT_BYTES: 268435456   # 256 MB
+
+  # RF=3 across all 3 brokers, min.insync.replicas=2 so acks=all requires
+  # 2 of 3 brokers to acknowledge.
+  KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+  KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+  KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+  KAFKA_DEFAULT_REPLICATION_FACTOR: 3
+  KAFKA_MIN_INSYNC_REPLICAS: 2
+  KAFKA_NUM_PARTITIONS: 6
+  KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+
+  # Heap is fixed at 1 GB. G1GC with a 50ms pause target keeps p99.9
+  # latency stable on the 7390's thermally throttled CPU.
+  KAFKA_HEAP_OPTS: "-Xms1g -Xmx1g"
+  KAFKA_JVM_PERFORMANCE_OPTS: >-
+    -server -XX:+UseG1GC -XX:MaxGCPauseMillis=50
+    -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent
+
+services:
+
+  k1:
+    <<: *kafka-service
+    container_name: k1
+    hostname: k1
+    environment:
+      <<: *kafka-env
+      KAFKA_NODE_ID: 1
+      # Advertise BOTH the docker-network hostname AND the host-forwarded
+      # port. Container clients pick up "k1:9092"; host tools pick up
+      # "localhost:19092".
+      KAFKA_ADVERTISED_LISTENERS: "CLIENT://k1:9092,INTERNAL://k1:9094"
+    ports:
+      - "19092:9092"   # host → k1:9092 for host-side CLI tools
+    volumes:
+      - k1-data:/var/lib/kafka/data
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  k2:
+    <<: *kafka-service
+    container_name: k2
+    hostname: k2
+    environment:
+      <<: *kafka-env
+      KAFKA_NODE_ID: 2
+      KAFKA_ADVERTISED_LISTENERS: "CLIENT://k2:9092,INTERNAL://k2:9094"
+    ports:
+      - "19093:9092"
+    volumes:
+      - k2-data:/var/lib/kafka/data
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+
+  k3:
+    <<: *kafka-service
+    container_name: k3
+    hostname: k3
+    environment:
+      <<: *kafka-env
+      KAFKA_NODE_ID: 3
+      KAFKA_ADVERTISED_LISTENERS: "CLIENT://k3:9092,INTERNAL://k3:9094"
+    ports:
+      - "19094:9092"
+    volumes:
+      - k3-data:/var/lib/kafka/data
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s

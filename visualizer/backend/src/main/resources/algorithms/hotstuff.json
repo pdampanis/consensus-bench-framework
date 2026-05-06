@@ -1,0 +1,54 @@
+{
+  "name": "HotStuff",
+  "family": "BFT",
+  "summary": "HotStuff is a leader-based BFT protocol with linear communication complexity. A rotating leader collects votes into Quorum Certificates (QCs), and commit requires a three-chain of linked QCs. Pipelining (Chained HotStuff) lets consecutive views overlap so the protocol runs at network speed under stable leaders.",
+  "nodes": [
+    { "id": "v1", "label": "Replica 1 (leader)", "role": "leader",   "x": 400, "y": 100 },
+    { "id": "v2", "label": "Replica 2", "role": "follower", "x": 200, "y": 260 },
+    { "id": "v3", "label": "Replica 3", "role": "follower", "x": 600, "y": 260 },
+    { "id": "v4", "label": "Replica 4", "role": "follower", "x": 400, "y": 440 },
+    { "id": "client", "label": "Client",  "role": "client",   "x": 80,  "y": 150 }
+  ],
+  "edges": [
+    { "from": "client", "to": "v1" },
+    { "from": "v1", "to": "v2" },
+    { "from": "v1", "to": "v3" },
+    { "from": "v1", "to": "v4" },
+    { "from": "v2", "to": "v1" },
+    { "from": "v3", "to": "v1" },
+    { "from": "v4", "to": "v1" }
+  ],
+  "scenarios": [
+    {
+      "id": "chained_hotstuff",
+      "title": "Chained HotStuff: pipelined phases",
+      "description": "Each view, the leader proposes a block and collects n-f votes into a Quorum Certificate. The chain of QCs (Prepare, PreCommit, Commit) is pipelined: the same message can serve as the Prepare vote for one block and the PreCommit vote for its predecessor. Communication complexity per block is linear in the number of replicas.",
+      "steps": [
+        { "from": "client", "to": "v1", "label": "cmd", "type": "request" },
+        { "from": "v1", "to": "v2", "label": "Propose (with QC_prev)", "type": "replicate" },
+        { "from": "v1", "to": "v3", "label": "Propose", "type": "replicate" },
+        { "from": "v1", "to": "v4", "label": "Propose", "type": "replicate" },
+        { "from": "v2", "to": "v1", "label": "Vote (to leader only)", "type": "vote" },
+        { "from": "v3", "to": "v1", "label": "Vote", "type": "vote" },
+        { "from": "v4", "to": "v1", "label": "Vote", "type": "vote" },
+        { "from": "v1", "to": "v2", "label": "next Propose (with new QC)", "type": "commit" },
+        { "from": "v1", "to": "v3", "label": "next Propose (with new QC)", "type": "commit" },
+        { "from": "v1", "to": "v4", "label": "next Propose (with new QC)", "type": "commit" }
+      ]
+    },
+    {
+      "id": "view_change",
+      "title": "View change: rotating leader after suspected failure",
+      "description": "When a leader is suspected faulty (a timeout fires), every replica sends its highest-QC to the next-view leader. The new leader picks the highest QC as its starting point and proposes the next block.",
+      "steps": [
+        { "type": "node_state", "node": "v1", "state": "crashed", "label": "v1 suspected faulty" },
+        { "type": "timeout", "node": "v2", "label": "view timeout" },
+        { "from": "v2", "to": "v3", "label": "NewView (highQC)", "type": "election" },
+        { "from": "v4", "to": "v3", "label": "NewView (highQC)", "type": "election" },
+        { "type": "node_state", "node": "v3", "state": "leader", "label": "v3 is new leader" },
+        { "from": "v3", "to": "v2", "label": "Propose (using highest QC)", "type": "replicate" },
+        { "from": "v3", "to": "v4", "label": "Propose", "type": "replicate" }
+      ]
+    }
+  ]
+}

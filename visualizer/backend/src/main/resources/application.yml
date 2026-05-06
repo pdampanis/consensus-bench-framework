@@ -1,0 +1,56 @@
+server:
+  port: 8080
+  # Compression reduces bandwidth for JSON payloads of runs and algorithm
+  # definitions. Safe default; disable if running behind a reverse proxy
+  # that already handles compression.
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/plain
+
+spring:
+  application:
+    name: consensus-visualizer
+
+  # Default datasource is H2 in-memory for local development. The
+  # docker-compose deployment overrides these via environment variables to
+  # point at the Postgres sidecar container.
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:h2:mem:thesis;DB_CLOSE_DELAY=-1;MODE=PostgreSQL}
+    username: ${SPRING_DATASOURCE_USERNAME:sa}
+    password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER:org.h2.Driver}
+
+  jpa:
+    # create-drop in dev, update in docker-compose deployment so the schema
+    # is preserved across restarts but any new fields migrate cleanly.
+    hibernate:
+      ddl-auto: ${SPRING_JPA_DDL_AUTO:update}
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+
+# Where to find the thesis results. In docker-compose this is bound to the
+# host directory /home/panos/thesis/results read-only. The importer walks
+# this tree at startup.
+app:
+  results-dir: ${APP_RESULTS_DIR:/data/results}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Actuator health, info, and prometheus endpoints only. Prometheus
+        # can scrape this app alongside the SUTs if desired.
+        include: health,info,prometheus
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    root: INFO
+    gr.thesis.consensus: INFO
+    # Hibernate SQL logging off in production runs; flip to DEBUG when
+    # debugging query performance.
+    org.hibernate.SQL: WARN

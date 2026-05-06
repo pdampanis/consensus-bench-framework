@@ -1,0 +1,175 @@
+# =============================================================================
+# etcd - 7-node Raft cluster, scalability upper bound
+# =============================================================================
+# 7 nodes tolerate 3 simultaneous failures. Memory: 7 × 400 MB = 2.8 GB.
+# =============================================================================
+
+volumes:
+  etcd7n_1: {}
+  etcd7n_2: {}
+  etcd7n_3: {}
+  etcd7n_4: {}
+  etcd7n_5: {}
+  etcd7n_6: {}
+  etcd7n_7: {}
+
+networks:
+  thesis-net:
+    external: true
+
+x-etcd-service: &etcd-service
+  image: quay.io/coreos/etcd:v3.5.15
+  restart: unless-stopped
+  networks:
+    - thesis-net
+  mem_limit: 400m
+  cpus: 0.5
+
+x-healthcheck: &healthcheck
+  test: ["CMD-SHELL", "ETCDCTL_API=3 etcdctl endpoint health --endpoints=http://localhost:2379 || exit 1"]
+  interval: 5s
+  timeout: 3s
+  retries: 12
+  start_period: 15s
+
+services:
+  etcd1:
+    <<: *etcd-service
+    container_name: etcd1
+    hostname: etcd1
+    command: &cmd1
+      - /usr/local/bin/etcd
+      - --name=etcd1
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd1:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd1:2380
+      - --initial-cluster=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380,etcd4=http://etcd4:2380,etcd5=http://etcd5:2380,etcd6=http://etcd6:2380,etcd7=http://etcd7:2380
+      - --initial-cluster-token=thesis-etcd-7n
+      - --initial-cluster-state=new
+      - --logger=zap
+      - --log-level=warn
+    ports: ["2379:2379"]
+    volumes: ["etcd7n_1:/etcd-data"]
+    healthcheck: *healthcheck
+
+  etcd2:
+    <<: *etcd-service
+    container_name: etcd2
+    hostname: etcd2
+    command:
+      - /usr/local/bin/etcd
+      - --name=etcd2
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd2:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd2:2380
+      - --initial-cluster=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380,etcd4=http://etcd4:2380,etcd5=http://etcd5:2380,etcd6=http://etcd6:2380,etcd7=http://etcd7:2380
+      - --initial-cluster-token=thesis-etcd-7n
+      - --initial-cluster-state=new
+      - --logger=zap
+      - --log-level=warn
+    volumes: ["etcd7n_2:/etcd-data"]
+    healthcheck: *healthcheck
+
+  etcd3:
+    <<: *etcd-service
+    container_name: etcd3
+    hostname: etcd3
+    command:
+      - /usr/local/bin/etcd
+      - --name=etcd3
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd3:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd3:2380
+      - --initial-cluster=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380,etcd4=http://etcd4:2380,etcd5=http://etcd5:2380,etcd6=http://etcd6:2380,etcd7=http://etcd7:2380
+      - --initial-cluster-token=thesis-etcd-7n
+      - --initial-cluster-state=new
+      - --logger=zap
+      - --log-level=warn
+    volumes: ["etcd7n_3:/etcd-data"]
+    healthcheck: *healthcheck
+
+  etcd4:
+    <<: *etcd-service
+    container_name: etcd4
+    hostname: etcd4
+    command:
+      - /usr/local/bin/etcd
+      - --name=etcd4
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd4:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd4:2380
+      - --initial-cluster=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380,etcd4=http://etcd4:2380,etcd5=http://etcd5:2380,etcd6=http://etcd6:2380,etcd7=http://etcd7:2380
+      - --initial-cluster-token=thesis-etcd-7n
+      - --initial-cluster-state=new
+      - --logger=zap
+      - --log-level=warn
+    volumes: ["etcd7n_4:/etcd-data"]
+    healthcheck: *healthcheck
+
+  etcd5:
+    <<: *etcd-service
+    container_name: etcd5
+    hostname: etcd5
+    command:
+      - /usr/local/bin/etcd
+      - --name=etcd5
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd5:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd5:2380
+      - --initial-cluster=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380,etcd4=http://etcd4:2380,etcd5=http://etcd5:2380,etcd6=http://etcd6:2380,etcd7=http://etcd7:2380
+      - --initial-cluster-token=thesis-etcd-7n
+      - --initial-cluster-state=new
+      - --logger=zap
+      - --log-level=warn
+    volumes: ["etcd7n_5:/etcd-data"]
+    healthcheck: *healthcheck
+
+  etcd6:
+    <<: *etcd-service
+    container_name: etcd6
+    hostname: etcd6
+    command:
+      - /usr/local/bin/etcd
+      - --name=etcd6
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd6:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd6:2380
+      - --initial-cluster=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380,etcd4=http://etcd4:2380,etcd5=http://etcd5:2380,etcd6=http://etcd6:2380,etcd7=http://etcd7:2380
+      - --initial-cluster-token=thesis-etcd-7n
+      - --initial-cluster-state=new
+      - --logger=zap
+      - --log-level=warn
+    volumes: ["etcd7n_6:/etcd-data"]
+    healthcheck: *healthcheck
+
+  etcd7:
+    <<: *etcd-service
+    container_name: etcd7
+    hostname: etcd7
+    command:
+      - /usr/local/bin/etcd
+      - --name=etcd7
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd7:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd7:2380
+      - --initial-cluster=etcd1=http://etcd1:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380,etcd4=http://etcd4:2380,etcd5=http://etcd5:2380,etcd6=http://etcd6:2380,etcd7=http://etcd7:2380
+      - --initial-cluster-token=thesis-etcd-7n
+      - --initial-cluster-state=new
+      - --logger=zap
+      - --log-level=warn
+    volumes: ["etcd7n_7:/etcd-data"]
+    healthcheck: *healthcheck

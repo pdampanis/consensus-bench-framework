@@ -1,0 +1,66 @@
+# =============================================================================
+# HotStuff (asonnino/hotstuff, 2-chain Diem variant) — single-container cluster
+# =============================================================================
+#
+# HotStuff runs as 4 processes inside ONE container, orchestrated by
+# the vendored asonnino fabfile's `fab local` task. This is different
+# from the other systems which use one container per validator. The
+# reason is that asonnino's harness bundles the key-generation,
+# committee-assembly, and tmux-based process orchestration into a
+# single workflow that is not cleanly splittable into separate
+# containers without rewriting substantial logic. Using asonnino's
+# harness as-is keeps our HotStuff measurement methodologically
+# identical to the published HotStuff/Diem benchmarks.
+#
+# Consequence for fault injection: Pumba cannot target individual
+# HotStuff validators (docker kill would take all 4 down). Instead we
+# use an in-container injector (`/opt/hs-inject.sh`) called via
+# `docker exec` from run_one.sh. See docs/algorithms/hotstuff.md for
+# the methodology discussion.
+#
+# Memory budget: about 1.5 GB for the 4 node processes + client.
+# =============================================================================
+
+networks:
+  thesis-net:
+    external: true
+
+services:
+  hotstuff:
+    image: thesis-hotstuff:latest
+    container_name: hotstuff
+    hostname: hotstuff
+    networks:
+      - thesis-net
+    # NET_ADMIN is needed so hs-inject.sh can run tc and iptables
+    # inside the container for the packet_loss and network_partition
+    # scenarios. SYS_PTRACE is needed so the injector can look at
+    # other processes' bindings via ss / lsof.
+    cap_add:
+      - NET_ADMIN
+      - SYS_PTRACE
+    # Use an init process so the 4 node + 1 client + tmux session tree
+    # is reaped properly on container stop.
+    init: true
+    # Keep container alive; the benchmark is invoked via `docker exec`.
+    # This lets run_one.sh orchestrate the warmup -> fault-inject ->
+    # measure lifecycle against the same container instance.
+    command: ["sleep", "infinity"]
+    mem_limit: 2g
+    cpus: 4.0
+    # The benchmark writes /work/out/perf-raw.txt which run_one.sh will
+    # copy out via `docker cp`. A volume isn't strictly needed since
+    # docker cp works against the container filesystem directly.
+    volumes:
+      - hotstuff-work:/work
+    healthcheck:
+      # Ready = /usr/local/bin/node binary present and fab is installed.
+      # The cluster itself is not "up" until hs-run.sh is invoked.
+      test: ["CMD-SHELL", "test -x /usr/local/bin/node && fab --version >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  hotstuff-work:

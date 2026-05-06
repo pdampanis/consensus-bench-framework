@@ -1,0 +1,62 @@
+{
+  "name": "EPaxos (Egalitarian Paxos)",
+  "family": "CFT",
+  "summary": "EPaxos is a leaderless consensus protocol where any replica can act as the command leader for any given command. Non-conflicting commands commit in one round-trip to the nearest fast-path quorum; conflicting commands require an additional round. The design eliminates the single-leader bottleneck and gives balanced load across replicas.",
+  "nodes": [
+    { "id": "n1", "label": "Replica 1", "role": "opportunistic", "x": 400, "y": 100 },
+    { "id": "n2", "label": "Replica 2", "role": "opportunistic", "x": 200, "y": 280 },
+    { "id": "n3", "label": "Replica 3", "role": "opportunistic", "x": 600, "y": 280 },
+    { "id": "n4", "label": "Replica 4", "role": "opportunistic", "x": 280, "y": 460 },
+    { "id": "n5", "label": "Replica 5", "role": "opportunistic", "x": 520, "y": 460 },
+    { "id": "client1", "label": "Client A", "role": "client", "x": 80, "y": 150 },
+    { "id": "client2", "label": "Client B", "role": "client", "x": 720, "y": 400 }
+  ],
+  "edges": [
+    { "from": "client1", "to": "n2", "kind": "data" },
+    { "from": "client2", "to": "n5", "kind": "data" },
+    { "from": "n1", "to": "n2", "kind": "gossip" },
+    { "from": "n1", "to": "n3", "kind": "gossip" },
+    { "from": "n2", "to": "n3", "kind": "gossip" },
+    { "from": "n2", "to": "n4", "kind": "gossip" },
+    { "from": "n3", "to": "n5", "kind": "gossip" },
+    { "from": "n4", "to": "n5", "kind": "gossip" }
+  ],
+  "scenarios": [
+    {
+      "id": "fast_path",
+      "title": "Fast path: non-conflicting commands",
+      "description": "Two clients submit commands to their nearest replicas concurrently. Because the commands touch different keys (no conflict), each command leader reaches a fast-path quorum in one round-trip, independently of the other command leader. This parallelism is the core advantage of EPaxos.",
+      "steps": [
+        { "from": "client1", "to": "n2", "label": "PUT x=1", "type": "request" },
+        { "from": "client2", "to": "n5", "label": "PUT y=2", "type": "request" },
+        { "from": "n2", "to": "n1", "label": "PreAccept(x=1)", "type": "replicate" },
+        { "from": "n2", "to": "n3", "label": "PreAccept(x=1)", "type": "replicate" },
+        { "from": "n5", "to": "n3", "label": "PreAccept(y=2)", "type": "replicate" },
+        { "from": "n5", "to": "n4", "label": "PreAccept(y=2)", "type": "replicate" },
+        { "from": "n1", "to": "n2", "label": "OK (fast quorum)", "type": "ack" },
+        { "from": "n3", "to": "n2", "label": "OK (fast quorum)", "type": "ack" },
+        { "from": "n3", "to": "n5", "label": "OK (fast quorum)", "type": "ack" },
+        { "from": "n4", "to": "n5", "label": "OK (fast quorum)", "type": "ack" },
+        { "from": "n2", "to": "client1", "label": "OK (committed)", "type": "response" },
+        { "from": "n5", "to": "client2", "label": "OK (committed)", "type": "response" }
+      ]
+    },
+    {
+      "id": "slow_path_conflict",
+      "title": "Slow path: conflicting commands",
+      "description": "Two clients issue commands on the same key concurrently via different replicas. The replicas discover the conflict during PreAccept and fall back to the slow path: an extra round of Accept messages is needed to establish the ordering. Unlike Multi-Paxos, the conflict is resolved locally without forwarding to a distant leader.",
+      "steps": [
+        { "from": "client1", "to": "n2", "label": "PUT x=1", "type": "request" },
+        { "from": "client2", "to": "n5", "label": "PUT x=9 (conflict!)", "type": "request" },
+        { "from": "n2", "to": "n1", "label": "PreAccept(x=1)", "type": "replicate" },
+        { "from": "n5", "to": "n3", "label": "PreAccept(x=9)", "type": "replicate" },
+        { "from": "n1", "to": "n2", "label": "conflict detected", "type": "ack" },
+        { "from": "n2", "to": "n1", "label": "Accept (slow path)", "type": "replicate" },
+        { "from": "n2", "to": "n3", "label": "Accept (slow path)", "type": "replicate" },
+        { "from": "n1", "to": "n2", "label": "OK", "type": "ack" },
+        { "from": "n3", "to": "n2", "label": "OK", "type": "ack" },
+        { "from": "n2", "to": "client1", "label": "OK (committed)", "type": "response" }
+      ]
+    }
+  ]
+}

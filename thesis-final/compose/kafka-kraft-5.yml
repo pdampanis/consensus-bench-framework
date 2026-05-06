@@ -1,0 +1,132 @@
+# =============================================================================
+# Kafka KRaft - 5 nodes, combined mode
+# =============================================================================
+# For scalability measurements. Derived from kafka-kraft.yml (3-node version)
+# by adding k4, k5 and extending the controller quorum. Uses a separate set of
+# container names so both composes can be built in parallel if needed (but
+# run_batch.sh only brings up one scalability variant at a time).
+#
+# Why 5 specifically: 5 is the next odd number after 3 that still provides
+# meaningful fault-tolerance data (tolerates 2 failures vs 1). The Raft paper
+# and most production deployments use 3 or 5. This compose targets the 5-node
+# configuration directly.
+#
+# Memory budget: 5 × 1.5 GB = 7.5 GB Kafka + 1 GB observability + 2 GB host.
+# Fits comfortably in 32 GB (plenty of headroom for the visualizer too if
+# desired).
+# =============================================================================
+
+volumes:
+  k5n_k1-data:
+  k5n_k2-data:
+  k5n_k3-data:
+  k5n_k4-data:
+  k5n_k5-data:
+
+networks:
+  thesis-net:
+    external: true
+
+x-kafka-service: &kafka-service
+  image: apache/kafka:3.9.0
+  restart: unless-stopped
+  networks:
+    - thesis-net
+  mem_limit: 1500m
+  cpus: 1.0
+
+x-kafka-env: &kafka-env
+  KAFKA_PROCESS_ROLES: "broker,controller"
+  KAFKA_LISTENERS: "CLIENT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,INTERNAL://0.0.0.0:9094"
+  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CLIENT:PLAINTEXT,CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT"
+  KAFKA_INTER_BROKER_LISTENER_NAME: "INTERNAL"
+  KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+  # 5 controllers in the quorum. All 5 nodes vote.
+  KAFKA_CONTROLLER_QUORUM_VOTERS: "1@k1:9093,2@k2:9093,3@k3:9093,4@k4:9093,5@k5:9093"
+  CLUSTER_ID: "MkU3OEVBNTcwNTJENDM2Qg"
+  KAFKA_LOG_RETENTION_MINUTES: 10
+  KAFKA_LOG_SEGMENT_BYTES: 268435456
+  # RF=5, min-ISR=3: require majority acknowledgment. This keeps durability
+  # semantics equivalent to the 3-node case (RF=3, min-ISR=2) — both require
+  # a majority-quorum commit.
+  KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 5
+  KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 5
+  KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 3
+  KAFKA_DEFAULT_REPLICATION_FACTOR: 5
+  KAFKA_MIN_INSYNC_REPLICAS: 3
+  KAFKA_NUM_PARTITIONS: 6
+  KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+  KAFKA_HEAP_OPTS: "-Xms1g -Xmx1g"
+  KAFKA_JVM_PERFORMANCE_OPTS: >-
+    -server -XX:+UseG1GC -XX:MaxGCPauseMillis=50
+    -XX:InitiatingHeapOccupancyPercent=35 -XX:+ExplicitGCInvokesConcurrent
+
+x-healthcheck: &healthcheck
+  test:
+    - "CMD-SHELL"
+    - "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 60s
+
+services:
+  k1:
+    <<: *kafka-service
+    container_name: k1
+    hostname: k1
+    environment:
+      <<: *kafka-env
+      KAFKA_NODE_ID: 1
+      KAFKA_ADVERTISED_LISTENERS: "CLIENT://k1:9092,INTERNAL://k1:9094"
+    ports: ["19092:9092"]
+    volumes: ["k5n_k1-data:/var/lib/kafka/data"]
+    healthcheck: *healthcheck
+
+  k2:
+    <<: *kafka-service
+    container_name: k2
+    hostname: k2
+    environment:
+      <<: *kafka-env
+      KAFKA_NODE_ID: 2
+      KAFKA_ADVERTISED_LISTENERS: "CLIENT://k2:9092,INTERNAL://k2:9094"
+    ports: ["19093:9092"]
+    volumes: ["k5n_k2-data:/var/lib/kafka/data"]
+    healthcheck: *healthcheck
+
+  k3:
+    <<: *kafka-service
+    container_name: k3
+    hostname: k3
+    environment:
+      <<: *kafka-env
+      KAFKA_NODE_ID: 3
+      KAFKA_ADVERTISED_LISTENERS: "CLIENT://k3:9092,INTERNAL://k3:9094"
+    ports: ["19094:9092"]
+    volumes: ["k5n_k3-data:/var/lib/kafka/data"]
+    healthcheck: *healthcheck
+
+  k4:
+    <<: *kafka-service
+    container_name: k4
+    hostname: k4
+    environment:
+      <<: *kafka-env
+      KAFKA_NODE_ID: 4
+      KAFKA_ADVERTISED_LISTENERS: "CLIENT://k4:9092,INTERNAL://k4:9094"
+    ports: ["19095:9092"]
+    volumes: ["k5n_k4-data:/var/lib/kafka/data"]
+    healthcheck: *healthcheck
+
+  k5:
+    <<: *kafka-service
+    container_name: k5
+    hostname: k5
+    environment:
+      <<: *kafka-env
+      KAFKA_NODE_ID: 5
+      KAFKA_ADVERTISED_LISTENERS: "CLIENT://k5:9092,INTERNAL://k5:9094"
+    ports: ["19096:9092"]
+    volumes: ["k5n_k5-data:/var/lib/kafka/data"]
+    healthcheck: *healthcheck

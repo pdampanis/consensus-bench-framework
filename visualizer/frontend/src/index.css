@@ -1,0 +1,122 @@
+:root {
+  --bg: #0f172a;
+  --panel: #1e293b;
+  --panel-2: #334155;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #38bdf8;
+  --ok: #10b981;
+  --warn: #f59e0b;
+  --err: #ef4444;
+  --leader: #facc15;
+  --follower: #60a5fa;
+  --client: #a78bfa;
+  --crashed: #ef4444;
+  --partitioned: #9ca3af;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+header.topbar {
+  background: var(--panel);
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--panel-2);
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+header.topbar h1 {
+  font-size: 18px;
+  margin: 0;
+  font-weight: 600;
+}
+
+nav.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--panel);
+  padding: 0 24px;
+  border-bottom: 1px solid var(--panel-2);
+}
+
+nav.tabs button {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+nav.tabs button.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+nav.tabs button:hover { color: var(--text); }
+
+main {
+  flex: 1;
+  padding: 24px;
+}
+
+.panel {
+  background: var(--panel);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+  border: 1px solid var(--panel-2);
+}
+
+.panel h2 { margin-top: 0; font-size: 16px; }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+
+select, button.primary {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid #475569;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+button.primary { cursor: pointer; background: var(--accent); color: #0f172a; font-weight: 600; border: none; }
+button.primary:hover { opacity: 0.9; }
+
+.scenario-list { display: flex; flex-direction: column; gap: 8px; }
+.scenario-list button {
+  text-align: left;
+  background: var(--panel-2);
+  border: 1px solid transparent;
+  color: var(--text);
+  padding: 10px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.scenario-list button.active { border-color: var(--accent); }
+
+.stat { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+.stat .label { color: var(--muted); }
+.stat .value { font-family: ui-monospace, monospace; }
+
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; }
+.badge.cft { background: #1e3a8a; color: #bfdbfe; }
+.badge.bft { background: #581c87; color: #e9d5ff; }

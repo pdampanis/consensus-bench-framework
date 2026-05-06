@@ -1,0 +1,56 @@
+{
+  "name": "KRaft (Kafka Raft)",
+  "family": "CFT",
+  "summary": "KRaft is an event-driven variant of Raft built into Kafka. It replaces ZooKeeper by storing cluster metadata in a dedicated internal topic, __cluster_metadata, replicated by a controller quorum. Brokers fetch metadata from the controllers rather than from an external coordination service.",
+  "nodes": [
+    { "id": "c1", "label": "Controller 1 (Leader)", "role": "leader",   "x": 300, "y": 80 },
+    { "id": "c2", "label": "Controller 2", "role": "follower", "x": 500, "y": 80 },
+    { "id": "c3", "label": "Controller 3", "role": "follower", "x": 400, "y": 200 },
+    { "id": "b1", "label": "Broker 1",     "role": "broker",   "x": 200, "y": 380 },
+    { "id": "b2", "label": "Broker 2",     "role": "broker",   "x": 400, "y": 440 },
+    { "id": "b3", "label": "Broker 3",     "role": "broker",   "x": 600, "y": 380 },
+    { "id": "client", "label": "Producer", "role": "client",   "x": 80,  "y": 380 }
+  ],
+  "edges": [
+    { "from": "c1", "to": "c2", "kind": "raft" },
+    { "from": "c1", "to": "c3", "kind": "raft" },
+    { "from": "c2", "to": "c3", "kind": "raft" },
+    { "from": "b1", "to": "c1", "kind": "fetch" },
+    { "from": "b2", "to": "c1", "kind": "fetch" },
+    { "from": "b3", "to": "c1", "kind": "fetch" },
+    { "from": "client", "to": "b1", "kind": "data" }
+  ],
+  "scenarios": [
+    {
+      "id": "topic_create",
+      "title": "Topic creation (metadata write)",
+      "description": "The metadata write is committed via Raft across controllers, then brokers fetch the updated metadata. Unlike ZooKeeper mode, no external coordination service is involved.",
+      "steps": [
+        { "from": "client", "to": "b1", "label": "CreateTopic(vital-signs)", "type": "request" },
+        { "from": "b1", "to": "c1", "label": "forward to controller",        "type": "forward" },
+        { "from": "c1", "to": "c2", "label": "Raft AppendEntries",           "type": "replicate" },
+        { "from": "c1", "to": "c3", "label": "Raft AppendEntries",           "type": "replicate" },
+        { "from": "c2", "to": "c1", "label": "ack", "type": "ack" },
+        { "from": "c3", "to": "c1", "label": "ack", "type": "ack" },
+        { "from": "c1", "to": "b1", "label": "metadata delta (topic created)", "type": "metadata" },
+        { "from": "c1", "to": "b2", "label": "metadata delta", "type": "metadata" },
+        { "from": "c1", "to": "b3", "label": "metadata delta", "type": "metadata" },
+        { "from": "b1", "to": "client", "label": "OK", "type": "response" }
+      ]
+    },
+    {
+      "id": "controller_failover",
+      "title": "Controller failover: no cold start",
+      "description": "The active controller crashes. Because all three controllers already hold the full __cluster_metadata log in memory, the new leader can serve requests immediately — no rebuild from an external source is needed. This is the core architectural advantage over ZooKeeper mode.",
+      "steps": [
+        { "type": "node_state", "node": "c1", "state": "crashed", "label": "c1 leader crashes" },
+        { "type": "timeout", "node": "c2", "label": "election timeout" },
+        { "from": "c2", "to": "c3", "label": "RequestVote(term+1)", "type": "election" },
+        { "from": "c3", "to": "c2", "label": "granted", "type": "ack" },
+        { "type": "node_state", "node": "c2", "state": "leader", "label": "c2 becomes leader (already has full metadata in memory)" },
+        { "from": "b1", "to": "c2", "label": "fetch updates", "type": "fetch" },
+        { "from": "c2", "to": "b1", "label": "current metadata (instant)", "type": "metadata" }
+      ]
+    }
+  ]
+}

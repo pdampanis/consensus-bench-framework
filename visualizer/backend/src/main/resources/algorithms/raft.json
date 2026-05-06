@@ -1,0 +1,70 @@
+{
+  "name": "Raft",
+  "family": "CFT",
+  "summary": "Raft is a crash-fault-tolerant consensus algorithm that elects a single leader and replicates a log from leader to followers. The leader periodically sends AppendEntries heartbeats; when followers time out without hearing a heartbeat they become candidates and start a new election.",
+  "nodes": [
+    { "id": "n1", "label": "Node 1 (Leader)", "role": "leader",   "x": 400, "y": 120 },
+    { "id": "n2", "label": "Node 2",          "role": "follower", "x": 200, "y": 300 },
+    { "id": "n3", "label": "Node 3",          "role": "follower", "x": 400, "y": 380 },
+    { "id": "n4", "label": "Node 4",          "role": "follower", "x": 600, "y": 300 },
+    { "id": "n5", "label": "Node 5",          "role": "follower", "x": 500, "y": 500 },
+    { "id": "client", "label": "Client",      "role": "client",   "x": 100, "y": 120 }
+  ],
+  "edges": [
+    { "from": "client", "to": "n1" },
+    { "from": "n1", "to": "n2" },
+    { "from": "n1", "to": "n3" },
+    { "from": "n1", "to": "n4" },
+    { "from": "n1", "to": "n5" }
+  ],
+  "scenarios": [
+    {
+      "id": "normal_operation",
+      "title": "Normal operation: log replication",
+      "description": "Client sends a write to the leader. The leader appends to its log and issues AppendEntries RPCs to every follower in parallel. Once a majority (including the leader itself) has acknowledged, the leader commits and responds to the client.",
+      "steps": [
+        { "from": "client", "to": "n1",  "label": "PUT x=1",         "type": "request" },
+        { "from": "n1", "to": "n2", "label": "AppendEntries", "type": "replicate" },
+        { "from": "n1", "to": "n3", "label": "AppendEntries", "type": "replicate" },
+        { "from": "n1", "to": "n4", "label": "AppendEntries", "type": "replicate" },
+        { "from": "n1", "to": "n5", "label": "AppendEntries", "type": "replicate" },
+        { "from": "n2", "to": "n1", "label": "ack", "type": "ack" },
+        { "from": "n3", "to": "n1", "label": "ack", "type": "ack" },
+        { "from": "n1", "to": "client", "label": "OK (committed)", "type": "response" }
+      ]
+    },
+    {
+      "id": "leader_election",
+      "title": "Leader election after a crash",
+      "description": "The leader crashes. Followers eventually time out, increment their term, and issue RequestVote RPCs. A node that receives votes from a majority becomes the new leader and immediately sends heartbeats.",
+      "steps": [
+        { "type": "node_state", "node": "n1", "state": "crashed", "label": "Leader crashes" },
+        { "type": "timeout", "node": "n3", "label": "Election timeout" },
+        { "from": "n3", "to": "n2", "label": "RequestVote(term+1)", "type": "election" },
+        { "from": "n3", "to": "n4", "label": "RequestVote(term+1)", "type": "election" },
+        { "from": "n3", "to": "n5", "label": "RequestVote(term+1)", "type": "election" },
+        { "from": "n2", "to": "n3", "label": "granted", "type": "ack" },
+        { "from": "n4", "to": "n3", "label": "granted", "type": "ack" },
+        { "type": "node_state", "node": "n3", "state": "leader", "label": "n3 wins election" },
+        { "from": "n3", "to": "n2", "label": "Heartbeat",    "type": "heartbeat" },
+        { "from": "n3", "to": "n4", "label": "Heartbeat",    "type": "heartbeat" },
+        { "from": "n3", "to": "n5", "label": "Heartbeat",    "type": "heartbeat" }
+      ]
+    },
+    {
+      "id": "minority_partition",
+      "title": "Minority partition: progress continues",
+      "description": "Node n5 is partitioned from the rest of the cluster. The leader and the other three followers continue to commit because they still form a quorum (3 of 5). n5 cannot reach quorum on its own and blocks.",
+      "steps": [
+        { "type": "node_state", "node": "n5", "state": "partitioned", "label": "n5 isolated" },
+        { "from": "client", "to": "n1", "label": "PUT y=2", "type": "request" },
+        { "from": "n1", "to": "n2", "label": "AppendEntries", "type": "replicate" },
+        { "from": "n1", "to": "n3", "label": "AppendEntries", "type": "replicate" },
+        { "from": "n1", "to": "n4", "label": "AppendEntries", "type": "replicate" },
+        { "from": "n2", "to": "n1", "label": "ack", "type": "ack" },
+        { "from": "n3", "to": "n1", "label": "ack", "type": "ack" },
+        { "from": "n1", "to": "client", "label": "OK (quorum of 3)", "type": "response" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,62 @@
+# =============================================================================
+# Paxi running classical Multi-Paxos - 3 replicas
+# =============================================================================
+# Uses the Paxi framework (github.com/ailidani/paxi) built from source in
+# docker/paxi/Dockerfile. The `-algorithm=paxos` flag tells Paxi to run
+# classical Multi-Paxos.
+#
+# Memory: 3 × 200 MB = 600 MB. Minimal footprint.
+# Each replica has its own binary, config.json bind-mounted in.
+# =============================================================================
+
+networks:
+  thesis-net:
+    external: true
+
+x-paxi: &paxi-service
+  image: thesis-paxi:latest
+  restart: unless-stopped
+  networks:
+    - thesis-net
+  mem_limit: 200m
+  cpus: 0.5
+  volumes:
+    # Shared config.json that every replica reads.
+    - ../docker/paxi/config.json:/work/config.json:ro
+
+x-healthcheck: &healthcheck
+  # Paxi's http_address exposes each replica's JSON API. A GET against
+  # "/state" returns 200 when the replica is running. A liberal retry
+  # count because Paxi's TCP peering can take several seconds to settle.
+  test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/state >/dev/null 2>&1 || exit 1"]
+  interval: 5s
+  timeout: 3s
+  retries: 20
+  start_period: 15s
+
+services:
+  paxi1:
+    <<: *paxi-service
+    container_name: paxi1
+    hostname: paxi1
+    # `-id 1.1` is zone 1, node 1. Paxi uses zone.node IDs for multi-region
+    # deployments; here we use one zone with three nodes.
+    # `-algorithm=paxos` selects the classical Multi-Paxos implementation.
+    command: ["-id", "1.1", "-algorithm=paxos", "-config", "/work/config.json"]
+    ports:
+      - "18080:8080"
+    healthcheck: *healthcheck
+
+  paxi2:
+    <<: *paxi-service
+    container_name: paxi2
+    hostname: paxi2
+    command: ["-id", "1.2", "-algorithm=paxos", "-config", "/work/config.json"]
+    healthcheck: *healthcheck
+
+  paxi3:
+    <<: *paxi-service
+    container_name: paxi3
+    hostname: paxi3
+    command: ["-id", "1.3", "-algorithm=paxos", "-config", "/work/config.json"]
+    healthcheck: *healthcheck

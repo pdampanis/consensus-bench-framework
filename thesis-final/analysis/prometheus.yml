@@ -1,0 +1,67 @@
+# Prometheus scrape configuration for the thesis campaign.
+# Targets are the observability self-targets and the SUT-exposed /metrics.
+
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  # etcd exposes /metrics on the client port natively.
+  - job_name: etcd
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - "etcd1:2379"
+          - "etcd2:2379"
+          - "etcd3:2379"
+          - "etcd4:2379"
+          - "etcd5:2379"
+          - "etcd6:2379"
+          - "etcd7:2379"
+
+  # CometBFT exposes Prometheus metrics via --instrumentation.prometheus=true
+  # on port 26660 per validator. Scrape all 4.
+  - job_name: cometbft
+    static_configs:
+      - targets:
+          - "tm1:26660"
+          - "tm2:26660"
+          - "tm3:26660"
+          - "tm4:26660"
+
+  # Kafka exposes metrics via JMX. To scrape them, add the Prometheus
+  # JMX Exporter java agent to the Kafka containers:
+  #   KAFKA_OPTS="-javaagent:/opt/jmx_prometheus_javaagent.jar=7071:/opt/jmx_config.yml"
+  # Until then, these targets will log "connection refused" but not fail.
+  - job_name: kafka
+    static_configs:
+      - targets:
+          - "k1:7071"
+          - "k2:7071"
+          - "k3:7071"
+          - "k4:7071"
+          - "k5:7071"
+          - "k6:7071"
+          - "k7:7071"
+          - "zb1:7071"
+          - "zb2:7071"
+          - "zb3:7071"
+
+  # Paxi does not expose a /metrics endpoint natively. The Go runtime
+  # expvar endpoint at /debug/vars is available for custom scraping
+  # but requires a translation layer. Included here for future use.
+  # - job_name: paxi
+  #   metrics_path: /debug/vars
+  #   static_configs:
+  #     - targets:
+  #         - "paxi1:8080"
+  #         - "paxi2:8080"
+  #         - "paxi3:8080"

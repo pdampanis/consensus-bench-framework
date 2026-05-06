@@ -1,0 +1,62 @@
+{
+  "name": "ZAB (ZooKeeper Atomic Broadcast)",
+  "family": "CFT",
+  "summary": "ZAB is the atomic broadcast protocol used by ZooKeeper. In the Kafka context, ZooKeeper forms a separate ensemble that manages cluster metadata and coordinates the Kafka controller election. Kafka brokers talk to ZooKeeper for metadata and to each other for data replication — two distinct coordination subsystems.",
+  "nodes": [
+    { "id": "zk1", "label": "ZK Leader", "role": "leader",   "x": 300, "y": 80 },
+    { "id": "zk2", "label": "ZK Follower", "role": "follower", "x": 500, "y": 80 },
+    { "id": "zk3", "label": "ZK Follower", "role": "follower", "x": 400, "y": 200 },
+    { "id": "b1", "label": "Kafka Controller (Broker 1)", "role": "leader", "x": 200, "y": 380 },
+    { "id": "b2", "label": "Broker 2", "role": "follower", "x": 400, "y": 440 },
+    { "id": "b3", "label": "Broker 3", "role": "follower", "x": 600, "y": 380 },
+    { "id": "client", "label": "Producer", "role": "client", "x": 80, "y": 380 }
+  ],
+  "edges": [
+    { "from": "zk1", "to": "zk2", "kind": "zab" },
+    { "from": "zk1", "to": "zk3", "kind": "zab" },
+    { "from": "b1", "to": "zk1", "kind": "coordination" },
+    { "from": "b2", "to": "zk1", "kind": "coordination" },
+    { "from": "b3", "to": "zk1", "kind": "coordination" },
+    { "from": "b1", "to": "b2", "kind": "data" },
+    { "from": "b1", "to": "b3", "kind": "data" },
+    { "from": "client", "to": "b1", "kind": "data" }
+  ],
+  "scenarios": [
+    {
+      "id": "topic_create",
+      "title": "Topic creation (metadata path goes through ZooKeeper)",
+      "description": "In ZK mode, a topic creation request reaches the Kafka controller which writes a znode to ZooKeeper. ZAB replicates that write across the ZK ensemble. Once committed, ZK watches notify the other brokers, which then fetch the new metadata from ZooKeeper. This is the multi-step path that KRaft collapses into a single internal Raft replication.",
+      "steps": [
+        { "from": "client", "to": "b1", "label": "CreateTopic(vital-signs)", "type": "request" },
+        { "from": "b1", "to": "zk1", "label": "create znode", "type": "coordination" },
+        { "from": "zk1", "to": "zk2", "label": "ZAB PROPOSE", "type": "replicate" },
+        { "from": "zk1", "to": "zk3", "label": "ZAB PROPOSE", "type": "replicate" },
+        { "from": "zk2", "to": "zk1", "label": "ACK", "type": "ack" },
+        { "from": "zk3", "to": "zk1", "label": "ACK", "type": "ack" },
+        { "from": "zk1", "to": "zk2", "label": "COMMIT", "type": "commit" },
+        { "from": "zk1", "to": "zk3", "label": "COMMIT", "type": "commit" },
+        { "from": "zk1", "to": "b2", "label": "watch fires", "type": "notify" },
+        { "from": "zk1", "to": "b3", "label": "watch fires", "type": "notify" },
+        { "from": "b2", "to": "zk1", "label": "fetch metadata", "type": "coordination" },
+        { "from": "b3", "to": "zk1", "label": "fetch metadata", "type": "coordination" },
+        { "from": "b1", "to": "client", "label": "OK", "type": "response" }
+      ]
+    },
+    {
+      "id": "controller_failover_cold_start",
+      "title": "Controller failover: the cold-start problem",
+      "description": "The Kafka controller crashes. The other brokers race to claim the controller znode in ZooKeeper. The winner then has to rebuild its understanding of cluster metadata by reading back from ZK — the 'cold start'. For large clusters (thousands of partitions) this rebuild can take seconds to minutes, during which the cluster is in a degraded state. This is the architectural penalty the originality chapter of the thesis quantifies.",
+      "steps": [
+        { "type": "node_state", "node": "b1", "state": "crashed", "label": "Controller broker crashes" },
+        { "from": "b2", "to": "zk1", "label": "try to claim /controller", "type": "coordination" },
+        { "from": "b3", "to": "zk1", "label": "try to claim /controller", "type": "coordination" },
+        { "from": "zk1", "to": "b2", "label": "you are the new controller", "type": "notify" },
+        { "type": "node_state", "node": "b2", "state": "leader", "label": "b2 is new controller" },
+        { "from": "b2", "to": "zk1", "label": "rebuild: list all topics", "type": "coordination" },
+        { "from": "b2", "to": "zk1", "label": "rebuild: read each partition state", "type": "coordination" },
+        { "from": "b2", "to": "zk1", "label": "rebuild: read ACLs, configs", "type": "coordination" },
+        { "from": "b2", "to": "b3", "label": "now serving as controller", "type": "metadata" }
+      ]
+    }
+  ]
+}

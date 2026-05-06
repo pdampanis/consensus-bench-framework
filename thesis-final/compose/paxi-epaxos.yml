@@ -1,0 +1,56 @@
+# =============================================================================
+# Paxi running EPaxos (Egalitarian Paxos) - 3 replicas
+# =============================================================================
+# Same Paxi image as compose/paxi-paxos.yml, but with `-algorithm=epaxos`.
+# EPaxos is leaderless: any replica can become the opportunistic leader for
+# a command. This makes the protocol more resilient to the loss of any one
+# replica (no "leader" to lose) and spreads load uniformly.
+#
+# Our 3-replica setup is the smallest meaningful EPaxos cluster (tolerates
+# 1 failure with F=1).
+# =============================================================================
+
+networks:
+  thesis-net:
+    external: true
+
+x-paxi: &paxi-service
+  image: thesis-paxi:latest
+  restart: unless-stopped
+  networks:
+    - thesis-net
+  mem_limit: 200m
+  cpus: 0.5
+  volumes:
+    - ../docker/paxi/config.json:/work/config.json:ro
+
+x-healthcheck: &healthcheck
+  test: ["CMD-SHELL", "wget -q -O - http://localhost:8080/state >/dev/null 2>&1 || exit 1"]
+  interval: 5s
+  timeout: 3s
+  retries: 20
+  start_period: 15s
+
+services:
+  paxi1:
+    <<: *paxi-service
+    container_name: paxi1
+    hostname: paxi1
+    command: ["-id", "1.1", "-algorithm=epaxos", "-config", "/work/config.json"]
+    ports:
+      - "18080:8080"
+    healthcheck: *healthcheck
+
+  paxi2:
+    <<: *paxi-service
+    container_name: paxi2
+    hostname: paxi2
+    command: ["-id", "1.2", "-algorithm=epaxos", "-config", "/work/config.json"]
+    healthcheck: *healthcheck
+
+  paxi3:
+    <<: *paxi-service
+    container_name: paxi3
+    hostname: paxi3
+    command: ["-id", "1.3", "-algorithm=epaxos", "-config", "/work/config.json"]
+    healthcheck: *healthcheck

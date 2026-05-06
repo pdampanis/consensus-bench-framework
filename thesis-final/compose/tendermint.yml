@@ -1,0 +1,158 @@
+# =============================================================================
+# CometBFT (Tendermint) - 4-node BFT cluster with proper init
+# =============================================================================
+# The v1 Tendermint compose was non-functional because it had no init step to
+# generate the shared genesis.json and per-validator keys. This version uses
+# the Docker Compose init-container pattern:
+#
+#   1. `tm-init` runs `cometbft testnet`, producing node0/, node1/, node2/,
+#      node3/ directories with per-node config + genesis + keys. Exits 0.
+#   2. `tm1`..`tm4` start only after tm-init has exited successfully. Each
+#      copies its pre-generated config from the shared volume into its own
+#      CMTHOME and starts.
+#
+# 4 validators is the smallest meaningful BFT cluster: tolerates 1 Byzantine
+# fault (3f + 1 with f = 1).
+#
+# Memory: 4 × 400 MB = 1.6 GB. Trivial on a 32 GB machine.
+# =============================================================================
+
+volumes:
+  cmt-testnet: {}
+  tm1-data: {}
+  tm2-data: {}
+  tm3-data: {}
+  tm4-data: {}
+
+networks:
+  thesis-net:
+    external: true
+
+x-validator: &validator
+  image: cometbft/cometbft:v0.38.12
+  networks:
+    - thesis-net
+  mem_limit: 400m
+  cpus: 0.5
+  depends_on:
+    tm-init:
+      condition: service_completed_successfully
+  environment:
+    CMTHOME: /cometbft
+
+x-validator-healthcheck: &healthcheck
+  test: ["CMD-SHELL", "wget -q -O - http://localhost:26657/health >/dev/null 2>&1 || exit 1"]
+  interval: 5s
+  timeout: 3s
+  retries: 20
+  start_period: 30s
+
+services:
+
+  tm-init:
+    image: cometbft/cometbft:v0.38.12
+    container_name: tm-init
+    networks:
+      - thesis-net
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        if [ -f /testnet/node0/config/genesis.json ]; then
+          echo "testnet already generated, skipping"
+          exit 0
+        fi
+        cometbft testnet \
+          --v 4 \
+          --o /testnet \
+          --populate-persistent-peers \
+          --hostname-prefix "tm" \
+          --hostname-suffix "" \
+          --hostname "tm1,tm2,tm3,tm4"
+        echo "testnet generated successfully"
+    volumes:
+      - cmt-testnet:/testnet
+    restart: "no"
+
+  tm1:
+    <<: *validator
+    container_name: tm1
+    hostname: tm1
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        cp -r /testnet/node0/* /cometbft/
+        exec cometbft node \
+          --proxy_app=kvstore \
+          --rpc.laddr=tcp://0.0.0.0:26657 \
+          --p2p.laddr=tcp://0.0.0.0:26656 \
+          --instrumentation.prometheus=true \
+          --instrumentation.prometheus_listen_addr=:26660
+    volumes:
+      - cmt-testnet:/testnet:ro
+      - tm1-data:/cometbft
+    ports:
+      - "26657:26657"
+    healthcheck: *healthcheck
+
+  tm2:
+    <<: *validator
+    container_name: tm2
+    hostname: tm2
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        cp -r /testnet/node1/* /cometbft/
+        exec cometbft node \
+          --proxy_app=kvstore \
+          --rpc.laddr=tcp://0.0.0.0:26657 \
+          --p2p.laddr=tcp://0.0.0.0:26656 \
+          --instrumentation.prometheus=true \
+          --instrumentation.prometheus_listen_addr=:26660
+    volumes:
+      - cmt-testnet:/testnet:ro
+      - tm2-data:/cometbft
+    healthcheck: *healthcheck
+
+  tm3:
+    <<: *validator
+    container_name: tm3
+    hostname: tm3
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        cp -r /testnet/node2/* /cometbft/
+        exec cometbft node \
+          --proxy_app=kvstore \
+          --rpc.laddr=tcp://0.0.0.0:26657 \
+          --p2p.laddr=tcp://0.0.0.0:26656 \
+          --instrumentation.prometheus=true \
+          --instrumentation.prometheus_listen_addr=:26660
+    volumes:
+      - cmt-testnet:/testnet:ro
+      - tm3-data:/cometbft
+    healthcheck: *healthcheck
+
+  tm4:
+    <<: *validator
+    container_name: tm4
+    hostname: tm4
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        cp -r /testnet/node3/* /cometbft/
+        exec cometbft node \
+          --proxy_app=kvstore \
+          --rpc.laddr=tcp://0.0.0.0:26657 \
+          --p2p.laddr=tcp://0.0.0.0:26656 \
+          --instrumentation.prometheus=true \
+          --instrumentation.prometheus_listen_addr=:26660
+    volumes:
+      - cmt-testnet:/testnet:ro
+      - tm4-data:/cometbft
+    healthcheck: *healthcheck

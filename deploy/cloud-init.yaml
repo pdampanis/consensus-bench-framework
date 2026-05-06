@@ -1,0 +1,81 @@
+#cloud-config
+# =============================================================================
+# Hetzner cloud-init for consensus benchmark nodes
+#
+# Applied on first boot. Installs Docker, tunes the kernel for low-latency
+# networking, disables swap, and sets up the thesis user environment.
+# Takes ~2-3 minutes to complete. Check status: tail -f /var/log/cloud-init-output.log
+# =============================================================================
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - ca-certificates
+  - curl
+  - gnupg
+  - lsb-release
+  - jq
+  - python3-pip
+  - python3-venv
+  - tuned
+  - tmux
+  - htop
+  - net-tools
+  - iproute2
+  - iptables
+  - stress-ng
+  - dnsutils
+
+write_files:
+  - path: /etc/sysctl.d/99-consensus-bench.conf
+    content: |
+      # Low-latency tuning for consensus benchmarks
+      net.core.rmem_max = 134217728
+      net.core.wmem_max = 134217728
+      net.ipv4.tcp_rmem = 4096 87380 134217728
+      net.ipv4.tcp_wmem = 4096 65536 134217728
+      net.ipv4.tcp_low_latency = 1
+      net.ipv4.tcp_fastopen = 3
+      net.core.default_qdisc = fq
+      net.ipv4.tcp_congestion_control = bbr
+      vm.swappiness = 0
+    permissions: '0644'
+
+  - path: /root/cloud-init.log
+    content: |
+      cloud-init started at $(date -Iseconds)
+    permissions: '0644'
+
+  # Mark completion for setup_cluster.sh to detect
+  - path: /root/.cloud-init-done
+    content: |
+      cloud-init complete at $(date -Iseconds)
+    permissions: '0644'
+
+runcmd:
+  # Install Docker
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  - chmod a+r /etc/apt/keyrings/docker.gpg
+  - echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+  - apt-get update && apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+  # Apply sysctl tuning
+  - sysctl --system
+
+  # Disable swap (consensus benchmarks need predictable memory)
+  - swapoff -a
+  - sed -i '/\sswap\s/d' /etc/fstab || true
+
+  # Enable and configure tuned
+  - systemctl enable --now tuned
+  - tuned-adm profile latency-performance
+
+  # Enable BBR congestion control
+  - modprobe tcp_bbr || true
+
+  # Write completion marker
+  - date -Iseconds > /root/.cloud-init-done
+
+final_message: "Thesis benchmark node ready after $UPTIME seconds."

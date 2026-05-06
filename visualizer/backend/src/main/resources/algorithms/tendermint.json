@@ -1,0 +1,62 @@
+{
+  "name": "Tendermint",
+  "family": "BFT",
+  "summary": "Tendermint is a Byzantine-fault-tolerant consensus algorithm with rotating proposers. Every round has a designated proposer who broadcasts a block; validators then run a two-phase vote (Prevote, Precommit) before committing. It tolerates up to f Byzantine validators in a cluster of 3f+1.",
+  "nodes": [
+    { "id": "v1", "label": "Validator 1 (proposer)", "role": "leader",   "x": 400, "y": 100 },
+    { "id": "v2", "label": "Validator 2", "role": "follower", "x": 200, "y": 260 },
+    { "id": "v3", "label": "Validator 3", "role": "follower", "x": 600, "y": 260 },
+    { "id": "v4", "label": "Validator 4", "role": "follower", "x": 400, "y": 440 },
+    { "id": "client", "label": "Client",  "role": "client",   "x": 80,  "y": 150 }
+  ],
+  "edges": [
+    { "from": "client", "to": "v1" },
+    { "from": "v1", "to": "v2" },
+    { "from": "v1", "to": "v3" },
+    { "from": "v1", "to": "v4" },
+    { "from": "v2", "to": "v3" },
+    { "from": "v2", "to": "v4" },
+    { "from": "v3", "to": "v4" }
+  ],
+  "scenarios": [
+    {
+      "id": "normal_round",
+      "title": "Normal round: Propose, Prevote, Precommit, Commit",
+      "description": "The designated proposer for this round broadcasts a block. Validators run two all-to-all voting rounds (Prevote and Precommit). Once a validator sees 2f+1 Precommits for the same block, it commits.",
+      "steps": [
+        { "from": "client", "to": "v1", "label": "tx", "type": "request" },
+        { "from": "v1", "to": "v2", "label": "Propose(block)", "type": "replicate" },
+        { "from": "v1", "to": "v3", "label": "Propose(block)", "type": "replicate" },
+        { "from": "v1", "to": "v4", "label": "Propose(block)", "type": "replicate" },
+        { "from": "v2", "to": "v1", "label": "Prevote", "type": "vote" },
+        { "from": "v2", "to": "v3", "label": "Prevote", "type": "vote" },
+        { "from": "v2", "to": "v4", "label": "Prevote", "type": "vote" },
+        { "from": "v3", "to": "v1", "label": "Prevote", "type": "vote" },
+        { "from": "v3", "to": "v2", "label": "Prevote", "type": "vote" },
+        { "from": "v3", "to": "v4", "label": "Prevote", "type": "vote" },
+        { "from": "v4", "to": "v1", "label": "Prevote", "type": "vote" },
+        { "from": "v4", "to": "v2", "label": "Prevote", "type": "vote" },
+        { "from": "v4", "to": "v3", "label": "Prevote", "type": "vote" },
+        { "from": "v1", "to": "v2", "label": "Precommit", "type": "commit" },
+        { "from": "v2", "to": "v1", "label": "Precommit", "type": "commit" },
+        { "from": "v3", "to": "v4", "label": "Precommit", "type": "commit" },
+        { "from": "v4", "to": "v3", "label": "Precommit", "type": "commit" },
+        { "from": "v1", "to": "client", "label": "block committed", "type": "response" }
+      ]
+    },
+    {
+      "id": "faulty_proposer",
+      "title": "Proposer crash: proposer rotates, round increments",
+      "description": "The round-N proposer crashes before sending Propose. After the propose timeout, every validator moves to round N+1 with a new designated proposer. This is where the adaptive-timeout-driven latency pattern from the Pedone paper comes from.",
+      "steps": [
+        { "type": "node_state", "node": "v1", "state": "crashed", "label": "Proposer v1 crashes" },
+        { "type": "timeout", "node": "v2", "label": "propose timeout" },
+        { "type": "timeout", "node": "v3", "label": "propose timeout" },
+        { "type": "timeout", "node": "v4", "label": "propose timeout" },
+        { "type": "node_state", "node": "v2", "state": "leader", "label": "v2 is the round-(N+1) proposer" },
+        { "from": "v2", "to": "v3", "label": "Propose(round N+1)", "type": "replicate" },
+        { "from": "v2", "to": "v4", "label": "Propose(round N+1)", "type": "replicate" }
+      ]
+    }
+  ]
+}
