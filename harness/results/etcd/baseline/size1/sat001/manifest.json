@@ -1,0 +1,13 @@
+{
+  "system": "etcd",
+  "scenario": "baseline",
+  "cluster_size": 1,
+  "run_id": "sat001",
+  "started_at": "2026-07-03T01:06:08.681883176Z",
+  "ended_at": "2026-07-03T01:06:29.207199657Z",
+  "warmup_secs": 5,
+  "ops_after_warmup": 15312,
+  "errors": 0,
+  "status": "complete",
+  "harness": "consensus-bench-java"
+}

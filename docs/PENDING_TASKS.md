@@ -1,0 +1,428 @@
+# Pending Tasks — Prioritized Backlog + Status Ledger
+
+**Last updated: 2026-07-08.** Companion to `IMPLEMENTATION_PLAN.md`
+(milestone-ordered M0→M6). This file is **priority-ordered for the current
+push** and doubles as the handoff ledger: a fresh session should be able to
+read this file plus `PROJECT_STATE.md` and know exactly what is done (with
+evidence), what is next, and why. When this file and `IMPLEMENTATION_PLAN.md`
+disagree on *order*, this file wins; on *acceptance criteria*, the plan wins.
+Authority order unchanged: **live code > plan + methodology > this
+file/overview > docs/archive**.
+
+---
+
+## Status snapshot (2026-07-08)
+
+**DONE and verified by execution** (see PROJECT_STATE §3 for detail):
+- M0 vertical slice vs real etcd; M1.1 `mvn21 clean verify` green (shade fix).
+- **P0.0 Terraform layer**: `infra/cloud-init.yaml` created;
+  `infra/main.tf` reworked (count/type variables for D8/D9, loadgen→ccx13 per
+  D11, spread placement group, computed cost output, `count<=7` guardrail).
+  Verified locally with terraform 1.9.8: `fmt`, `init`, `validate` green;
+  dummy-token `plan` green for all three phase shapes (A: 11 resources
+  €0.292/h; B count=7: node7=10.0.0.17, €0.567/h; C 4×ccx23: €0.636/h);
+  count=8 correctly rejected. **NOT yet applied — G2 gate intact.**
+- **Prometheus retrieval fix (review F3)**: per-target `role` labels in
+  `observability/prometheus.yml` (instance-name matching could never fire);
+  `loadgen_cpu` rewritten on `role="loadgen"`, `loadgen_cpu_steal` added
+  (D11), ZK scrape job added (D10). Verified: `promtool check config` green;
+  all 22 export queries parse via `promtool check rules`.
+- Docs: `CAMPAIGN_RUNBOOK.md` created (topology, phases, cost, durations,
+  storage, retrieval protocol, no-Ansible decision); MASTER_PLAN gained
+  D10/D11; methodology §1/§4 updated; IMPLEMENTATION_PLAN M3 substrate note.
+- **P0.1, P1.5, P0.4 code increments (TDD, red→green)** — see their sections
+  below. Suite: **18 tests green**; three real bugs found and fixed along the
+  way (shaded-jar NOP logging, engine drain race, zero-second dropping).
+  Manual verification guide: `docs/LOCAL_TESTING.md`.
+
+**Decisions locked 2026-07-08**: D10 (ZK colocated on broker nodes),
+D11 (loadgen on dedicated vCPU), no-Ansible (runbook §6).
+
+**The 2026-07-08 hard review** produced findings F1–F17 (ledger at the bottom
+of this file maps each to a task). The pattern it caught: methodology claims
+without implementation coverage — every such claim now has a task below.
+
+**P0 AND P1 ARE FULLY CLOSED (2026-07-09); P2.1 (jetcd) IS DONE.** The
+measurement instrument is complete and pinned, and the first production
+driver (etcd/jetcd, leader detection cross-validated) rides the local loop
+from the shaded jar. Suite: 51 tests green. **Next: P2.2 KafkaDriver**
+(extend LocalDockerProvider to KRaft; acceptance = within 15% of
+kafka-producer-perf-test — the G1 flaw-B regression). Manual verification:
+**`docs/LOCAL_TESTING.md`**.
+
+---
+
+## How to read a task
+
+Each task carries: **Why** (the problem it solves) · **Deliverable** (files) ·
+**TDD acceptance** (the test written *first*, red→green) · **Deps** · **Notes**.
+A task is *done* only when its acceptance test is green **and** run-verified
+(execute, don't assert — M0 is the template).
+
+## Engineering standards (apply to every task — do not restate per task)
+
+- **Karpathy / TDD.** One component per increment; write the failing test first,
+  watch it fail for the right reason, make it pass, refactor. Stop at each
+  checkpoint and surface *done / next / uncertain*. Confirm before large batches.
+- **Simplicity first.** Minimum code that passes the test; no speculative
+  abstraction, config, or error handling beyond what the task needs. If 200
+  lines could be 50, write 50.
+- **Modular & readable.** Small classes behind the existing SPIs
+  (`ConsensusDriver`, `ClusterProvider`); one responsibility each; names that a
+  reviewer reads without the comment.
+- **Comments explain *what happens and why*, not the syntax.** Match the density
+  already in the skeleton (see `WorkloadEngine`/`ConsensusDriver` headers).
+- **Correct, explicit error handling — fail closed.** No swallowed failures
+  (v6's `|| true` disease). An unresolved input (dead container, missing leader,
+  bad status, **empty metric series**) throws or fails the gate with a message
+  that says *what* and *which node/endpoint*; nothing silently defaults.
+- **Performance where it's measured.** The per-op path stays allocation-light
+  (no logging, no boxing, no string building inside `write()`/`record()`); setup
+  and teardown can be liberal.
+- **Verbose logging behind a flag.** slf4j everywhere. `-v/--verbose` raises the
+  level to DEBUG and logs every **phase boundary** (deploy, wait-healthy,
+  connect, warmup start/end, fault inject, teardown) and per-second throughput —
+  never inside the hot per-op path when off. Default INFO stays quiet and useful.
+
+---
+
+## P0 — Local automated deploy → test → teardown — **GOAL ACHIEVED 2026-07-08**
+
+Goal was: **one command** brings up a fresh etcd cluster in Docker, runs the
+harness against it, writes the standard results, tears everything down —
+fast, repeatable, no leaked containers. Delivered:
+`java -jar consensus-bench.jar local-run --size {1|3} --rate R --duration D [-v]`
+— measured **7.6 s** (size 1) / **8.2 s** (size 3) wall-clock for the whole
+clean→deploy→run→teardown loop from the shaded jar (target was <30 s).
+Substrate: Docker via Testcontainers implementing `topology.ClusterProvider`.
+
+### P0.0 — Terraform + cloud-init, locally verified — **DONE 2026-07-08**
+Evidence in the status snapshot above. Residual (moved to P3.5): confirm
+plan names/prices with `hcloud server-type list` before first apply.
+
+### P0.1 — Logging + `--verbose` foundation — **DONE 2026-07-08 (TDD, run-verified)**
+- **Red→green.** `ArgParserTest` (5 tests, the repo's first) written first; 4
+  failed for the right behavioral reasons (bare `-v` ignored / eats next key /
+  no fail-closed throw); minimal parser fix → 5/5 green. Parser now: `--key
+  value` pairs, bare `-v/--verbose` anywhere, `IllegalArgumentException` on a
+  trailing key (fail closed).
+- **Logging.** slf4j in `Main`/`WorkloadEngine`/`EtcdHttpDriver`; printf →
+  INFO; DEBUG phase boundaries only *outside* the hot loop; warmup-end +
+  per-second throughput come from a verbose-only daemon reporter thread that
+  reads the engine's atomics — the per-op path is byte-identical with `-v`
+  on or off. `Main` holds no static logger (slf4j-simple freezes config on
+  first `LoggerFactory` call; `-v` must decide first).
+- **Run-verified** vs real etcd 3.4.30 in Docker: without `-v` → 4 INFO lines;
+  with `-v` → same INFO + connect/warmup-start/warmup-end/drain/close phases
+  + `t=Ns committed=100 ops` per second at the 100 ops/s target; manifest
+  contract unchanged; zero leftover containers.
+- **Bonus find (real bug).** The `-v` smoke exposed that the shaded jar's
+  logging was silently NOP since M1.1: kafka-clients' slf4j-api **1.7.36**
+  won Maven mediation over slf4j-simple's 2.0.16 (1.x API can't see a 2.x
+  provider), and shade wasn't merging `META-INF/services`. Fixed: direct
+  `slf4j-api:2.0.16` dep + shade `ServicesResourceTransformer` (which M2.1's
+  gRPC needed anyway). Dependency tree now shows only 2.0.16.
+
+### P0.2 — `LocalDockerProvider` (etcd, size 1 and 3) — **DONE 2026-07-08 (TDD)**
+- **Delivered.** `topology.LocalDockerProvider` (main code, ships in the
+  uber-jar for P0.3): etcd v3.4.30 pinned **by registry digest** (D2),
+  one Docker network per cluster with etcd1..N aliases, per-member
+  `/health` readiness gate, **parallel start** via `Startables.deepStart`
+  (an etcd member only answers /health once quorum exists — a sequential
+  start would deadlock on its own gate), `thesis-*` container names,
+  Ryuk-backed teardown, fail-closed on unsupported systems/reuse.
+- **Acceptance (red→green, real Docker):** size 1 — healthy, committed PUT,
+  stop() leaves zero `thesis-*` containers. size 3 — quorum write; **kill 1
+  of 3 → writes keep committing after re-election (≤20 s); kill 2 of 3 →
+  writes FAIL** (no fabricated commits); cleanup clean even with killed
+  members. Unsupported system → typed error. 3 tests, ~15 s.
+- **Environment quirk found (real):** Docker Engine 29.6 enforces min API
+  1.40; Testcontainers ≤1.21.3 pins client API 1.32 and fails the daemon
+  probe with "client version 1.32 is too old". **Pin ≥1.21.4** (done). Suite
+  now REQUIRES a local Docker daemon; uber-jar grew 52→77 MB (docker-java).
+
+### P0.3 — `local-run` one-command orchestration — **DONE 2026-07-08 (TDD)**
+- **Delivered.** `Main` now dispatches two commands: default endpoint-run (M0
+  behavior) and `local-run` (P0.3) — `LocalDockerProvider.removeLeftovers()`
+  pre-clean (idempotent, WARN per removed container), fresh cluster, engine
+  run, CSV/manifest, teardown via try-with-resources (guaranteed on any
+  exit path). Container-library INFO chatter silenced at default level so
+  quiet mode stays 5 summary lines; `-v` shows everything.
+- **Acceptance (red→green + CLI):** integration test plants a leftover
+  `thesis-*` container, runs `local-run` twice in a row → complete manifests
+  (`status=complete`, `errors=0`), zero survivors both times. From the shaded
+  jar: size 1 = **7.6 s**, size 3 = **8.2 s** wall-clock (target <30 s);
+  size-3 results land under `.../size3/` (the v6 collision-proofing visible).
+- Suite: **22 tests green.**
+
+### P0.4 — Quick correctness fixes in writer/SPI — **DONE 2026-07-08 (TDD, red→green each)**
+1. **Zero-second dropping fixed.** `write()` now takes `durationSecs` and
+   writes EVERY run-window second zeros included (a zero-commit second is
+   stall evidence); only drain-buffer seconds (t ≥ duration) are filtered to
+   nonzero. Red test: synthetic 400 s Result with a zero at t=310 → row was
+   missing → now present.
+2. **Manifest honesty.** Manifest gains `duration_secs` and `error_rate`
+   (whole-run failure fraction, `%.4f`); status is `failed` when ops==0 OR
+   error_rate > 0.5 — a majority-failed run may not claim `complete` (finer
+   judgment stays with ValidityChecker M5.5). Red tests: 90%-error run
+   claimed `complete`, `error_rate` didn't exist.
+3. **`close()` never swallows.** Failure during `stop()` is logged at WARN
+   (teardown continues). Test captures stderr and asserts the failure text is
+   visible; second test pins no-throw + stop-attempted.
+4. **duration>warmup guard.** `Main.requireDurationExceedsWarmup` fails closed
+   before any work; CLI-verified (`--duration 5 --warmup 5` → IAE, nothing
+   written).
+- Suite: **18/18 green** (`mvn21 clean verify`); jar re-smoked vs etcd 3.4.30:
+  clean manifest (`error_rate: 0.0000`, `status: complete`) and dead-cluster
+  run (`error_rate: 1.0000`, `status: failed`, zero fabricated samples).
+
+---
+
+## P1 — Workload-model correctness  *(unblocks trustworthy numbers)*
+
+Recommended order: **P1.5 first** (pin current behavior), then P1.1 → P1.2 →
+P1.3 → P1.4 → P1.6.
+
+### P1.5 — WorkloadEngine characterization tests (FakeDriver) — **DONE 2026-07-08**
+- **Delivered.** `FakeDriver` (test scope: fixed service delay on its own
+  scheduler thread, programmable stall window, fail-all mode) + 6
+  characterization tests, all green (`WorkloadEngineTest`): open-loop rate
+  adherence; **drain accounts for every issued op**; buckets sum == histogram
+  count; warmup flagging; **CO correction** (1 s stall → ~100 scheduled ops
+  charged their queueing delay: p50 fast, p90 ≥ 300 ms, max ≈ full stall — a
+  CO-blind measurement would show one slow op); dead cluster → errors only,
+  zero fabricated samples. Tolerances discriminate by order of magnitude —
+  not flaky.
+- **Engine fix that fell out (traced, surgical).** Inspection while pinning
+  the drain invariant found `inFlight.release()` ran *before*
+  `recorder.record()` in the completion callback — the drain barrier could
+  complete while final callbacks were mid-record, silently losing up to a
+  window of samples from the Result (µs-wide race; test passed by luck).
+  Fixed: release moved into a `finally` AFTER recording, making the pinned
+  invariant deterministic. `mvn21 clean verify`: 11/11 green.
+
+### P1.1 — Key contract: int keyId, K=1000 reuse, per-driver encoding — **DONE 2026-07-08 (TDD)**
+- **RED was real:** the keyspace test against the old engine measured
+  **778,324 distinct keys over 778,324 ops** — every key unique, zero
+  contention possible, D7 unfireable. Executable proof, not just diagnosis.
+- **Delivered.** `ConsensusDriver.write(int keyId, byte[] value)` with
+  `KEY_SPACE = 1000` as the SPI contract constant (Paxi Table 3); the typed
+  int makes the append-the-op-index bug *inexpressible*. Engine `keyFor()`
+  draws uniform ints, no per-op allocation (P1.2 adds conflict routing
+  there). Each driver owns its encoding, precomputed at `connect()` so the
+  per-op path builds no key strings: etcd `bench/k<id>` (base64 cache),
+  Paxi `/<id>` (full URI table) — numeric-only, as Paxi's Atoi demands
+  (re-verify vs paxi/http.go at P2.4).
+- **Green:** keyspace bounded ≤1000 AND coverage ≥950 over 10⁴+ ops;
+  encoding pins for both drivers; full suite **25 tests green** including
+  all Docker integration tests re-passing on the new contract.
+
+### P1.2 — Conflict-ratio knob (D7) + result-path dimension — **DONE 2026-07-08 (TDD)**
+- **Delivered.** `Config.conflictRatio` (validated in the record compact
+  constructor: [0,1], NaN rejected — fail closed at construction, not at
+  runtime); `keyFor(c)` routes fraction `c` to **key 0, exclusive to
+  conflict traffic** (uniform traffic draws [1,1000)) so the realized
+  fraction equals `c` *by construction* — no (1−c)/K bias, which would
+  matter most at the smallest sweep point c=2%. `RunIdentity.conflictRatio`
+  → path segment `c<pct>` **only when c>0** (non-Paxi tree + committed M0
+  results keep their layout; c>0 vs c=0 can't collide — extra segment) +
+  `conflict_ratio` manifest field. **Whole percents only** in the identity:
+  0.025 would render as its rounding neighbor and silently merge two cells
+  (v6 collision class) → IAE. `--conflict` on both CLI commands.
+- **Acceptance (green, non-flaky by design):** realized fraction within
+  ±0.015 of c ∈ {2%,10%} at n≥10⁴ (≥5σ band); **c=0 ⇒ exactly zero writes
+  to key 0**; construction rejects −0.01/1.01/NaN; path pins for c10 and
+  the c=0 legacy shape; manifest field golden-checked. CLI run-verified:
+  `--conflict 0.10` → `.../size1/c10/c10a/` + `"conflict_ratio": 0.10`;
+  `--conflict 1.5` fails fast. Suite: **31 tests green.**
+
+### P1.3 — HdrHistogram + true mean + `.hlog` persistence + Little's-Law self-test — **DONE 2026-07-09 (TDD)**
+- **Delivered.** `LatencyRecorder` internals → two `ConcurrentHistogram`s
+  (all/warm; 3 significant digits = 0.1% precision vs the stand-in's ~3%;
+  wait-free recording on the hot path; **auto-resizing**, because
+  CO-corrected latencies during a long stall reach tens of seconds and a
+  fixed ceiling would throw away exactly the samples a failover study
+  needs). Same API + `meanMicros()` (true mean) + `warmSnapshot()` (copy —
+  callers can't mutate live state). Writer: `avg` = true mean (placeholder
+  gone) and **`latency.hlog`** in standard HistogramLogWriter v1.3 format
+  (readable by HdrHistogram tooling + analyse.py v2), interval stamped
+  [measurement start, run end], unit documented in the header comment.
+- **Acceptance (red→green):** percentiles within 0.1% on a known 10⁴ set;
+  skewed set → mean ≈ 1099.9 ≫ p50 = 100; warmup samples excluded from
+  every statistic incl. max; **merge-two-snapshots == histogram of all raw
+  samples** (the §3 pooling path proven); **.hlog round-trip** re-reads to
+  the same count/percentiles; **Little's-Law self-test** (saturation:
+  throughput × mean ≈ window, three independently measured quantities —
+  M0's lucky corroboration is now a permanent regression test). Jar
+  run-verified: real run dir contains latency.hlog; avg=2837 vs p50=2263.
+  Suite: **38 tests green.** The M0 caveat "no result trusted until real
+  HdrHistogram" is closed.
+
+### P1.4 — Failover instrumentation: timestamped events — **DONE 2026-07-09 (TDD)**
+- **Delivered.** `core.EventLog`: preallocated `long[]`, lock-free
+  claimed-slot append (one long/event: rel-nanos, errors as −(rel+1)),
+  **opt-in** via a 4-arg engine constructor (3-arg keeps the hot path
+  event-free — pinned by test); **one clock domain** (events + fault mark
+  both System.nanoTime in the harness JVM — chrony is irrelevant to this
+  number); `faultInjectedNow()` for the injector thread;
+  `failoverMillis()` = first commit at-or-after the mark (linear scan at
+  results time). **Overflow drops loudly** (dropped counter for the
+  validity layer), never crashes, never truncates silently. `Result.events`
+  (null for baseline runs; secondary constructor keeps existing callers).
+- **Acceptance (red→green):** unit — 70 ms gap recovered from synthetic
+  nanos; no-recovery ⇒ empty (never fabricated); overflow ⇒ dropped
+  counted. Engine — off-by-default; every completion an event
+  (drain-guaranteed); **scripted-stall end-to-end**: fault marked mid-stall
+  from another thread, recovered failover ≈ (2.0 s − mark) within 150 ms;
+  dead cluster ⇒ error events only, no failover number. Suite: **45 green.**
+- **Residual (owned by P1.6/M3.3):** `fault_injected_at`/`failover_ms` into
+  the manifest (writer side), campaign runner sizes the log and calls
+  `faultInjectedNow()` at injection. Design choice recorded: events ride
+  the main workload, NOT a separate probe lane (a second traffic class
+  would perturb the workload it measures).
+
+### P1.6 — Manifest v2: pin what the methodology says is pinned — **DONE 2026-07-09 (TDD)**
+- **Delivered.** Manifest now pins: load params (`rate_ops_s`, `window`,
+  `value_size_bytes` — writer takes the whole `Config`), **`environment`**
+  (`local|hetzner`; Main always writes "local" — the "hetzner" tag belongs
+  exclusively to the campaign runner on the loadgen VM), **`image`** (the
+  digest-pinned ref from the provider; **honest `null`** for endpoint-run —
+  we didn't start that cluster, we don't claim to know it),
+  **`harness_version`** (jar Implementation-Version via a shade
+  manifestEntry; "dev" from classes), **`config_hash`** (12 hex of SHA-256
+  over every cell-defining input — same hash ⇒ same experiment), and
+  P1.4's **`fault_injected_at_ms` / `failover_ms`** (explicit nulls for
+  baseline; absent ≠ zero). EventLog gained `faultMarkMillis()` so gate 3
+  can align its Prometheus corroboration window.
+- **Acceptance (red→green):** params/environment/image/version pins;
+  **hash deterministic across identical writes AND sensitive to a changed
+  param**; fault fields null → real (25/70 ms fixture) → mark-without-
+  recovery keeps failover null. Jar run-verified: live manifest carries the
+  real registry digest, version 0.1.0-SNAPSHOT, hash, all params. Suite:
+  **49 tests green.** All of methodology §1's manifest claims are now true.
+
+---
+
+## P2 — Real drivers  → **Gate G1**  *(develop against P0's local clusters)*
+
+- **P2.1 — jetcd `EtcdDriver` + leader detection — DONE 2026-07-09 (TDD).**
+  Native async gRPC put (commit semantics identical to the HTTP 200);
+  `connect()` precomputes all 1000 `ByteSequence` keys AND fail-closes on a
+  status probe before any latency sample; `currentLeaderIndex()` scans
+  every endpoint's maintenance status for the member whose own id equals
+  the leader id (endpoint order = node order); dead members logged and
+  skipped, no-leader ⇒ `Optional.empty()` (election in progress — honest
+  absence). **Acceptance green vs real Docker:** committed writes; detected
+  leader **cross-validated against the HTTP-gateway stack** (two
+  independent client stacks agreeing — not circular); kill the DETECTED
+  leader → new different leader within 30 s → writes keep committing on
+  2/3; key encoding pinned identical to EtcdHttpDriver (G3 needs one
+  keyspace). `local-run` now uses EtcdDriver (production path);
+  EtcdHttpDriver stays as endpoint-run fallback + G3 cross-check.
+  **Shaded-jar proof:** jetcd/gRPC from the uber-jar drove a 3-node quorum
+  (451 commits, 0 errors) — the ServicesResourceTransformer is exercised,
+  not assumed. jetcd 0.8.5 note: `statusMember(String)`. Suite: **51 green.**
+- **P2.2 — `KafkaDriver`** (producer, `acks=all`, callback-timed commit).
+  Acceptance: within 15% of `kafka-producer-perf-test` (G1 flaw-B regression).
+- **P2.3 — `CometBftDriver`** (async `broadcast_tx_commit`, window ≥ 200).
+  Acceptance: sustained > 300 tx/s (G1 flaw-A regression).
+- **P2.4 — Paxi leader detection** (`/state` parse) + exercise P1.2 knob.
+- **P2.5 — HotStuff SUMMARY parser** (class + fixture test).
+- **P2.6 — Safety oracle scope decision + implementation** *(2026-07-07 review)*.
+  Methodology §4.2's durability probe covers Kafka/etcd/CometBFT only. Extend:
+  Paxi GET read-back sample audit; HotStuff documented as no-oracle (loud
+  caveat in every figure). Evaluate **Porcupine** (Go linearizability checker)
+  on etcd histories as a stretch goal; decide before M5.5 lands.
+- **P2.0 (conditional) — Scheduler scaling** *(review F8)*. The single-threaded
+  open-loop scheduler (parkNanos jitter + inline submit cost) may cap
+  achievable rate below Kafka's saturation. Trigger: G1 shows achieved <99%
+  of target at required rates. Response: shard the schedule across N threads
+  with per-thread phase offsets (mechanical; design note only until triggered).
+
+*Extend `LocalDockerProvider` per system as its driver lands (KRaft trio,
+Kafka+ZK per D10 — zk1-3 + broker1-3 colocated, CometBFT testnet, Paxi trio).*
+
+---
+
+## P3 — Infra & remote  *(apply/billing gated behind G2; authoring is not)*
+
+- **P3.1 — `cloud-init.yaml` — DONE 2026-07-08** (see snapshot).
+- **P3.2 — `main.tf` D8/D9/D11 parameters — DONE 2026-07-08** (see snapshot).
+- **P3.3 — `RemoteSshProvider` + FaultInjector + golden tests** (G2 — human
+  read-through of recorded remote command sequences before any VM is billed).
+  Notes: evaluate **Pumba** (runs on each VM, Docker-native kill/netem — no
+  data-path hop) as the fault executor vs hand-rolled `tc`/`iptables`; golden
+  tests bind either way. Fault semantics to preregister while writing goldens
+  (review F13): PARTITION isolates the *leader* (not node 0), PACKET_LOSS %
+  becomes a parameter, DOUBLE_KILL on BFT n=4 is an intentional
+  liveness-loss demonstration (2 > f=1) and is documented as such.
+- **P3.4 — Canary** (one etcd cell on 2 temporary VMs, < €0.10).
+- **P3.5 — Pre-apply price/plan verification.** `hcloud server-type list` →
+  confirm ccx13/ccx23/ccx33/cpx21 names + prices; sync `local.hourly_eur` in
+  main.tf and the runbook §2 table. (cpx21 price is unconfirmed post-2026-06.)
+
+---
+
+## P4 — Observability & validity (M5, after canary)
+
+- **P4.5 — SUT log + docker-events capture per block** *(gap found by the
+  2026-07-09 execution/cost review — see EXECUTION_AND_COST_MODEL §6)*.
+  After each system block (and after every fault run), pull `docker logs`
+  of every SUT container and a `docker events` audit into
+  `logs/<system>/<runId>/` on the loadgen, collected to the laptop with the
+  results tree. **HotStuff hard-depends on this** (its client SUMMARY lines
+  are its only metrics source, P2.5 parses them) and validity gate 4 needs
+  the events audit. TDD: local-run variant captures a container's log;
+  fixture test that a restart appears in the events audit.
+
+- Role-label retrieval fix — **DONE 2026-07-08** (see snapshot).
+- **P4.1 — ValidityChecker** (M5.5) implements the six gates + the
+  **empty-series-fails rule** (methodology §4 meta-rule) + loadgen-steal (D11).
+- **P4.2 — PrometheusExporter** (M5.4) per runbook §5: ±15 s padding,
+  query_range step=5s, `metrics/*.csv` per run.
+- **P4.3 — ZK + JMX metric-name verification** (M5.2): the ZK :7000 metric
+  names and Kafka JMX names in `export_queries.txt` are unverified until the
+  exporters run — pin the jmx rules file in the repo and fixture-test both.
+- **P4.4 — Grafana dashboards as code** (M5.6, unchanged).
+
+Then M6 (calibration → pilot → campaign, Gate G3) per `IMPLEMENTATION_PLAN.md`
+and `CAMPAIGN_RUNBOOK.md`.
+
+---
+
+## Review-findings ledger (2026-07-08 hard review — nothing gets lost)
+
+| # | Finding (file:line) | Task | Status |
+|---|--------------------|------|--------|
+| F1 | No per-run histogram persistence → pooling impossible | P1.3 | **DONE** |
+| F2 | Failover uninstrumented (1s buckets only) | P1.4 | **DONE** (manifest field → P1.6) |
+| F3 | loadgen PromQL regex could never match | obs fix | **DONE** |
+| F4 | Key contract incompatible with Paxi int keys | P1.1 | **DONE** |
+| F5 | Manifest pins nothing methodology claims | P1.6 | **DONE** |
+| F6 | Zero tests; CO correction unpinned | P1.5, P0.4 | P1.5 **DONE** (11 tests green, drain race fixed); P0.4 pending |
+| F7 | `close()` swallows exceptions (ClusterProvider.java:31) | P0.4 | **DONE** |
+| F8 | Single-thread scheduler ceiling | P2.0 | conditional |
+| F9 | Loadgen shared vCPU + no steal gate | D11 + P4.1 | D11 **DONE**, gate pending |
+| F10 | Kafka+ZK topology undecided | D10 | **DONE (locked)** |
+| F11 | Magic `warmup+300` drops zero rows (CsvResultsWriter.java:47) | P0.4 | **DONE** |
+| F12 | status=complete under error mass (CsvResultsWriter.java:62) | P0.4 | **DONE** |
+| F13 | Fault semantics unregistered (ClusterProvider.java:44-52) | P3.3 | pending |
+| F14 | No placement group; stale cost; missing cloud-init | P0.0 | **DONE** |
+| F15 | analyse.py/visualizer absent though contract targets them | see note | open |
+| F16 | Plan M3 substrate conflict | plan amended | **DONE** |
+| F17 | Nits: charset, div-zero, HttpClient close, max≈bucketMid, tag-pins, JMX names | P0.4/P1.1/P1.3/P4.3 | div-zero, charset, max (HDR exact) **DONE**; HttpClient-close + tag-pins + JMX names pending |
+
+F15 note: locate `analyse.py` + the React visualizer in the pre-rebuild
+archive and vendor them (or a golden contract test) into this repo before
+M6.4 — the "EXACT output contract" is otherwise unverifiable. Not yet a
+numbered task because the source location is outside this repo; resolve with
+the author.
+
+---
+
+## Immediate next increment (proposed)
+
+**P0.1 (logging + `-v`)** — small, unblocks debuggable everything — then
+**P1.5** (pin the engine) before any engine change, then **P0.2**
+(LocalDockerProvider size 1) TDD. Confirm and implement one at a time
+(test → code → run → checkpoint).

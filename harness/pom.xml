@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- consensus-bench: unified consensus benchmark harness.
+     NOTE: dependency RESOLUTION is unverified in the authoring sandbox
+     (no Maven Central access there). Coordinates and versions are
+     known-good as of early 2026; M1.1's acceptance is `mvn -q verify`
+     green on your machine. -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>gr.thesis</groupId>
+  <artifactId>consensus-bench</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <!-- Latency recording (replaces the pure-JDK stand-in; same API) -->
+    <dependency>
+      <groupId>org.hdrhistogram</groupId>
+      <artifactId>HdrHistogram</artifactId>
+      <version>2.2.2</version>
+    </dependency>
+
+    <!-- Drivers -->
+    <dependency>
+      <groupId>org.apache.kafka</groupId>
+      <artifactId>kafka-clients</artifactId>
+      <version>3.9.1</version>
+    </dependency>
+    <dependency>
+      <groupId>io.etcd</groupId>
+      <artifactId>jetcd-core</artifactId>
+      <version>0.8.5</version>
+    </dependency>
+    <!-- CometBFT + Paxi use java.net.http: no dependency -->
+
+    <!-- Local cluster substrate (P0.2): typed containers, wait strategies,
+         Ryuk-guaranteed teardown. Compile scope: LocalDockerProvider is main
+         code that the local-run CLI (P0.3) ships in the uber-jar. -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers</artifactId>
+      <!-- >=1.21 required: 1.20.x's docker-java pins API 1.32, which Docker
+           Engine 29 (min API 1.40) rejects at the environment probe. -->
+      <version>1.21.4</version>
+    </dependency>
+
+    <!-- Remote orchestration (M4) -->
+    <dependency>
+      <groupId>com.hierynomus</groupId>
+      <artifactId>sshj</artifactId>
+      <version>0.39.0</version>
+    </dependency>
+
+    <!-- Harness self-metrics for Prometheus (M5) -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-registry-prometheus</artifactId>
+      <version>1.14.5</version>
+    </dependency>
+
+    <!-- Config + manifests -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>2.18.3</version>
+    </dependency>
+
+    <!-- CLI (replaces Main's arg map in M1.3) -->
+    <dependency>
+      <groupId>info.picocli</groupId>
+      <artifactId>picocli</artifactId>
+      <version>4.7.6</version>
+    </dependency>
+
+    <!-- Direct slf4j-api dep pins 2.x: kafka-clients drags slf4j-api 1.7.36
+         and, declared earlier at equal depth, would win Maven's mediation —
+         a 1.x API cannot see the 2.x simple provider, so the shaded jar's
+         logging silently became NOP (caught by the P0.1 -v smoke run). -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>2.0.16</version>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <version>2.0.16</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>5.11.4</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.6.0</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration>
+              <!-- sshj pulls in signed Bouncy Castle jars; their META-INF
+                   signature files are invalid once repackaged, which fails
+                   the shade step. Strip them from the uber-jar. -->
+              <filters>
+                <filter>
+                  <artifact>*:*</artifact>
+                  <excludes>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                  </excludes>
+                </filter>
+              </filters>
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <mainClass>gr.thesis.bench.Main</mainClass>
+                  <manifestEntries>
+                    <!-- Read at runtime into the manifest's harness_version
+                         (methodology §1 pins the harness version per run). -->
+                    <Implementation-Version>${project.version}</Implementation-Version>
+                  </manifestEntries>
+                </transformer>
+                <!-- Merge META-INF/services across jars: slf4j 2.x locates its
+                     provider via ServiceLoader, and jetcd/gRPC (M2.1) needs
+                     the same merge for its channel/name-resolver SPIs. -->
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+              </transformers>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

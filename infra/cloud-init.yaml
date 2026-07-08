@@ -1,0 +1,36 @@
+#cloud-config
+# cloud-init.yaml — identical base provisioning for EVERY VM (consensus,
+# loadgen, obs). Referenced by main.tf (user_data). Deliberately minimal:
+# per-system containers are started by the harness (RemoteSshProvider), not
+# here — the VM only provides the substrate the methodology assumes:
+#
+#   docker        - per-VM packaging (pinned images, host networking; D2)
+#   node_exporter - validity layer: CPU/steal/mem/net/disk on every VM
+#   chrony        - clock discipline (validity gate 6: offsets < 5 ms)
+#   stress-ng     - slow_node fault injection (CPU pressure)
+#   xxd, jq       - CometBFT tx generation + JSON plumbing in smoke checks
+#
+# Verified: YAML-parses locally; exercised for real at the canary (P3.4) —
+# cloud-init semantics cannot be proven without booting a VM.
+
+package_update: true
+package_upgrade: false # frozen baseline: no surprise environment drift mid-campaign
+
+packages:
+  - docker.io
+  - docker-compose-v2
+  - chrony
+  - stress-ng
+  - xxd
+  - jq
+
+runcmd:
+  # Clock discipline first: every validity window depends on it.
+  - systemctl enable --now chrony
+  # node_exporter on the host network so Prometheus (obs VM) scrapes :9100
+  # over the private net; the public firewall admits only SSH. Version-pinned;
+  # record the resolved digest in the campaign notes at first apply (D2).
+  - >-
+    docker run -d --name node_exporter --restart unless-stopped
+    --net host --pid host -v /:/host:ro,rslave
+    quay.io/prometheus/node-exporter:v1.8.2 --path.rootfs=/host

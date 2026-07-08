@@ -1,0 +1,46 @@
+# export_queries.txt — the fixed PromQL set the harness's PrometheusExporter
+# runs (query_range, step=5s) over [run_start, run_end] after every run,
+# writing metrics/<name>.csv into the run directory. This is what makes each
+# run self-contained: figures F5/F8 and every validity check reproduce from
+# these CSVs without a live Prometheus.
+#
+# Format: <output-name> | <promql>
+#
+# FAIL-CLOSED RULE (ValidityChecker, M5.5): an EMPTY query result for any
+# validity-relevant series fails the run — it is never treated as a pass.
+# An empty series means the retrieval path is broken (wrong label, dead
+# target), which is exactly when a validity gate must not wave a run through.
+#
+# Selectors use the role labels prometheus.yml attaches per target group;
+# the auto-generated instance label is an IP:port and must never be matched
+# by name (rev1 matched instance=~".*LOADGEN.*", which can never fire).
+
+# --- validity: client-not-bottleneck & environment stationarity ------------
+loadgen_cpu       | 1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle",role="loadgen"}[30s]))
+loadgen_cpu_steal | avg by (instance) (rate(node_cpu_seconds_total{mode="steal",role="loadgen"}[30s]))
+node_cpu          | 1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle",job="node"}[30s]))
+node_cpu_steal    | avg by (instance) (rate(node_cpu_seconds_total{mode="steal",role="consensus"}[30s]))
+node_mem_used    | 1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes
+node_net_rx      | rate(node_network_receive_bytes_total{device!~"lo|docker.*"}[30s])
+node_net_tx      | rate(node_network_transmit_bytes_total{device!~"lo|docker.*"}[30s])
+node_disk_write  | rate(node_disk_written_bytes_total[30s])
+
+# --- fault ground truth ----------------------------------------------------
+node_up          | up{job="node"}
+etcd_leader_chg  | etcd_server_leader_changes_seen_total
+etcd_has_leader  | etcd_server_has_leader
+cmt_height       | cometbft_consensus_height
+cmt_rounds       | cometbft_consensus_rounds
+
+# --- explanation layer (F8, discussion) ------------------------------------
+etcd_fsync_p99   | histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[30s]))
+etcd_proposals   | rate(etcd_server_proposals_committed_total[30s])
+kafka_urp        | kafka_server_replicamanager_underreplicatedpartitions
+kafka_isr_shrink | rate(kafka_server_replicamanager_isrshrinks_total[60s])
+cmt_block_txs    | cometbft_consensus_num_txs
+cmt_block_intvl  | cometbft_consensus_block_interval_seconds
+
+# --- harness self-metrics (client-side story on the same timeline) ---------
+harness_inflight | bench_inflight_current
+harness_rate     | rate(bench_ops_submitted_total[5s])
+harness_errors   | rate(bench_ops_failed_total[5s])

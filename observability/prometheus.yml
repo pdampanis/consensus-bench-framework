@@ -1,0 +1,46 @@
+# prometheus.yml — obs VM. Replace PRIVATE_* placeholders from inventory
+# (or let the WS2 provisioning script template them via envsubst).
+global:
+  scrape_interval: 5s        # explanation/validity layer; NOT the primary
+  evaluation_interval: 15s   # latency instrument (that is the harness).
+
+scrape_configs:
+  # role labels are LOAD-BEARING: export_queries.txt selects on them. The
+  # instance label is the target address (e.g. "10.0.0.20:9100"), so any
+  # query matching instance=~".*LOADGEN.*" silently returns nothing — that
+  # exact bug shipped in rev1 of this pair of files.
+  # D8 note: the provisioning templating adds NODE5..NODE7 targets for the
+  # scalability phase (CONSENSUS_NODE_COUNT in inventory.env is the truth).
+  - job_name: node
+    static_configs:
+      - targets:
+          - "PRIVATE_NODE1:9100"
+          - "PRIVATE_NODE2:9100"
+          - "PRIVATE_NODE3:9100"
+          - "PRIVATE_NODE4:9100"
+        labels: { campaign: thesis, role: consensus }
+      - targets: ["PRIVATE_LOADGEN:9100"]
+        labels: { campaign: thesis, role: loadgen }
+      - targets: ["PRIVATE_OBS:9100"]
+        labels: { campaign: thesis, role: obs }
+
+  - job_name: etcd            # --listen-metrics-urls http://0.0.0.0:2381
+    static_configs:
+      - targets: ["PRIVATE_NODE1:2381", "PRIVATE_NODE2:2381", "PRIVATE_NODE3:2381"]
+
+  - job_name: kafka-jmx       # jmx_prometheus_javaagent on each broker
+    static_configs:
+      - targets: ["PRIVATE_NODE1:7071", "PRIVATE_NODE2:7071", "PRIVATE_NODE3:7071"]
+
+  - job_name: zookeeper       # D10: ZK colocated on broker nodes; ZK 3.6+
+    static_configs:           # built-in PrometheusMetricsProvider on :7000
+      - targets: ["PRIVATE_NODE1:7000", "PRIVATE_NODE2:7000", "PRIVATE_NODE3:7000"]
+
+  - job_name: cometbft        # instrumentation.prometheus = true
+    static_configs:
+      - targets: ["PRIVATE_NODE1:26660", "PRIVATE_NODE2:26660",
+                  "PRIVATE_NODE3:26660", "PRIVATE_NODE4:26660"]
+
+  - job_name: harness         # micrometer PrometheusMeterRegistry
+    static_configs:
+      - targets: ["PRIVATE_LOADGEN:9400"]
