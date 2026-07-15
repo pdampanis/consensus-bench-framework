@@ -16,19 +16,13 @@ implementation stands.
 Continuity across future Claude sessions needs two separate things, because a
 project knowledge base and a code repository serve different purposes:
 
-### Part 1 — `git init` this whole directory (the code + evidence)
+### Part 1 — the git repo (the code + evidence) — DONE
 
-The harness source, the M0 verification evidence, the Terraform infra, and the
-observability config are a live codebase. They belong in version control, not
-in a chat project's knowledge base:
-
-```
-cd consensus-bench-thesis
-git init
-git add .
-git commit -m "Consolidated handoff: M0-verified harness skeleton + infra + docs"
-# push to your GitHub/GitLab
-```
+The harness source, the verification evidence, the Terraform infra, and the
+observability config live in version control:
+`https://github.com/pdampanis/consensus-bench-framework` (HTTPS via the `gh`
+credential helper — see `docs/GIT_WORKFLOW.md`). Commit and push at the end
+of every working session.
 
 ### Part 2 — Upload these specific files to the Claude PROJECT knowledge
 
@@ -47,8 +41,8 @@ tree well):
 - `docs/METRICS_AND_SOURCES.md`     ← study material for the thesis defense
 - `docs/JAVA_HARNESS_ASSESSMENT.md`
 
-Then, in `docs/PROJECT_STATE.md`, replace the "code lives in the sandbox" note
-with your actual git repo URL, so a session knows where the real code is.
+Re-upload `PROJECT_STATE.md` and `PENDING_TASKS.md` after any session that
+changes them — they are the state; stale copies misdirect the next session.
 
 ### Part 3 — `docs/CONTINUATION_PROMPT.md` is PASTED, not uploaded
 
@@ -72,76 +66,96 @@ actual, versioned, verifiable code. Relying on memory alone would lose both.
 consensus-bench-thesis/
 ├── README.md                        ← you are here
 ├── harness/                         ← the Java benchmark harness
-│   ├── pom.xml                      Maven build (deps pinned; see caveat below)
+│   ├── pom.xml                      Maven build (verified: mvn21 clean verify green)
 │   ├── src/main/java/gr/thesis/bench/
-│   │   ├── core/                   WorkloadEngine, LatencyRecorder, enums
-│   │   ├── driver/                 ConsensusDriver SPI + Etcd/Paxi drivers
-│   │   ├── results/                CsvResultsWriter (analyse.py contract)
-│   │   ├── topology/               ClusterProvider SPI (impls TODO)
-│   │   └── Main.java               minimal CLI
+│   │   ├── core/                   WorkloadEngine, LatencyRecorder (HdrHistogram),
+│   │   │                           EventLog (failover), enums
+│   │   ├── driver/                 ConsensusDriver SPI + EtcdDriver (jetcd,
+│   │   │                           production) + EtcdHttp/Paxi drivers
+│   │   ├── results/                CsvResultsWriter (manifest v2, latency.hlog)
+│   │   ├── topology/               ClusterProvider SPI + LocalDockerProvider
+│   │   └── Main.java               CLI: endpoint-run + local-run (one command,
+│   │                               clean→deploy→run→teardown)
+│   ├── src/test/java/              52 tests (TDD; integration tests need Docker)
 │   └── results/                    M0 EVIDENCE — real etcd run outputs
 ├── infra/
-│   └── main.tf                     full cluster as Terraform (apply/destroy)
+│   ├── main.tf                     cluster as Terraform, phase-parameterized
+│   │                               (validated + dummy-token planned; NEVER applied — G2)
+│   └── cloud-init.yaml             per-VM substrate (docker, node_exporter, chrony)
 ├── observability/
-│   ├── prometheus.yml              scrape config (templated on inventory)
+│   ├── prometheus.yml              scrape config, role labels (promtool-verified)
 │   ├── docker-compose.yml          obs VM: Prometheus + Grafana
-│   ├── export_queries.txt          per-run PromQL archive set
+│   ├── export_queries.txt          per-run PromQL archive set (22 queries)
 │   └── grafana/provisioning/       datasource-as-code
 └── docs/
     ├── PROJECT_STATE.md            ← READ FIRST; single source of truth
+    ├── PENDING_TASKS.md            prioritized backlog + status ledger + F-findings
     ├── IMPLEMENTATION_PLAN.md      execution-grade plan, gates G1–G3
     ├── DATA_ANALYSIS_METHODOLOGY.md thesis-chapter-grade methodology
-    ├── MASTER_PLAN.md              decisions + architecture
+    ├── MASTER_PLAN.md              decisions D1–D11 + architecture
+    ├── CAMPAIGN_RUNBOOK.md         topology, phases, cost, retrieval protocol
+    ├── EXECUTION_AND_COST_MODEL.md one-system-at-a-time model, per-system cost
+    ├── LOCAL_TESTING.md            manual verification: exact commands + outputs
     ├── METRICS_AND_SOURCES.md      metric definitions + papers to study
     ├── JAVA_HARNESS_ASSESSMENT.md  why Java, why a harness
     ├── CONTINUATION_PROMPT.md      ← PASTE this to start the next session
+    ├── GIT_WORKFLOW.md             remote + auth (gh credential helper)
+    ├── SSH_SETUP.md                planned SSH switch for the remote
     └── archive/                    retired shell/v6 approach — HISTORY ONLY
         ├── HONEST_REVIEW_V6.md     the post-mortem that motivated the rebuild
         ├── REVIEW.md               original shell-bundle review
         └── DEPLOYMENT_GUIDE.md     retired shell deployment guide
 ```
 
-## Current status (verified, not asserted)
+## Current status (verified, not asserted — as of 2026-07-15)
 
-- Harness skeleton **compiles** under JDK 21 (`javac`, 10 source files),
-  reproduced from the Maven `src/main/java` layout in this bundle.
-- **M0 executed against real etcd 3.4.30**: open-loop 300 ops/s → 306.6
-  achieved / 0 errors; saturation → 1020.8 ops/s, p50 58.9 ms, cross-checked
-  by Little's Law (predicted 62.7 ms). Evidence in `harness/results/`.
-- `infra/main.tf` is HCL-parse-valid; **not yet `terraform apply`-ed**.
-- `observability/` YAML is valid; **not yet deployed**.
+- **P0 + P1 fully closed, P2.1 done. Suite: 52 tests green** (`mvn21 clean
+  verify`; the integration tests need the local Docker daemon). Details and
+  evidence: `docs/PROJECT_STATE.md` §3, ledger in `docs/PENDING_TASKS.md`.
+- **The measurement instrument is complete**: open-loop engine with CO
+  correction, real HdrHistogram (true mean, `latency.hlog` pooling input),
+  `EventLog` failover instrumentation, manifest v2 (params, digests,
+  config hash, honest status), typed K=1000 key contract + D7 conflict knob.
+- **`local-run` one-command loop works**: pre-clean → fresh digest-pinned
+  etcd (size 1 or 3) → measured run → guaranteed teardown, ~8 s wall-clock.
+- **Production etcd driver (jetcd/gRPC) done**, leader detection
+  cross-validated against the independent HTTP stack; 5 s per-op deadline
+  (writes fail closed on lost quorum, never hang the drain).
+- `infra/` **validated + dummy-token planned for all three phases; NEVER
+  applied** (Gate G2 intact). `observability/` promtool-verified, not deployed.
+- **M0 evidence** (real etcd 3.4.30, Little's-Law cross-check) in
+  `harness/results/` — pre-P1.3 vintage, kept as the original reference.
 
 ## Honest caveats (do not skip)
 
-- **The pom.xml dependency set is NOT resolution-verified.** It was authored
-  without Maven Central access. First real action on your machine:
-  `cd harness && mvn -q verify`. If a coordinate fails, fix the version — they
-  are mainstream, but "unverified" is the honest label.
-- **The Maven build itself has never run** — only `javac` on the raw sources
-  has. `mvn verify` green is milestone M1.1, not a done thing.
-- **`LatencyRecorder` is a pure-JDK stand-in** for HdrHistogram (~3% bucket
-  error). It must be swapped for real HdrHistogram (M1.2) before any latency
-  number is trusted for the thesis.
-- **`CsvResultsWriter` writes p50 as the `avg` field** as a documented
-  placeholder; real mean lands in M1.4.
-- **M0 is single-node** — no quorum exercised yet. The multi-node ladder is
-  M3 (local processes) then M4.6 (2-VM canary).
-- **No drivers for Kafka/CometBFT/HotStuff yet**, and no ClusterProvider
-  implementations. See `docs/IMPLEMENTATION_PLAN.md` M2–M4.
+- **Drivers still missing**: Kafka (P2.2 — the next increment), CometBFT
+  (P2.3), Paxi leader detection (P2.4), HotStuff SUMMARY parser (P2.5).
+  Gate G1 needs all of them.
+- **No remote layer yet**: RemoteSshProvider + FaultInjector + golden tests
+  (P3.3) and the canary (P3.4) gate any `terraform apply` (G2).
+- **No ValidityChecker / PrometheusExporter / campaign runner yet**
+  (P4.1/P4.2/M3.3).
+- **`analyse.py` and the React visualizer are not in this repo** (F15): the
+  writer targets their contract, but the contract is unverifiable here until
+  they are vendored or golden-tested.
+- **ZK :7000 and Kafka JMX metric names are unverified** until real
+  exporters run (P4.3).
+- **Laptop numbers are functional evidence only** — `environment=local` is
+  never thesis data.
 
 ## Quick start for the next work session
 
 ```bash
-# 1. verify what's here still holds
-cd harness
-javac -d /tmp/out $(find src/main/java -name "*.java")   # should be clean
+# 1. build + full suite (needs Docker; ~1.5 min)
+cd harness && mvn21 clean verify          # expect: Tests run: 52, BUILD SUCCESS
 
-# 2. the real first step (needs Maven + internet)
-mvn -q verify                                            # M1.1 acceptance
+# 2. the one-command local loop (the P0 deliverable)
+java -jar target/consensus-bench-0.1.0-SNAPSHOT.jar \
+  local-run --size 3 --rate 100 --duration 6 --warmup 2 -v
 
-# 3. reproduce M0 (needs a local etcd on :2379)
-#    see docs/PROJECT_STATE.md §3 for the exact command
+# 3. exact expected outputs for everything laptop-provable
+#    → docs/LOCAL_TESTING.md (9-point green checklist)
 ```
 
-Then follow `docs/IMPLEMENTATION_PLAN.md` from M1, one increment per session,
-per the working agreement in `docs/PROJECT_STATE.md` §9.
+Then continue from `docs/PENDING_TASKS.md` (next: **P2.2 KafkaDriver**), one
+increment per session, per the working agreement in `docs/PROJECT_STATE.md` §9.

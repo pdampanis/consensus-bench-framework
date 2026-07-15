@@ -29,10 +29,10 @@ cd $REPO/harness
 mvn21 clean verify
 ```
 
-**Expect** (versions/counts as of 2026-07-08 — counts only grow):
+**Expect** (versions/counts as of 2026-07-15 — counts only grow):
 
 ```
-Tests run: 51, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 52, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -41,7 +41,7 @@ The provider tests need Docker; the first ever run pulls the pinned etcd
 image (~50 MB). If you see `client version 1.32 is too old`, the
 testcontainers pin regressed below 1.21.4 (Docker 29 needs ≥1.21.4).
 
-What the 51 tests pin, so you know what a failure means:
+What the 52 tests pin, so you know what a failure means:
 - `ArgParserTest` (6) — CLI contract: `--key value` pairs, bare `-v/--verbose`,
   fail-closed on a dangling key, duration>warmup guard.
 - `EventLogTest` (3) + engine event tests — failover instrumentation:
@@ -79,11 +79,13 @@ What the 51 tests pin, so you know what a failure means:
   containers.
 - `LocalRunTest` (1, integration) — the full one-command loop twice in a
   row, including pre-clean of a planted leftover container.
-- `EtcdDriverTest` (2, integration) — the production jetcd driver:
+- `EtcdDriverTest` (3, integration) — the production jetcd driver:
   committed gRPC writes; leader detection **cross-validated against the
   HTTP-gateway stack** (two independent clients must agree); kill the
   detected leader → new leader found, writes continue on 2/3 quorum;
-  key encoding pinned identical to the fallback driver.
+  **kill 2 of 3 → the write fails within the 5 s driver deadline** (never
+  commits, never hangs the drain — F18); key encoding pinned identical to
+  the fallback driver.
 
 The engine tests take ~11 s and the Docker tests ~15-20 s (both run real
 time). Total suite ≈ 35 s.
@@ -339,7 +341,7 @@ verified against live exporters at M5.2 (task P4.3).
 
 | # | Check | Command | Green means |
 |---|-------|---------|-------------|
-| 1 | Build + tests | `mvn21 clean verify` | `Tests run: 51+, Failures: 0` + `BUILD SUCCESS` |
+| 1 | Build + tests | `mvn21 clean verify` | `Tests run: 52+, Failures: 0` + `BUILD SUCCESS` |
 | 0 | **One-command loop** | §2.8 `local-run` | complete manifest, ~8 s, zero `thesis-*` survivors |
 | 2 | Quiet smoke | §2.2 | 4 INFO lines, `errors=0`, throughput ≈ rate |
 | 3 | Verbose smoke | §2.3 | same INFO + phase DEBUG + per-second ticker |

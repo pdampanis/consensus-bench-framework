@@ -5,14 +5,19 @@ It is written for a fresh Claude session with no memory of prior turns.
 When something here conflicts with an older file, this document wins; update
 it at the end of every working session.
 
-Last updated: 2026-07-08 — hard review of code/docs/approach completed
-(findings F1–F17, ledger in `PENDING_TASKS.md`); decisions D10 (ZK colocated
-on broker nodes) and D11 (loadgen on dedicated vCPU) locked; **Terraform
-layer authored and locally verified** (P0.0 — validate + dummy-token plans
-green for all three campaign phases, no apply); Prometheus retrieval path
-fixed (role labels; promtool-verified); `docs/CAMPAIGN_RUNBOOK.md` created
-(topology/phases/cost/durations/storage/retrieval, no-Ansible decision).
-The prioritized backlog + status ledger is `docs/PENDING_TASKS.md`.
+Last updated: 2026-07-15 — second hard review of code/docs (suite
+re-verified by execution first: 51/51 green). Findings F18–F21 added to the
+`PENDING_TASKS.md` ledger; **F18 fixed same day, TDD**: jetcd writes now
+carry a 5 s per-op deadline (quorum-lost writes fail closed instead of
+riding etcd's ~7 s server grace or hanging the drain barrier), and bounded
+completion (5 s) is now a documented `ConsensusDriver.write` contract for
+every future driver. **Suite: 52 tests green.** Doc drift fixed: README
+(status/caveats/handoff), METRICS_AND_SOURCES (harness-first §0,
+retired-probe labeling, HS 1024 B requirement), CONTINUATION_PROMPT (next
+increment = P2.2 KafkaDriver). Prior update (2026-07-08/09): F1–F17 review,
+D10/D11 locked, Terraform layer locally verified (no apply, G2 intact),
+Prometheus role-label fix, CAMPAIGN_RUNBOOK created, P0+P1 closed, P2.1
+done. The prioritized backlog + status ledger is `docs/PENDING_TASKS.md`.
 
 ---
 
@@ -225,6 +230,18 @@ contract pinned identical to EtcdHttpDriver. `local-run` now rides
 jetcd (EtcdHttpDriver = fallback + G3 cross-check). **The shaded jar
 drove a 3-node quorum through gRPC** — the ServicesResourceTransformer
 requirement is exercised fact. Suite: **51 tests green.**
+
+**P2.1 amendment (2026-07-15, TDD — review finding F18).** The red test
+proved a write against a quorum-lost 3-node cluster completes only via
+etcd's **server-side** ~7 s "request timed out" grace — and only when the
+gRPC channel happens to pick the surviving member; a dead endpoint grants
+no bound at all, and the engine's drain barrier waits on every completion.
+Fix: `EtcdDriver.write()` now applies `orTimeout(5 s)` (the HTTP drivers'
+bound — driver parity preserved for G3), and `ConsensusDriver.write`'s
+javadoc makes bounded completion a contract every driver must honor
+(P2.2 Kafka: `delivery.timeout.ms`). Acceptance green vs real Docker:
+kill 2 of 3 → the write fails within the deadline, never commits, never
+hangs. Suite: **52 tests green.**
 
 **Compiled, dependency-free Java skeleton** (`harness/src/main/java/`, JDK 21,
 `javac`-clean, ~600 lines, 10 source files):

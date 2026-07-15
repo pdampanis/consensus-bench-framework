@@ -40,31 +40,28 @@ PROJECT_STATE.md, ask me; don't silently pick one.
    confidence; its evidence must exist. G2's human read-through of the SSH
    golden files is mine to do — surface them, don't skip them.
 
-6. Keep it simple, minimal, correct. No speculative abstraction. The pure-JDK
-   LatencyRecorder is a stand-in — when you introduce Maven, swap it for real
-   HdrHistogram before trusting any latency number.
+6. Keep it simple, minimal, correct. No speculative abstraction.
 
 ## Where to start
 
-We are at the top of M1 → M2 in IMPLEMENTATION_PLAN.md. The skeleton compiles
-(`javac -d out $(find src -name '*.java')`), and M0 (single-node etcd via the
-pure-JDK HTTP driver) is verified. Do NOT redo M0.
+**P0 and P1 are fully closed; P2.1 (jetcd EtcdDriver) is done. Suite: 52
+tests green via `mvn21 clean verify` (integration tests need the local
+Docker daemon).** The measurement instrument is complete: open-loop engine
+with CO correction, real HdrHistogram + latency.hlog, EventLog failover,
+manifest v2, `local-run` one-command loop, production etcd driver with
+cross-validated leader detection and a 5 s per-op deadline. Do NOT redo any
+of it — PENDING_TASKS.md is the ledger, PROJECT_STATE.md §3 the evidence.
 
-Proposed first increment (confirm with me before coding, then do only this):
-M1.1 — turn the skeleton into a Maven project using the provided pom.xml, get
-`mvn -q verify` green, and port the M0 smoke to run through the built jar so we
-prove the toolchain end-to-end. If `mvn` can't reach Central in your sandbox,
-say so, fall back to a documented offline path, and flag it as needing my
-machine — don't fake a green build.
+Proposed next increment (confirm with me before coding, then do only this):
+**P2.2 — KafkaDriver**: extend LocalDockerProvider to a single-node KRaft
+broker first, TDD the driver (kafka-clients producer, acks=all, commit timed
+in the send callback, 5 s bounded completion per the ConsensusDriver
+contract), then the G1 flaw-B regression acceptance: throughput within 15%
+of `kafka-producer-perf-test` on the same broker.
 
-Immediately after, M1.2: replace the LatencyRecorder internals with real
-HdrHistogram behind the existing API, with a unit test asserting exact
-percentiles on a known sample set — and add the Little's-Law relationship
-(window ≈ throughput × latency in saturation mode) as a permanent engine
-self-test, since it caught a real corroboration in M0.
-
-Then M2.1 (jetcd EtcdDriver + leader detection) as the first real driver,
-TDD from its acceptance criterion in the plan.
+Then P2.3 (CometBftDriver — the flaw-A regression, sustained > 300 tx/s),
+P2.4 (Paxi `/state` leader detection), P2.5 (HotStuff SUMMARY parser),
+each TDD from its acceptance criterion in PENDING_TASKS.md.
 
 ## What "done" looks like for this whole effort
 
@@ -90,15 +87,18 @@ Don't let this become an afterthought bolted on at analysis time.
 ## Attach these project files
 
 - PROJECT_STATE.md (read first)
+- PENDING_TASKS.md (the backlog + status ledger)
 - IMPLEMENTATION_PLAN.md
 - DATA_ANALYSIS_METHODOLOGY.md
 - MASTER_PLAN.md
+- LOCAL_TESTING.md (exact commands + expected outputs)
 - the consensus-bench source tree + pom.xml + results/ (M0 evidence)
-- infra/main.tf, observability/
+- infra/ (main.tf + cloud-init.yaml), observability/
 - the consensus papers already in the project
 
-Start by reading PROJECT_STATE.md, confirming the current compile + M0 still
-reproduce, then propose the M1.1 increment and wait for my go-ahead.
+Start by reading PROJECT_STATE.md, confirming `mvn21 clean verify` is still
+green (52 tests, Docker required), then propose the P2.2 increment and wait
+for my go-ahead.
 
 ────────────────────────────────────────────────────────────────────────────
 Note on the model switch: this project involves consensus/BFT and distributed-

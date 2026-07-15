@@ -1,6 +1,6 @@
 # Pending Tasks — Prioritized Backlog + Status Ledger
 
-**Last updated: 2026-07-08.** Companion to `IMPLEMENTATION_PLAN.md`
+**Last updated: 2026-07-15.** Companion to `IMPLEMENTATION_PLAN.md`
 (milestone-ordered M0→M6). This file is **priority-ordered for the current
 push** and doubles as the handoff ledger: a fresh session should be able to
 read this file plus `PROJECT_STATE.md` and know exactly what is done (with
@@ -45,10 +45,22 @@ without implementation coverage — every such claim now has a task below.
 **P0 AND P1 ARE FULLY CLOSED (2026-07-09); P2.1 (jetcd) IS DONE.** The
 measurement instrument is complete and pinned, and the first production
 driver (etcd/jetcd, leader detection cross-validated) rides the local loop
-from the shaded jar. Suite: 51 tests green. **Next: P2.2 KafkaDriver**
-(extend LocalDockerProvider to KRaft; acceptance = within 15% of
-kafka-producer-perf-test — the G1 flaw-B regression). Manual verification:
-**`docs/LOCAL_TESTING.md`**.
+from the shaded jar. **Next: P2.2 KafkaDriver** (extend LocalDockerProvider
+to KRaft; acceptance = within 15% of kafka-producer-perf-test — the G1
+flaw-B regression). Manual verification: **`docs/LOCAL_TESTING.md`**.
+
+**2026-07-15 second hard review** (full code+docs pass; 51/51 suite
+re-verified by execution first): produced findings F18–F21 (ledger below)
+and a doc-drift cleanup. Fixed same day, TDD red→green: **F18 — jetcd
+per-op deadline** (red test measured a write on a quorum-lost cluster
+completing only via etcd's ~7 s *server-side* grace, i.e. no client-owned
+bound at all; fix = `orTimeout(5 s)` in `EtcdDriver.write`, matching the
+HTTP drivers, + bounded-completion contract documented in the
+`ConsensusDriver.write` javadoc). Suite: **52 tests green.** Consequence
+for P2.2+: every future driver must bound completion at 5 s (Kafka:
+`delivery.timeout.ms`). Docs refreshed: README status/caveats/handoff,
+METRICS_AND_SOURCES §0 + retired-probe labeling, CONTINUATION_PROMPT
+"Where to start" → P2.2.
 
 ---
 
@@ -412,6 +424,23 @@ and `CAMPAIGN_RUNBOOK.md`.
 | F16 | Plan M3 substrate conflict | plan amended | **DONE** |
 | F17 | Nits: charset, div-zero, HttpClient close, max≈bucketMid, tag-pins, JMX names | P0.4/P1.1/P1.3/P4.3 | div-zero, charset, max (HDR exact) **DONE**; HttpClient-close + tag-pins + JMX names pending |
 
+**2026-07-15 second hard review — findings F18–F21:**
+
+| # | Finding (file:line) | Task | Status |
+|---|--------------------|------|--------|
+| F18 | jetcd put has no client deadline → quorum-lost write bounded only by etcd's ~7 s server grace (or nothing, if the picked endpoint is dead); drain barrier can outwait/hang the run (EtcdDriver.java:74, WorkloadEngine.java:141) | fixed in P2.1 | **DONE 2026-07-15** (TDD; orTimeout 5 s; SPI contract documented; 52 green) |
+| F19 | `FaultInjector.apply()` default contradicts F13 preregistration: NETWORK_PARTITION isolates node 0 not the leader; PACKET_LOSS hardcodes 5% (ClusterProvider.java:54-63) | P3.3 | **open** — rewrite the default before goldens pin it |
+| F20 | `NodeHandle.privateIp` carries the Docker network ALIAS ("etcd1"), not an IP (LocalDockerProvider.java:93) — semantic trap for RemoteSshProvider | P3.3 | open — rename or fill with a real IP when the remote provider lands |
+| F21 | Manifest JSON string-concat leaves runId/imageRef unescaped (CsvResultsWriter.java:137+); and nothing pins the campaign's 1024 B value size (Main defaults 256) | M3.3 | open — campaign runner must set valsize=1024 and runIds stay `[a-z0-9]+` until escaped |
+
+Doc-drift items fixed 2026-07-15: README (status/caveats/handoff/layout),
+METRICS_AND_SOURCES (banner + §0 + retired-probe labels + HS 1024 B
+requirement), CONTINUATION_PROMPT (next increment = P2.2). Still stale,
+low-priority (superseded text is overridden by authority order): MASTER_PLAN
+D3/§2 diagram (loadgen CPX21, €0.15/h — void per D11 + runbook §2),
+IMPLEMENTATION_PLAN M4.5 (hcloud script wording — superseded by P0.0
+Terraform). F15 (analyse.py/visualizer not in repo) remains open.
+
 F15 note: locate `analyse.py` + the React visualizer in the pre-rebuild
 archive and vendor them (or a golden contract test) into this repo before
 M6.4 — the "EXACT output contract" is otherwise unverifiable. Not yet a
@@ -422,7 +451,11 @@ the author.
 
 ## Immediate next increment (proposed)
 
-**P0.1 (logging + `-v`)** — small, unblocks debuggable everything — then
-**P1.5** (pin the engine) before any engine change, then **P0.2**
-(LocalDockerProvider size 1) TDD. Confirm and implement one at a time
-(test → code → run → checkpoint).
+**P2.2 — KafkaDriver** (the status snapshot above is the authority): extend
+`LocalDockerProvider` to a single-node KRaft broker, TDD the driver
+(kafka-clients producer, acks=all, callback-timed commit, completion bounded
+at 5 s per the ConsensusDriver contract — set `delivery.timeout.ms`
+accordingly), then the G1 flaw-B acceptance: within 15% of
+`kafka-producer-perf-test` on the same broker. Confirm and implement one at
+a time (test → code → run → checkpoint). F19 (FaultInjector default
+semantics) must be resolved before P3.3 writes its goldens.

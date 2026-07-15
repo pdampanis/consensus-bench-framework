@@ -2,6 +2,41 @@
 
 This document explains exactly what each number means for each system, so you can defend your methodology in the thesis and during the oral examination.
 
+> **UPDATED 2026-07-15.** Sections 1–3 originally described the **retired v6
+> probe stack** (per-system tools, 6 blocking Python threads, urllib) — the
+> measurement mechanics the harness was built to replace. The per-system
+> *consensus semantics* (what `acks=all` or `broadcast_tx_commit` commits)
+> remain correct and are the study material; the *tool mechanics* are kept
+> only where a tool survives as a **G1/G3 cross-validation oracle**, and are
+> labeled so. The current measurement path is §0 below. Authority order as
+> always: live code > plan + methodology > this file.
+
+---
+
+## 0. How measurement works now — the harness (primary instrument)
+
+Every system is driven by **one load generator** (`WorkloadEngine`): an
+open-loop schedule (or saturation mode) with a bounded in-flight window,
+identical for all systems; only the transport differs per `ConsensusDriver`.
+Latency is recorded against the *intended* send time (coordinated-omission
+correction) into HdrHistogram (3 significant digits; true mean; full
+post-warmup histogram persisted as `latency.hlog` for pooled analysis).
+Throughput is real per-second committed buckets for every system — no
+synthetic series anywhere. Failover time comes from `EventLog`: every
+completion is timestamped on one clock, the fault mark is stamped by the
+injector, and failover = first successful commit at-or-after the mark
+(sub-second resolution, ≥30 trials, reported as ECDFs). Workload: K = 1000
+reused keys (Paxi Table 3), 1024 B values, conflict-ratio knob for the Paxi
+pair (D7). Each run writes a v2 manifest (params, environment, image digest,
+harness version, config hash, fault/failover ms) and is gated by the six
+validity checks (methodology §4).
+
+The retired per-system tools below matter for two reasons: they document
+what the old numbers meant, and three of them return at **Gate G1/G3** as
+independent oracles — the harness must agree with `kafka-producer-perf-test`,
+etcd's `benchmark`, and Paxi's own benchmarker within 15% on the same
+cluster, or explain why.
+
 ---
 
 ## 1. Throughput (ops/s)
@@ -10,31 +45,52 @@ This document explains exactly what each number means for each system, so you ca
 
 ### Kafka KRaft / Kafka+ZK
 
-**Tool**: `kafka-producer-perf-test.sh` (ships inside `apache/kafka:3.9.0`).
+**Now**: `KafkaDriver` (P2.2) — a real `kafka-clients` producer with
+`acks=all`, commit timed in the send callback, driven by the shared engine.
 
-**Configuration**: `--throughput -1` (open-loop, no rate limit), `--record-size 1024` (1 KB payloads), `--producer-props acks=all` (wait for all ISR replicas to acknowledge). Replication factor 3, min.insync.replicas 2, 6 partitions.
+**Retired probe / G1+G3 oracle**: `kafka-producer-perf-test.sh` (ships inside
+`apache/kafka:3.9.0`). The driver must agree with it within 15% (the flaw-B
+regression gate).
+
+**Configuration** (oracle invocation; the driver uses the same broker-side
+settings): `--throughput -1` (open-loop, no rate limit), `--record-size 1024` (1 KB payloads), `--producer-props acks=all` (wait for all ISR replicas to acknowledge). Replication factor 3, min.insync.replicas 2, 6 partitions.
 
 **What `acks=all` means for consensus**: The producer does not receive a success response until all replicas in the In-Sync Replica (ISR) set have written the record to their local log. With `min.insync.replicas=2` and RF=3, at least 2 of 3 brokers must acknowledge. In KRaft mode, the Raft quorum for metadata is also majority-based. This means every "record sent" in the perf output represents a **consensus-committed** write.
 
-**Granularity**: The tool emits one progress line every 5 seconds showing the interval rate. `parse_results.sh` extracts these for `throughput.csv`. After the run completes, a final summary line provides the aggregate rate, latency percentiles, and total records.
+**Granularity**: the harness buckets committed ops per second directly — the
+old path (perf-test 5-second progress lines scraped by `parse_results.sh`)
+is retired.
 
 **What to say in the thesis**: "Throughput is measured as records committed per second with `acks=all`, ensuring each counted operation has been replicated to a quorum of brokers (at least 2 of 3 in the ISR set). This configuration exercises the full Raft consensus path for KRaft and the full ZAB replication path for Kafka+ZooKeeper."
 
 ### etcd
 
-**Tool**: `benchmark put` from `quay.io/coreos/etcd:v3.5.15`.
+**Now**: `EtcdDriver` (P2.1, done) — jetcd's native async gRPC put with a 5 s
+per-op deadline; a completed put passed the full Raft commit path (majority
+replication + WAL fsync + apply). `EtcdHttpDriver` (v3 JSON gateway) is the
+fallback and the same-cluster cross-check.
 
-**Configuration**: `--conns=6 --clients=6 --val-size=1024 --sequential-keys`. The tool maintains 6 TCP connections with 6 concurrent client goroutines. Each PUT is a linearizable write to the Raft leader, which replicates to a majority before responding.
+**Retired probe / G3 oracle**: `benchmark put` from
+`quay.io/coreos/etcd:v3.5.15` (`--conns=6 --clients=6 --val-size=1024`).
+Each completed PUT is a Raft-committed write — that semantic claim still
+holds and is why it works as an oracle.
 
-**What the tool measures**: Each completed PUT represents a Raft-committed key-value write. The Raft leader has replicated the log entry to at least 2 of 3 peers and applied it to the state machine.
-
-**Granularity limitation**: etcd's benchmark tool only reports an aggregate `Requests/sec` in the summary — no per-second time series. The throughput.csv is synthetically generated by repeating this aggregate value. Per-second resolution would require Prometheus scrapes of `etcd_server_proposals_committed_total`. This is a known limitation documented in the methodology chapter.
+**Granularity**: the old tool reported only an aggregate `Requests/sec`, so
+v6's throughput.csv was *synthetically generated* by repeating that value —
+a documented limitation then, **fixed now**: the harness produces a real
+per-second committed series for etcd like every other system.
 
 ### CometBFT (Tendermint)
 
-**Tool**: `cmt_bench.py` (custom Python driver in the `le-probe` image).
+**Now**: `CometBftDriver` (P2.3) — pooled async `broadcast_tx_commit` with an
+in-flight window ≥ 200. Its acceptance test (sustained > 300 tx/s) is the
+regression gate for **flaw A**: the retired probe below capped measurable
+throughput at ~6 tx/s.
 
-**Configuration**: 6 concurrent threads, 1024-byte transaction payloads, using `broadcast_tx_commit` RPC.
+**Retired probe**: `cmt_bench.py` (6 *blocking* threads on
+`broadcast_tx_commit`; with a ~1 s block interval the ceiling is
+clients ÷ block time ≈ 6 tx/s — it measured the client's thread count, not
+the protocol). Not an oracle; it is the bug the harness exists to fix.
 
 **What `broadcast_tx_commit` means for consensus**: This RPC does not return until the transaction has been included in a **committed block** — meaning ≥2/3 of validators have pre-committed and committed the block in the Tendermint consensus round (Propose → Prevote → Precommit → Commit). A returned 200 means the full BFT consensus cycle completed for that transaction.
 
@@ -42,25 +98,46 @@ This document explains exactly what each number means for each system, so you ca
 
 ### Paxi (Paxos / EPaxos)
 
-**Tool**: `paxi_bench.py` (custom Python driver in the `le-probe` image).
+**Now**: `PaxiDriver` — pooled async HTTP (java.net.http), integer key in the
+URL path, round-robin over **all** replica endpoints for EPaxos (leaderless
+design actually exercised), one endpoint for Paxos (forwarding is internal).
+Paxi's own benchmarker returns at G3 as the cross-validation oracle.
 
-**Configuration**: 6 concurrent threads, 1024-byte values, HTTP PUT to `paxi1:8080`.
+**Retired probe**: `paxi_bench.py` (6 blocking threads; `urllib` opened a
+new TCP connection per PUT — **flaw B**: a handshake inside every latency
+sample, all traffic through paxi1 only).
 
 **Paxos path**: The PUT goes to paxi1. If paxi1 is the leader, it runs Phase 2 (Accept) to a majority and responds. If not, Paxi forwards to the leader internally. Each 200 response means the value was committed by majority quorum.
 
 **EPaxos path**: The PUT goes to paxi1, which acts as the command leader for that key. On the fast path (no conflict with concurrent commands), paxi1 collects a "fast quorum" of ⌊3N/4⌋ responses and commits in one round-trip. On the slow path (conflict detected), a second round-trip resolves the dependency. Either way, a 200 response means the value is committed.
 
-**Single-endpoint limitation**: All traffic goes through paxi1. For Paxos this is fine (the leader handles all writes anyway). For EPaxos, this prevents the benchmark from exercising the leaderless multi-entry-point design. EPaxos throughput is conservatively measured.
+**Single-endpoint limitation — fixed**: the retired probe sent all traffic
+through paxi1, which for EPaxos never exercised the leaderless
+multi-entry-point design (throughput conservatively understated). The
+harness round-robins EPaxos writes across every replica; Paxos keeps one
+endpoint by design. The D7 conflict knob (0/2/10% of ops on a designated
+shared key) is what lets EPaxos's fast path actually differ from Paxos.
 
 ### HotStuff (asonnino)
 
-**Tool**: asonnino's `fab local` benchmark harness (vendored in the Docker image).
+**Still the boundary**: HotStuff is the one system the engine does not drive
+directly — asonnino's `fab` benchmark client remains the load source and the
+harness parses its SUMMARY block (P2.5); its client is already open-loop
+rate-limited, which the engine now matches for everyone else.
 
-**Configuration**: `HS_RATE=1000` (target input rate 1000 tx/s), `HS_TX_SIZE=512` (512-byte transactions — NOTE: mismatch with other systems' 1024).
+**Configuration**: `HS_RATE` (target input rate), and **the tx size MUST be
+configured to 1024 B for the campaign** — the old `HS_TX_SIZE=512` default
+mismatched the 1024 B contract every other system uses (methodology §1).
+This is a P2.5 configuration requirement, not an accepted asymmetry.
 
 **What it measures**: The asonnino client submits transactions at the target rate to the 4-validator cluster. The SUMMARY block reports "End-to-end TPS" — the number of transactions that achieved consensus commitment, including mempool batching, proposal, and the 2-chain QC pipeline. This is the client-observed committed throughput.
 
-**Rate-limiting effect**: Unlike other systems (open-loop), HotStuff's client caps at 1000 tx/s input. If the system could handle more, the measured throughput is a lower bound. The published ~966 tx/s at rate=1000 suggests the system is near saturation at this rate on a local cluster.
+**Rate-limiting effect**: HotStuff's client caps the *input* rate, so a
+measured throughput at a given `HS_RATE` is a lower bound if the system could
+handle more — the saturation search must raise `HS_RATE` until TPS plateaus,
+mirroring what the engine's saturation mode does for the other systems.
+(Historical: ~966 tx/s at rate=1000 on a local cluster suggested
+near-saturation there.)
 
 ---
 
@@ -82,13 +159,21 @@ This document explains exactly what each number means for each system, so you ca
 
 ### Percentile computation
 
-For Kafka: the `kafka-producer-perf-test` tool computes percentiles internally from all operations in the run and reports them in the summary line. These are real percentiles from millions of samples.
+For every harness-driven system (all except HotStuff): one code path —
+HdrHistogram at 3 significant digits (every recorded value within 0.1%),
+percentiles from the post-warmup histogram only, plus the true mean.
+Per-run histograms are persisted (`latency.hlog`) and **merged** for pooled
+distributions; percentiles are never averaged across runs (methodology §3).
+Latency is charged against the *intended* send time, so a stall inflates
+the tail instead of silently not being sampled (coordinated omission).
 
-For etcd: the `benchmark put` tool computes percentiles from its internal latency histogram. Real percentiles from all operations.
+The retired probes computed percentiles per-tool (perf-test summary lines,
+etcd's internal histogram, Python sort-and-index) — one reason cross-system
+comparison was apples-to-oranges.
 
-For CometBFT and Paxi: `cmt_bench.py` and `paxi_bench.py` collect every operation's latency in memory (`stats.latencies_us`), sort the array, and compute percentiles via index lookup: `lat[int(n * p / 100)]`. This is correct for small-to-medium sample sizes (tens of thousands of operations in a 300-second measurement window).
-
-For HotStuff: only mean is available. All percentile fields contain the mean. Do not compare HotStuff percentile columns with other systems.
+For HotStuff: only mean is available from the SUMMARY output. All percentile
+fields contain the mean. Do not compare HotStuff percentile columns with
+other systems — every figure it appears in says so.
 
 ---
 
@@ -96,7 +181,16 @@ For HotStuff: only mean is available. All percentile fields contain the mean. Do
 
 **Definition**: Time from leader kill to the first successful client write after recovery.
 
-**Measurement method**: An external probe container (`le_probe.py`) on the same Docker network issues writes at 50 Hz (one every 20ms). The probe starts 3 seconds before the kill to establish a baseline of successes. The kill happens at `T_KILL_NS`. The probe continues for 20 seconds total. Failover = timestamp of first `success=1` after `T_KILL_NS` minus `T_KILL_NS`.
+**Measurement method (harness, P1.4)**: failover events ride the main
+workload — no separate probe lane, so the measurement doesn't perturb the
+load it measures. Every completion is timestamped into `EventLog`
+(lock-free, preallocated); the injector stamps the fault mark on the same
+`System.nanoTime` clock; failover = first successful commit at-or-after the
+mark. Resolution is per-completion (sub-millisecond clock, bounded by the
+op rate), repeated over ≥30 trials and reported as a full ECDF. A run with
+no post-fault commit reports **no number**, never a fabricated one.
+(Retired method: a separate `le_probe.py` container writing at 50 Hz —
+a second traffic class with 20 ms resolution.)
 
 **What this measures**: The complete client-visible recovery, including leader detection timeout (typically 1–10s depending on election timeout configuration), candidate election, new leader establishment, and client reconnection. This is the metric that matters for application-level SLA compliance.
 
@@ -132,7 +226,12 @@ Kill 2 nodes simultaneously. For 3-node CFT clusters (KRaft, ZK, etcd, Paxos, EP
 This scenario validates that the system correctly becomes unavailable when quorum is lost, rather than proceeding unsafely.
 
 ### packet_loss
-5% random packet loss on one node's network interface via Pumba/netem (or `tc` on loopback for HotStuff). The remaining quorum is unaffected. Expected: modest throughput degradation (retransmissions, higher latency) but continued availability. Systems with longer retry timeouts may show larger drops.
+Random packet loss (5% default; the percentage is a parameter per F13) on one
+node's network interface via netem — executor (hand-rolled `tc` vs Pumba)
+decided at P3.3, bound by the golden tests. The remaining quorum is
+unaffected. Expected: modest throughput degradation (retransmissions, higher
+latency) but continued availability. Systems with longer retry timeouts may
+show larger drops.
 
 ### network_partition
 100% packet loss on one node (full isolation). For CFT systems: the remaining 2 of 3 still form a quorum. For BFT: 3 of 4 remain, still above 2f+1. Expected: throughput continues at a lower level (one fewer replication target), but no unavailability.
