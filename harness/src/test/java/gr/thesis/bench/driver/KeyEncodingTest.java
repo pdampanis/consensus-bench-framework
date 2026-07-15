@@ -35,6 +35,16 @@ class KeyEncodingTest {
     }
 
     @Test
+    void cometBftTxPrefixIsKvstoreKeyEquals() {
+        // CometBFT's native encoding: kvstore's CheckTx splits the tx on
+        // '=' and requires EXACTLY two parts (code 2 otherwise — measured:
+        // a raw-byte nonce containing 0x3d failed ~12% of txs), so this is
+        // the only '=' in the tx and nonce+payload must stay '='-free.
+        assertEquals("k0=", new String(CometBftDriver.txPrefix(0), StandardCharsets.UTF_8));
+        assertEquals("k999=", new String(CometBftDriver.txPrefix(999), StandardCharsets.UTF_8));
+    }
+
+    @Test
     void paxiKeyPathIsNumericOnly() {
         for (int id : new int[]{0, 7, 999}) {
             String path = PaxiDriver.keyPath(id);

@@ -146,6 +146,34 @@ class LocalDockerProviderTest {
         assertEquals(0, thesisContainersAlive(), "stop() must leave zero thesis-* containers");
     }
 
+    // ---- P2.3a: CometBFT single-node kvstore (the CometBftDriver substrate) ----
+
+    @Test
+    void tendermint_size1_answersHealth_thenStopLeavesNoContainers() throws Exception {
+        var provider = new LocalDockerProvider();
+        try {
+            List<ClusterProvider.NodeHandle> nodes = provider.start(SystemUnderTest.TENDERMINT, 1);
+            assertEquals(1, nodes.size());
+            assertEquals("tm1", nodes.get(0).privateIp(), "network alias must follow containerName()");
+
+            HttpResponse<String> health = HttpClient.newHttpClient().send(
+                    HttpRequest.newBuilder(URI.create(provider.clientEndpoints().get(0) + "/health"))
+                            .GET().build(),
+                    HttpResponse.BodyHandlers.ofString());
+            assertEquals(200, health.statusCode());
+        } finally {
+            provider.stop();
+        }
+        assertEquals(0, thesisContainersAlive(), "stop() must leave zero thesis-* containers");
+    }
+
+    @Test
+    void tendermintMultiNodeFailsClosedUntilTheCampaignProviderLands() {
+        var provider = new LocalDockerProvider();
+        assertThrows(UnsupportedOperationException.class,
+                () -> provider.start(SystemUnderTest.TENDERMINT, 4));
+    }
+
     @Test
     void kraftMultiNodeFailsClosedUntilTheCampaignProviderLands() {
         // Multi-broker KRaft needs the full listener/quorum wiring the remote

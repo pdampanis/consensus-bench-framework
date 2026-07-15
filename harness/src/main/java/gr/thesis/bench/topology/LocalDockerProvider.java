@@ -47,15 +47,21 @@ public final class LocalDockerProvider implements ClusterProvider {
     public static final String KAFKA_IMAGE =
             "apache/kafka@sha256:4ceccc577f03f51f6af8dbfda55194d0d892f4fa7913ffbded567ce3895622ed";
 
+    /** cometbft v0.38.17 pinned by REGISTRY DIGEST (D2) — single-validator
+     *  chain with the in-process kvstore ABCI app (P2.3a). */
+    public static final String COMETBFT_IMAGE =
+            "cometbft/cometbft@sha256:22c2ac018f40665e5c113e485d81531d8421f4fc76f9c8b013fbb6c0c16e150d";
+
     private final List<GenericContainer<?>> containers = new ArrayList<>();
     private final List<String> endpoints = new ArrayList<>();
     private Network network;
 
     @Override
     public List<NodeHandle> start(SystemUnderTest system, int clusterSize) {
-        if (system != SystemUnderTest.ETCD && system != SystemUnderTest.KRAFT) {
+        if (system != SystemUnderTest.ETCD && system != SystemUnderTest.KRAFT
+                && system != SystemUnderTest.TENDERMINT) {
             throw new UnsupportedOperationException(
-                    "LocalDockerProvider supports ETCD and KRAFT for now; asked for " + system);
+                    "LocalDockerProvider supports ETCD/KRAFT/TENDERMINT for now; asked for " + system);
         }
         if (clusterSize < 1) {
             throw new IllegalArgumentException("clusterSize must be >= 1, got " + clusterSize);
@@ -70,6 +76,9 @@ public final class LocalDockerProvider implements ClusterProvider {
         network = Network.newNetwork();
         if (system == SystemUnderTest.KRAFT) {
             return startKraft(clusterSize, suffix);
+        }
+        if (system == SystemUnderTest.TENDERMINT) {
+            return startCometBft(clusterSize, suffix);
         }
         String initialCluster = IntStream.rangeClosed(1, clusterSize)
                 .mapToObj(i -> alias(system, i) + "=http://" + alias(system, i) + ":2380")
@@ -140,6 +149,49 @@ public final class LocalDockerProvider implements ClusterProvider {
         String bootstrap = c.getBootstrapServers();
         int proto = bootstrap.indexOf("://");
         endpoints.add(proto >= 0 ? bootstrap.substring(proto + 3) : bootstrap);
+        log.debug("phase: wait-healthy done — endpoints {}", endpoints);
+        return List.of(new NodeHandle(0, containerName, "127.0.0.1", alias));
+    }
+
+    /**
+     * Single-validator CometBFT chain with the in-process kvstore ABCI app.
+     * Facts probed against the real image (2026-07-15, v0.38.17):
+     *  - `--home` is NOT honored (CMTHOME=/cometbft wins) — init and start
+     *    both use the image default, so the config edit targets
+     *    /cometbft/config/config.toml;
+     *  - rpc.max_subscription_clients defaults to 100 and each concurrent
+     *    broadcast_tx_commit holds one subscription: measured 99/250
+     *    committed at the default, 250/250 at 2000 — the window >=200 load
+     *    model REQUIRES the raise (the plan's "CometBFT RPC at 200
+     *    in-flight" risk, now measured and closed).
+     * Multi-validator testnets need per-node keys/genesis wiring and land
+     * with the campaign provider — fails closed until then.
+     */
+    private List<NodeHandle> startCometBft(int clusterSize, String suffix) {
+        if (clusterSize != 1) {
+            throw new UnsupportedOperationException(
+                    "TENDERMINT supports size 1 only for now (P2.3a); asked for " + clusterSize);
+        }
+        String alias = alias(SystemUnderTest.TENDERMINT, 1); // "tm1"
+        String containerName = "thesis-" + alias + "-" + suffix;
+        String script = "cometbft init"
+                + " && sed -i 's/^max_subscription_clients = .*/max_subscription_clients = 2000/'"
+                + " /cometbft/config/config.toml"
+                + " && cometbft start --proxy_app=kvstore --rpc.laddr=tcp://0.0.0.0:26657";
+        GenericContainer<?> c = new GenericContainer<>(DockerImageName.parse(COMETBFT_IMAGE))
+                .withNetwork(network)
+                .withNetworkAliases(alias)
+                .withExposedPorts(26657)
+                .withCreateContainerCmdModifier(cmd -> cmd.withName(containerName)
+                        .withUser("root")               // default home is root-owned
+                        .withEntrypoint("sh", "-c")
+                        .withCmd(script))
+                .waitingFor(Wait.forHttp("/health").forPort(26657).forStatusCode(200)
+                        .withStartupTimeout(Duration.ofSeconds(60)));
+        containers.add(c);
+        log.debug("phase: deploy — starting 1 TENDERMINT container (kvstore app)");
+        c.start();
+        endpoints.add("http://" + c.getHost() + ":" + c.getMappedPort(26657));
         log.debug("phase: wait-healthy done — endpoints {}", endpoints);
         return List.of(new NodeHandle(0, containerName, "127.0.0.1", alias));
     }
