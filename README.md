@@ -76,7 +76,7 @@ consensus-bench-thesis/
 │   │   ├── topology/               ClusterProvider SPI + LocalDockerProvider
 │   │   └── Main.java               CLI: endpoint-run + local-run (one command,
 │   │                               clean→deploy→run→teardown)
-│   ├── src/test/java/              66 tests (TDD; integration tests need Docker)
+│   ├── src/test/java/              71 tests (TDD; integration tests need Docker)
 │   └── results/                    M0 EVIDENCE — real etcd run outputs
 ├── infra/
 │   ├── main.tf                     cluster as Terraform, phase-parameterized
@@ -110,11 +110,11 @@ consensus-bench-thesis/
 
 ## Current status (verified, not asserted — as of 2026-07-15)
 
-- **P0 + P1 fully closed, P2.1 (etcd/jetcd) and P2.2 (Kafka) done. Suite:
-  66 tests green** (`mvn21 clean verify`; the integration tests need the
-  local Docker daemon). Details and evidence: `docs/PROJECT_STATE.md` §3,
-  ledger in `docs/PENDING_TASKS.md`, diagrams in
-  `docs/MEASUREMENT_DIAGRAMS.md`.
+- **P0 + P1 fully closed; P2.1 (etcd/jetcd), P2.2 (Kafka), and P2.3
+  (CometBFT) done. Suite: 71 tests green** (`mvn21 clean verify`; the
+  integration tests need the local Docker daemon). Details and evidence:
+  `docs/PROJECT_STATE.md` §3, ledger in `docs/PENDING_TASKS.md`, diagrams
+  in `docs/MEASUREMENT_DIAGRAMS.md`.
 - **The measurement instrument is complete**: open-loop engine with CO
   correction, real HdrHistogram (true mean, `latency.hlog` pooling input),
   `EventLog` failover instrumentation, manifest v2 (params, digests,
@@ -131,10 +131,11 @@ consensus-bench-thesis/
 
 ## Honest caveats (do not skip)
 
-- **Drivers still missing**: CometBFT (P2.3 — the next increment), Paxi
-  leader detection (P2.4), HotStuff SUMMARY parser (P2.5). Gate G1 needs
-  all of them; Kafka's local parity gate is the order-of-magnitude band
-  (the 15% comparison runs at G3/M6.1 on the cluster).
+- **Drivers still missing**: Paxi substrate + leader detection (P2.4 —
+  needs a built-from-source Paxi image first) and the HotStuff SUMMARY
+  parser (P2.5). Gate G1 needs them; Kafka's local parity gate is the
+  order-of-magnitude band (the 15% comparison runs at G3/M6.1 on the
+  cluster).
 - **No remote layer yet**: RemoteSshProvider + FaultInjector + golden tests
   (P3.3) and the canary (P3.4) gate any `terraform apply` (G2).
 - **No ValidityChecker / PrometheusExporter / campaign runner yet**
@@ -151,7 +152,7 @@ consensus-bench-thesis/
 
 ```bash
 # 1. build + full suite (needs Docker; ~1.5 min)
-cd harness && mvn21 clean verify          # expect: Tests run: 66, BUILD SUCCESS
+cd harness && mvn21 clean verify          # expect: Tests run: 71, BUILD SUCCESS
 
 # 2. the one-command local loop (the P0 deliverable)
 java -jar target/consensus-bench-0.1.0-SNAPSHOT.jar \
@@ -161,5 +162,5 @@ java -jar target/consensus-bench-0.1.0-SNAPSHOT.jar \
 #    → docs/LOCAL_TESTING.md (9-point green checklist)
 ```
 
-Then continue from `docs/PENDING_TASKS.md` (next: **P2.3 CometBftDriver**), one
+Then continue from `docs/PENDING_TASKS.md` (next: **P2.4 Paxi substrate + leader detection**), one
 increment per session, per the working agreement in `docs/PROJECT_STATE.md` §9.

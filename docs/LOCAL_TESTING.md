@@ -32,7 +32,7 @@ mvn21 clean verify
 **Expect** (versions/counts as of 2026-07-15 — counts only grow):
 
 ```
-Tests run: 66, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 71, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -41,7 +41,7 @@ The provider tests need Docker; the first ever run pulls the pinned etcd
 image (~50 MB). If you see `client version 1.32 is too old`, the
 testcontainers pin regressed below 1.21.4 (Docker 29 needs ≥1.21.4).
 
-What the 66 tests pin, so you know what a failure means:
+What the 71 tests pin, so you know what a failure means:
 - `ArgParserTest` (6) — CLI contract: `--key value` pairs, bare `-v/--verbose`,
   fail-closed on a dangling key, duration>warmup guard.
 - `EventLogTest` (3) + engine event tests — failover instrumentation:
@@ -60,8 +60,9 @@ What the 66 tests pin, so you know what a failure means:
 - `LatencyRecorderTest` (4) — real HdrHistogram: percentiles within 0.1% on
   known samples; TRUE mean exposes skew p50 hides; warmup excluded from all
   statistics; **merging snapshots == pooling raw samples** (methodology §3).
-- `KeyEncodingTest` (2) — per-driver key encodings: etcd path-style;
-  Paxi numeric-only URL path (its API Atoi-parses the key).
+- `KeyEncodingTest` (4) — per-driver key encodings: etcd path-style;
+  Paxi numeric-only URL path (its API Atoi-parses the key); Kafka UTF-8
+  int record key; CometBFT `k<id>=` kvstore prefix (the tx's ONLY '=').
 - `CsvResultsWriterTest` (13) — results contract: every run-window second
   written zeros included, drain-buffer filtering, `error_rate` in the
   manifest, majority-error run may not claim `complete`, **conflict runs
@@ -73,11 +74,14 @@ What the 66 tests pin, so you know what a failure means:
   param-sensitive**, fault/failover fields null↔real correctly.
 - `ClusterProviderCloseTest` (2) — teardown continues on failure but the
   failure is logged, never swallowed.
-- `LocalDockerProviderTest` (5, integration, real Docker) — digest-pinned
+- `LocalDockerProviderTest` (7, integration, real Docker) — digest-pinned
   3-node etcd: quorum write; kill 1 → commits resume after re-election;
   kill 2 → writes fail (fail-closed); `stop()` leaves zero `thesis-*`
   containers; **KRaft size-1** (digest-pinned apache/kafka 3.9.1): healthy
-  broker commits an acks=all produce, multi-node fails closed (P2.2a).
+  broker commits an acks=all produce, multi-node fails closed (P2.2a);
+  **CometBFT size-1** (digest-pinned v0.38.17, kvstore app, subscription
+  limit raised 100→2000): /health answers, teardown clean, multi-node
+  fails closed (P2.3a).
 - `LocalRunTest` (1, integration) — the full one-command loop twice in a
   row, including pre-clean of a planted leftover container.
 - `KafkaDriverTest` (2, integration) — the production Kafka driver (P2.2b):
@@ -89,6 +93,11 @@ What the 66 tests pin, so you know what a failure means:
   regression: harness saturation vs `kafka-producer-perf-test` exec'd
   inside the same broker, order-of-magnitude band (see the test javadoc
   for why 3x locally and 15% at G3/M6.1; last measured ratio 0.95x).
+- `CometBftDriverTest` (2, integration, ~20 s) — the G1 flaw-A regression:
+  committed `broadcast_tx_commit` writes (200 ≠ commit: both check_tx and
+  tx_result codes must be 0), nonce-unique txs (mempool duplicate cache),
+  **saturation ≥300 tx/s sustained** (last measured 602 tx/s — 100x the
+  retired probe's ~6 tx/s ceiling) with p50 ≈ the block interval.
 - `FaultInjectorApplyTest` (6) — F13/F19 targeting pins: NETWORK_PARTITION
   isolates the DETECTED leader; PACKET_LOSS percent is a parameter;
   DOUBLE_KILL deterministic nodes 0+1; baseline touches nothing.
@@ -357,7 +366,7 @@ verified against live exporters at M5.2 (task P4.3).
 
 | # | Check | Command | Green means |
 |---|-------|---------|-------------|
-| 1 | Build + tests | `mvn21 clean verify` | `Tests run: 66+, Failures: 0` + `BUILD SUCCESS` |
+| 1 | Build + tests | `mvn21 clean verify` | `Tests run: 71+, Failures: 0` + `BUILD SUCCESS` |
 | 0 | **One-command loop** | §2.8 `local-run` | complete manifest, ~8 s, zero `thesis-*` survivors |
 | 2 | Quiet smoke | §2.2 | 4 INFO lines, `errors=0`, throughput ≈ rate |
 | 3 | Verbose smoke | §2.3 | same INFO + phase DEBUG + per-second ticker |

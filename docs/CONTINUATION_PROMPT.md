@@ -44,27 +44,29 @@ PROJECT_STATE.md, ask me; don't silently pick one.
 
 ## Where to start
 
-**P0 and P1 are fully closed; P2.1 (jetcd EtcdDriver) and P2.2 (KafkaDriver
-incl. the KRaft substrate and the G1 flaw-B parity check) are done. Suite:
-66 tests green via `mvn21 clean verify` (integration tests need the local
-Docker daemon).** The measurement instrument is complete: open-loop engine
-with CO correction, real HdrHistogram + latency.hlog, EventLog failover,
-manifest v2, first-error capture, `local-run` one-command loop, etcd and
-Kafka production drivers with bounded (5 s) completion. Do NOT redo any of
-it — PENDING_TASKS.md is the ledger, PROJECT_STATE.md §3 the evidence,
-MEASUREMENT_DIAGRAMS.md the architecture reference.
+**P0 and P1 are fully closed; P2.1 (jetcd EtcdDriver), P2.2 (KafkaDriver +
+KRaft substrate + G1 flaw-B parity) and P2.3 (CometBftDriver — 602 tx/s
+measured, 100x the retired probe's ceiling, p50 ≈ block interval) are
+done. Suite: 71 tests green via `mvn21 clean verify` (integration tests
+need the local Docker daemon).** The measurement instrument is complete:
+open-loop engine with CO correction, real HdrHistogram + latency.hlog,
+EventLog failover, manifest v2, first-error capture, `local-run`
+one-command loop, etcd/Kafka/CometBFT production drivers with bounded
+(5 s) completion. Do NOT redo any of it — PENDING_TASKS.md is the ledger,
+PROJECT_STATE.md §3 the evidence, MEASUREMENT_DIAGRAMS.md the architecture
+reference.
 
 Proposed next increment (confirm with me before coding, then do only this):
-**P2.3 — CometBftDriver** (the G1 flaw-A regression): extend
-LocalDockerProvider to a CometBFT kvstore node (digest-pinned), TDD the
-driver — pooled async `broadcast_tx_commit`, in-flight window ≥200,
-completion bounded ≤5 s per the ConsensusDriver contract. Acceptance:
-sustained >300 tx/s (≥50x the retired probe's ceiling); p50 ≈ block
-interval.
+**P2.4 — Paxi substrate + leader detection.** Prerequisite: Paxi publishes
+NO Docker image — build one from source (github.com/ailidani/paxi, pinned
+commit, multi-stage Dockerfile), digest-pin it (D2). Then extend
+LocalDockerProvider (3-node Paxi), verify the PaxiDriver write path
+against the real server (re-verify the Atoi int-key contract vs
+paxi/http.go), TDD `/state` ballot parsing for currentLeaderIndex(), and
+exercise the D7 conflict sweep end-to-end.
 
-Then P2.4 (Paxi `/state` leader detection + exercising the D7 sweep) and
-P2.5 (HotStuff SUMMARY parser), each TDD from its acceptance criterion in
-PENDING_TASKS.md.
+Then P2.5 (HotStuff SUMMARY parser, fixture-tested), each TDD from its
+acceptance criterion in PENDING_TASKS.md.
 
 ## What "done" looks like for this whole effort
 
@@ -100,7 +102,7 @@ Don't let this become an afterthought bolted on at analysis time.
 - the consensus papers already in the project
 
 Start by reading PROJECT_STATE.md, confirming `mvn21 clean verify` is still
-green (66 tests, Docker required), then propose the P2.3 increment and wait
+green (71 tests, Docker required), then propose the P2.4 increment and wait
 for my go-ahead.
 
 ────────────────────────────────────────────────────────────────────────────

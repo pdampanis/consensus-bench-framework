@@ -47,8 +47,10 @@ measurement instrument is complete and pinned, and the first production
 driver (etcd/jetcd, leader detection cross-validated) rides the local loop
 from the shaded jar. Manual verification: **`docs/LOCAL_TESTING.md`**.
 
-**P2.2 (KafkaDriver) IS DONE (2026-07-15, TDD throughout). Suite: 66 tests
-green. Next: P2.3 CometBftDriver** (the G1 flaw-A regression). Delivered:
+**P2.2 (KafkaDriver) AND P2.3 (CometBftDriver) ARE DONE (2026-07-15, TDD
+throughout). Suite: 71 tests green. Next: P2.4 Paxi leader detection —
+NOTE: Paxi has no published Docker image; P2.4's substrate needs a
+built-from-source image first.** P2.2 delivered:
 - **P2.2a** — LocalDockerProvider KRaft size-1 substrate (apache/kafka
   3.9.1 digest-pinned; testcontainers `kafka` module owns the advertised-
   listener dance; multi-node fails closed until the campaign provider).
@@ -357,8 +359,21 @@ P1.3 → P1.4 → P1.6.
   snapshot above. Local acceptance = order-of-magnitude band vs perf-test
   (measured 0.95x); the symmetric 15% comparison runs at G3/M6.1 on the
   campaign cluster.
-- **P2.3 — `CometBftDriver`** (async `broadcast_tx_commit`, window ≥ 200).
-  Acceptance: sustained > 300 tx/s (G1 flaw-A regression).
+- **P2.3 — `CometBftDriver` — DONE 2026-07-15 (TDD, probe-first).**
+  Substrate: single-validator cometbft v0.38.17 (digest-pinned) with the
+  in-process kvstore app; the provider raises `rpc.max_subscription_clients`
+  100→2000 (measured: 99/250 committed at the default — each concurrent
+  `broadcast_tx_commit` holds a subscription; 250/250 after). Probed facts
+  encoded: HTTP 200 ≠ commit (success = no JSON-RPC error AND
+  check_tx.code==0 AND tx_result.code==0 — v0.38 renames deliver_tx to
+  tx_result); mempool cache rejects duplicate tx bytes → per-tx nonce,
+  carried as ASCII hex because kvstore's CheckTx splits on '=' requiring
+  EXACTLY two parts (raw nonce bytes hit 0x3d → 12% code-2 failures,
+  caught red by the new firstError instrumentation). **G1 flaw-A
+  acceptance: 602 tx/s sustained (100x the retired 6-thread ceiling),
+  p50 = 1.09 s ≈ the block interval, error rate <1%.** Window 600 (the
+  ≥200 floor was window-bound at 220 tx/s = window/latency — Little's Law,
+  same lesson as P2.2c). Suite: **71 tests green.**
 - **P2.4 — Paxi leader detection** (`/state` parse) + exercise P1.2 knob.
 - **P2.5 — HotStuff SUMMARY parser** (class + fixture test).
 - **P2.6 — Safety oracle scope decision + implementation** *(2026-07-07 review)*.
@@ -472,12 +487,14 @@ the author.
 
 ## Immediate next increment (proposed)
 
-**P2.3 — CometBftDriver** (the G1 flaw-A regression): extend
-`LocalDockerProvider` to a CometBFT kvstore node (digest-pinned image), TDD
-the driver — pooled async `broadcast_tx_commit` (java.net.http), in-flight
-window ≥200, completion bounded ≤5 s per the ConsensusDriver contract, tx
-encoding for the int keyId. Acceptance: sustained >300 tx/s (≥50x the
-retired 6-thread probe's ceiling); p50 ≈ block interval. Then P2.4 (Paxi
-`/state` leader detection + exercising the D7 sweep) and P2.5 (HotStuff
-SUMMARY parser). Confirm and implement one at a time (test → code → run →
-checkpoint).
+**P2.4 — Paxi (Paxos/EPaxos) substrate + leader detection.** Prerequisite
+discovered: Paxi publishes NO Docker image — build one from source
+(github.com/ailidani/paxi, Go; pin the commit, multi-stage Dockerfile) and
+digest-pin it (D2). Then: extend `LocalDockerProvider` (3-node Paxi,
+config.json wiring), verify the PaxiDriver write path against the real
+server (re-verify the Atoi int-key contract vs paxi/http.go — P1.1 note),
+TDD `/state` ballot parsing for `currentLeaderIndex()` (fixture + live
+smoke), and exercise the D7 conflict sweep end-to-end (realized slow-path
+fraction visible between c=0 and c=10%). Then P2.5 (HotStuff SUMMARY
+parser, fixture-tested). Confirm and implement one at a time (test → code
+→ run → checkpoint).

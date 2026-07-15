@@ -17,7 +17,11 @@ pushed per increment.** New: `docs/MEASUREMENT_DIAGRAMS.md` (engine core +
 per-system commit-path/measurement diagrams). Prior update (2026-07-08/09):
 F1–F17 review, D10/D11 locked, Terraform layer locally verified (no apply,
 G2 intact), Prometheus role-label fix, CAMPAIGN_RUNBOOK created, P0+P1
-closed, P2.1 done. Backlog + ledger: `docs/PENDING_TASKS.md`. Next: P2.3.
+closed, P2.1 done. Backlog + ledger: `docs/PENDING_TASKS.md`.
+**Same-day continuation: P2.3 (CometBftDriver) DONE — 602 tx/s measured
+(100x the retired probe's ceiling), p50 ≈ block interval; suite 71 green;
+see PENDING_TASKS for the probed facts (subscription cap, kvstore '='
+split, nonce). Next: P2.4 (needs a built-from-source Paxi image first).**
 
 ---
 
@@ -265,6 +269,22 @@ failure cause (a 551-error run with no cause cost a diagnosis cycle).
 **F19 also fixed (TDD)**: `FaultInjector.apply` now isolates the DETECTED
 leader for NETWORK_PARTITION and takes packet-loss percent as a parameter
 (red run showed partition:0 + hardcoded loss:5). Suite: **66 tests green.**
+
+**P2.3 (CometBftDriver + single-validator substrate) — DONE 2026-07-15,
+TDD, probe-first.** The RPC's real behavior was probed before any code:
+HTTP 200 ≠ commit (empty tx → 200 with check_tx.code=2; v0.38 renames
+deliver_tx → tx_result); duplicate tx bytes → JSON-RPC error ("tx already
+exists in cache") ⇒ per-tx nonce; `rpc.max_subscription_clients` (default
+100) caps concurrent broadcast_tx_commit callers — measured 99/250 at the
+default, 250/250 after the provider raises it to 2000 (the plan's
+"CometBFT RPC at 200 in-flight" risk, closed by measurement). One red
+mid-build: a raw 8-byte nonce contains '=' (0x3d) often enough that
+kvstore's exactly-two-parts CheckTx failed 12% of txs — nonce now rides as
+ASCII hex (firstError named the cause instantly). **Flaw-A acceptance:
+602 tx/s sustained, 100x the retired probe's ~6 tx/s ceiling; p50 = 1.09 s
+≈ the block interval — the latency semantics behaving exactly as
+documented.** Window 600 (the 200 floor was window-bound: 220 tx/s =
+window/latency). Suite: **71 tests green.**
 
 **Compiled, dependency-free Java skeleton** (`harness/src/main/java/`, JDK 21,
 `javac`-clean, ~600 lines, 10 source files):

@@ -295,7 +295,7 @@ stage completes**.
 - **Driver**: the SAME `KafkaDriver` (constructor takes KAFKA_ZK) — the
   data path is identical by design; that identity IS the point of F6.
 
-### 4.4 CometBFT / Tendermint — 🔶 driver P2.3 (G1 flaw-A regression)
+### 4.4 CometBFT / Tendermint — ✅ driver + single-node substrate (P2.3)
 
 ```
  TOPOLOGY: 4 validators (n=3f+1, f=1)   COMMIT PATH (one height, happy path)
@@ -309,13 +309,19 @@ stage completes**.
                           compared in absolute terms ONLY with that caveat
 ```
 
-- **Driver plan**: pooled async `broadcast_tx_commit` (java.net.http),
-  in-flight window ≥200. Acceptance = sustained >300 tx/s — ≥50× the
-  retired probe's ceiling (6 blocking threads ÷ ~1 s block = ~6 tx/s: it
-  measured the client's thread count, not the protocol — flaw A).
-- **Reliable because**: a 200 response ⇒ ≥2/3 precommits ⇒ full BFT cycle
-  for that tx; height/rounds/block-interval scraped at :26660 corroborate
-  faults (round jumps on proposer kill).
+- **Driver**: pooled async `broadcast_tx_commit` (java.net.http), 5 s
+  bounded completion. Probed facts encoded (v0.38.17): HTTP 200 ≠ commit —
+  success = no JSON-RPC error AND check_tx.code==0 AND tx_result.code==0;
+  txs carry an ASCII-hex nonce (mempool rejects duplicate bytes; kvstore's
+  CheckTx demands exactly-two-'='-parts); the provider raises
+  `rpc.max_subscription_clients` 100→2000 (each concurrent caller holds a
+  subscription — measured 99/250 at the default). **Flaw-A acceptance
+  green: 602 tx/s sustained (100× the retired 6-thread probe's ~6 tx/s
+  ceiling), p50 = 1.09 s ≈ the block interval.**
+- **Reliable because**: a completed stage ⇒ ≥2/3 precommits ⇒ full BFT
+  cycle for that tx (codes checked, never just HTTP status);
+  height/rounds/block-interval scraped at :26660 corroborate faults
+  (round jumps on proposer kill).
 - **Caveats**: O(n²) message complexity (vote gossip) — the preregistered
   expectation vs HotStuff's O(n); block-interval wait dominates latency.
 
