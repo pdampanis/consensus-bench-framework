@@ -50,7 +50,10 @@ public interface ConsensusDriver extends AutoCloseable {
     /** Async committed write of keyId ∈ [0, KEY_SPACE). The returned stage
      *  completes on consensus commitment, exceptionally on failure/timeout.
      *  Implementations must reuse connections (Kafka producer, jetcd
-     *  channel, pooled HttpClient). */
+     *  channel, pooled HttpClient) — and must BOUND completion time (5 s
+     *  per op is the established bound): the engine's drain barrier waits
+     *  for every issued write, so one unbounded op on a quorum-lost cluster
+     *  hangs the whole fault run instead of failing closed. */
     CompletionStage<Void> write(int keyId, byte[] value);
 
     /**

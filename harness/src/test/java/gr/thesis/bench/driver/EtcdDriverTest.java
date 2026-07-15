@@ -14,10 +14,12 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -98,6 +100,37 @@ class EtcdDriverTest {
                 assertNotEquals(detected, newLeader);
 
                 driver.write(8, new byte[64]).toCompletableFuture().get(15, TimeUnit.SECONDS);
+            }
+        }
+    }
+
+    @Test
+    void lostQuorumWritesFailWithinTheDriverDeadlineInsteadOfHanging() throws Exception {
+        // The engine's drain barrier (inFlight.acquire(maxInFlight)) waits for
+        // EVERY issued write to complete. The HTTP drivers bound completion at
+        // 5 s per request; a jetcd put with no deadline can outlive the run on
+        // a quorum-lost cluster (DOUBLE_KILL, NETWORK_PARTITION) — hanging the
+        // whole fault run instead of failing closed. This pins the bound: the
+        // write must complete EXCEPTIONALLY within the driver deadline + slack,
+        // never commit, never hang.
+        try (var provider = new LocalDockerProvider()) {
+            List<ClusterProvider.NodeHandle> nodes = provider.start(SystemUnderTest.ETCD, 3);
+            try (var driver = new EtcdDriver(provider.clientEndpoints())) {
+                driver.connect();
+                driver.write(1, new byte[8]).toCompletableFuture().get(10, TimeUnit.SECONDS);
+
+                var docker = DockerClientFactory.instance().client();
+                docker.killContainerCmd(nodes.get(1).containerName()).exec();
+                docker.killContainerCmd(nodes.get(2).containerName()).exec();
+
+                long t0 = System.nanoTime();
+                var f = driver.write(2, new byte[8]).toCompletableFuture();
+                assertThrows(ExecutionException.class, () -> f.get(15, TimeUnit.SECONDS),
+                        "1/3 has no quorum: the write must fail, not commit or hang");
+                long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+                assertTrue(elapsedMs < 6_500,
+                        "must fail within the 5 s driver deadline (+slack), took "
+                                + elapsedMs + " ms");
             }
         }
     }

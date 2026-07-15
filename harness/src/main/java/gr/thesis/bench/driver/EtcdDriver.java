@@ -71,7 +71,14 @@ public final class EtcdDriver implements ConsensusDriver {
     }
 
     @Override public CompletionStage<Void> write(int keyId, byte[] value) {
-        return kv.put(keys[keyId], ByteSequence.from(value)).thenApply(r -> null);
+        // 5 s deadline, same as the HTTP drivers: jetcd sets no per-op
+        // deadline of its own, so without this the bound is whatever a
+        // reachable member grants (measured: etcd holds a quorum-less
+        // proposal ~7 s server-side; an unreachable endpoint grants nothing)
+        // — and the engine's drain barrier waits on EVERY completion.
+        return kv.put(keys[keyId], ByteSequence.from(value))
+                .thenApply(r -> (Void) null)
+                .orTimeout(5, TimeUnit.SECONDS);
     }
 
     @Override public Optional<Integer> currentLeaderIndex() throws Exception {
