@@ -25,6 +25,16 @@ class KeyEncodingTest {
     }
 
     @Test
+    void kafkaKeyIsUtf8IntegerBytes() {
+        // Kafka's native encoding of a workload keyId: the integer's UTF-8
+        // string as record-key bytes. Same keyId -> same bytes -> same
+        // partition (murmur2 on the key), so contention is deterministic.
+        assertEquals("0", new String(KafkaDriver.encodeKey(0), StandardCharsets.UTF_8));
+        assertEquals("42", new String(KafkaDriver.encodeKey(42), StandardCharsets.UTF_8));
+        assertEquals("999", new String(KafkaDriver.encodeKey(999), StandardCharsets.UTF_8));
+    }
+
+    @Test
     void paxiKeyPathIsNumericOnly() {
         for (int id : new int[]{0, 7, 999}) {
             String path = PaxiDriver.keyPath(id);
