@@ -62,6 +62,11 @@ public final class WorkloadEngine {
     private final EventLog events; // null = event recording off (baseline runs)
     private final AtomicLongArray perSecondCommits;
     private final LongAdder errors = new LongAdder();
+    // First failure's cause — an error COUNT alone is undebuggable (learned
+    // from a 551-error run that gave zero clue). One CAS attempt per error,
+    // error path only; the success hot path is untouched.
+    private final java.util.concurrent.atomic.AtomicReference<Throwable> firstError =
+            new java.util.concurrent.atomic.AtomicReference<>();
     private volatile long startNanos;
 
     public WorkloadEngine(ConsensusDriver driver, Config cfg, LatencyRecorder recorder) {
@@ -117,7 +122,11 @@ public final class WorkloadEngine {
                     final long completed = System.nanoTime();
                     try {
                         if (events != null) events.append(completed, err == null);
-                        if (err != null) { errors.increment(); return; }
+                        if (err != null) {
+                            errors.increment();
+                            firstError.compareAndSet(null, err);
+                            return;
+                        }
                         // Coordinated-omission-corrected latency: completion minus
                         // INTENDED start, not minus actual send.
                         final long latencyMicros = (completed - intended) / 1_000L;
@@ -144,7 +153,14 @@ public final class WorkloadEngine {
         }
         log.debug("phase: run complete ({} committed after warmup, {} errors)",
                 recorder.countAfterWarmup(), errors.sum());
-        return new Result(snapshotPerSecond(), recorder, errors.sum(), events);
+        if (errors.sum() > 0) {
+            // Never silent: the count goes in the results, the CAUSE goes in
+            // the log — a run report saying "551 errors" with no exception
+            // sends whoever reads it on a blind chase.
+            log.warn("{} ops failed; first cause: {}", errors.sum(),
+                    String.valueOf(firstError.get()));
+        }
+        return new Result(snapshotPerSecond(), recorder, errors.sum(), events, firstError.get());
     }
 
     /**
@@ -214,12 +230,18 @@ public final class WorkloadEngine {
         return out;
     }
 
-    /** @param events null unless the run recorded timestamped events (fault runs) */
+    /** @param events     null unless the run recorded timestamped events (fault runs)
+     *  @param firstError the first failed op's cause; null when errors == 0 */
     public record Result(long[] committedPerSecond, LatencyRecorder latencies, long errors,
-                         EventLog events) {
+                         EventLog events, Throwable firstError) {
+        /** Fault-run shape without a captured cause — keeps existing callers/tests. */
+        public Result(long[] committedPerSecond, LatencyRecorder latencies, long errors,
+                      EventLog events) {
+            this(committedPerSecond, latencies, errors, events, null);
+        }
         /** Baseline-run shape (no event recording) — keeps existing callers/tests. */
         public Result(long[] committedPerSecond, LatencyRecorder latencies, long errors) {
-            this(committedPerSecond, latencies, errors, null);
+            this(committedPerSecond, latencies, errors, null, null);
         }
     }
 }

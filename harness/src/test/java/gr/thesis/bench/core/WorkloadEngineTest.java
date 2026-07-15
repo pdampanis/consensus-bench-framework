@@ -272,4 +272,28 @@ class WorkloadEngineTest {
         assertEquals(0, rec.countAfterWarmup(), "no fabricated latency samples");
         assertEquals(0, Arrays.stream(r.committedPerSecond()).sum(), "no fabricated throughput");
     }
+
+    @Test
+    void firstErrorCauseIsSurfacedNotSwallowed() throws Exception {
+        // An error COUNT with no cause is undebuggable — proven in the field:
+        // a 551-error Kafka saturation run gave zero clue why. The engine
+        // must keep the first failure's exception for the run report.
+        var driver = FakeDriver.failing();
+        var cfg = new WorkloadEngine.Config(1, 0, 100, 64, 8, 0.0);
+        var r = new WorkloadEngine(driver, cfg, new LatencyRecorder()).run();
+
+        assertTrue(r.errors() > 0);
+        assertTrue(r.firstError() != null, "errors without a cause are undebuggable");
+        assertTrue(String.valueOf(r.firstError()).contains("cluster down"),
+                "the surfaced cause must be the driver's real exception, got " + r.firstError());
+    }
+
+    @Test
+    void cleanRunHasNoFirstError() throws Exception {
+        var driver = FakeDriver.responding(1);
+        var cfg = new WorkloadEngine.Config(1, 0, 100, 64, 8, 0.0);
+        var r = new WorkloadEngine(driver, cfg, new LatencyRecorder()).run();
+        assertEquals(0, r.errors());
+        assertTrue(r.firstError() == null, "no errors -> no fabricated cause");
+    }
 }
