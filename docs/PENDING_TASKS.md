@@ -45,9 +45,28 @@ without implementation coverage — every such claim now has a task below.
 **P0 AND P1 ARE FULLY CLOSED (2026-07-09); P2.1 (jetcd) IS DONE.** The
 measurement instrument is complete and pinned, and the first production
 driver (etcd/jetcd, leader detection cross-validated) rides the local loop
-from the shaded jar. **Next: P2.2 KafkaDriver** (extend LocalDockerProvider
-to KRaft; acceptance = within 15% of kafka-producer-perf-test — the G1
-flaw-B regression). Manual verification: **`docs/LOCAL_TESTING.md`**.
+from the shaded jar. Manual verification: **`docs/LOCAL_TESTING.md`**.
+
+**P2.2 (KafkaDriver) IS DONE (2026-07-15, TDD throughout). Suite: 66 tests
+green. Next: P2.3 CometBftDriver** (the G1 flaw-A regression). Delivered:
+- **P2.2a** — LocalDockerProvider KRaft size-1 substrate (apache/kafka
+  3.9.1 digest-pinned; testcontainers `kafka` module owns the advertised-
+  listener dance; multi-node fails closed until the campaign provider).
+- **P2.2b** — `KafkaDriver` (KRAFT/KAFKA_ZK): acks=all, commit timed in the
+  send callback, delivery.timeout=5 s (F18 contract), metadata warmed at
+  connect() so send() never blocks the issue loop; leader = partition-0
+  leader by endpoint match, unmappable ⇒ throw. Dead-broker write fails
+  <8 s asynchronously. Key encoding (UTF-8 int) pinned.
+- **P2.2c** — G1 flaw-B regression vs `kafka-producer-perf-test` on the
+  same broker (oracle exec'd in-container on the BROKER listener). **Local
+  gate = 3x order-of-magnitude band; the symmetric 15% moved to G3/M6.1
+  on the cluster** — measured evidence across 4 laptop configurations
+  (ramp fraction, sticky-vs-keyed partitioning ≤2x, window/latency
+  Little's-Law cap, 5 s vs 120 s delivery-timeout asymmetry under
+  writeback storms; final run: 0.95x). Full rationale in the test javadoc.
+- **Engine observability (fallout, TDD)**: `Result.firstError` — a
+  551-error run with no cause cost a diagnosis cycle; the engine now keeps
+  and WARNs the first failure cause. Diagrams: `MEASUREMENT_DIAGRAMS.md`.
 
 **2026-07-15 second hard review** (full code+docs pass; 51/51 suite
 re-verified by execution first): produced findings F18–F21 (ledger below)
@@ -334,8 +353,10 @@ P1.3 → P1.4 → P1.6.
   **Shaded-jar proof:** jetcd/gRPC from the uber-jar drove a 3-node quorum
   (451 commits, 0 errors) — the ServicesResourceTransformer is exercised,
   not assumed. jetcd 0.8.5 note: `statusMember(String)`. Suite: **51 green.**
-- **P2.2 — `KafkaDriver`** (producer, `acks=all`, callback-timed commit).
-  Acceptance: within 15% of `kafka-producer-perf-test` (G1 flaw-B regression).
+- **P2.2 — `KafkaDriver` — DONE 2026-07-15 (TDD)** — see the status
+  snapshot above. Local acceptance = order-of-magnitude band vs perf-test
+  (measured 0.95x); the symmetric 15% comparison runs at G3/M6.1 on the
+  campaign cluster.
 - **P2.3 — `CometBftDriver`** (async `broadcast_tx_commit`, window ≥ 200).
   Acceptance: sustained > 300 tx/s (G1 flaw-A regression).
 - **P2.4 — Paxi leader detection** (`/state` parse) + exercise P1.2 knob.
@@ -429,7 +450,7 @@ and `CAMPAIGN_RUNBOOK.md`.
 | # | Finding (file:line) | Task | Status |
 |---|--------------------|------|--------|
 | F18 | jetcd put has no client deadline → quorum-lost write bounded only by etcd's ~7 s server grace (or nothing, if the picked endpoint is dead); drain barrier can outwait/hang the run (EtcdDriver.java:74, WorkloadEngine.java:141) | fixed in P2.1 | **DONE 2026-07-15** (TDD; orTimeout 5 s; SPI contract documented; 52 green) |
-| F19 | `FaultInjector.apply()` default contradicts F13 preregistration: NETWORK_PARTITION isolates node 0 not the leader; PACKET_LOSS hardcodes 5% (ClusterProvider.java:54-63) | P3.3 | **open** — rewrite the default before goldens pin it |
+| F19 | `FaultInjector.apply()` default contradicts F13 preregistration: NETWORK_PARTITION isolates node 0 not the leader; PACKET_LOSS hardcodes 5% (ClusterProvider.java:54-63) | fixed pre-P3.3 | **DONE 2026-07-15** (TDD, recording-injector test per scenario; red showed partition:0 + loss:5) |
 | F20 | `NodeHandle.privateIp` carries the Docker network ALIAS ("etcd1"), not an IP (LocalDockerProvider.java:93) — semantic trap for RemoteSshProvider | P3.3 | open — rename or fill with a real IP when the remote provider lands |
 | F21 | Manifest JSON string-concat leaves runId/imageRef unescaped (CsvResultsWriter.java:137+); and nothing pins the campaign's 1024 B value size (Main defaults 256) | M3.3 | open — campaign runner must set valsize=1024 and runIds stay `[a-z0-9]+` until escaped |
 
@@ -451,11 +472,12 @@ the author.
 
 ## Immediate next increment (proposed)
 
-**P2.2 — KafkaDriver** (the status snapshot above is the authority): extend
-`LocalDockerProvider` to a single-node KRaft broker, TDD the driver
-(kafka-clients producer, acks=all, callback-timed commit, completion bounded
-at 5 s per the ConsensusDriver contract — set `delivery.timeout.ms`
-accordingly), then the G1 flaw-B acceptance: within 15% of
-`kafka-producer-perf-test` on the same broker. Confirm and implement one at
-a time (test → code → run → checkpoint). F19 (FaultInjector default
-semantics) must be resolved before P3.3 writes its goldens.
+**P2.3 — CometBftDriver** (the G1 flaw-A regression): extend
+`LocalDockerProvider` to a CometBFT kvstore node (digest-pinned image), TDD
+the driver — pooled async `broadcast_tx_commit` (java.net.http), in-flight
+window ≥200, completion bounded ≤5 s per the ConsensusDriver contract, tx
+encoding for the int keyId. Acceptance: sustained >300 tx/s (≥50x the
+retired 6-thread probe's ceiling); p50 ≈ block interval. Then P2.4 (Paxi
+`/state` leader detection + exercising the D7 sweep) and P2.5 (HotStuff
+SUMMARY parser). Confirm and implement one at a time (test → code → run →
+checkpoint).

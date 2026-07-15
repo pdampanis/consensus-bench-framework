@@ -5,19 +5,19 @@ It is written for a fresh Claude session with no memory of prior turns.
 When something here conflicts with an older file, this document wins; update
 it at the end of every working session.
 
-Last updated: 2026-07-15 — second hard review of code/docs (suite
-re-verified by execution first: 51/51 green). Findings F18–F21 added to the
-`PENDING_TASKS.md` ledger; **F18 fixed same day, TDD**: jetcd writes now
-carry a 5 s per-op deadline (quorum-lost writes fail closed instead of
-riding etcd's ~7 s server grace or hanging the drain barrier), and bounded
-completion (5 s) is now a documented `ConsensusDriver.write` contract for
-every future driver. **Suite: 52 tests green.** Doc drift fixed: README
-(status/caveats/handoff), METRICS_AND_SOURCES (harness-first §0,
-retired-probe labeling, HS 1024 B requirement), CONTINUATION_PROMPT (next
-increment = P2.2 KafkaDriver). Prior update (2026-07-08/09): F1–F17 review,
-D10/D11 locked, Terraform layer locally verified (no apply, G2 intact),
-Prometheus role-label fix, CAMPAIGN_RUNBOOK created, P0+P1 closed, P2.1
-done. The prioritized backlog + status ledger is `docs/PENDING_TASKS.md`.
+Last updated: 2026-07-15 — second hard review (F18–F21 ledgered; F18 jetcd
+5 s deadline fixed TDD; doc drift fixed) **and P2.2 (KafkaDriver) completed
+TDD end-to-end**: KRaft single-node substrate (P2.2a), production
+KafkaDriver (P2.2b), G1 flaw-B regression vs kafka-producer-perf-test
+(P2.2c — local order-of-magnitude gate, measured 0.95x; the symmetric 15%
+moved to G3/M6.1 with measured justification), engine `firstError`
+observability, and F19 (FaultInjector leader-targeting per F13) fixed
+before P3.3 can inherit it. **Suite: 66 tests green; all work committed and
+pushed per increment.** New: `docs/MEASUREMENT_DIAGRAMS.md` (engine core +
+per-system commit-path/measurement diagrams). Prior update (2026-07-08/09):
+F1–F17 review, D10/D11 locked, Terraform layer locally verified (no apply,
+G2 intact), Prometheus role-label fix, CAMPAIGN_RUNBOOK created, P0+P1
+closed, P2.1 done. Backlog + ledger: `docs/PENDING_TASKS.md`. Next: P2.3.
 
 ---
 
@@ -242,6 +242,29 @@ javadoc makes bounded completion a contract every driver must honor
 (P2.2 Kafka: `delivery.timeout.ms`). Acceptance green vs real Docker:
 kill 2 of 3 → the write fails within the deadline, never commits, never
 hangs. Suite: **52 tests green.**
+
+**P2.2 (KafkaDriver, all of a/b/c) — DONE 2026-07-15, TDD.** Substrate:
+LocalDockerProvider starts a digest-pinned apache/kafka 3.9.1 KRaft
+single-node (testcontainers `kafka` module; multi-node fails closed until
+the campaign provider). Driver: acks=all, commit timed in the send
+callback, `delivery.timeout.ms=5000` (the F18 bounded-completion contract),
+metadata warmed at connect() so `send()` never blocks the open-loop issue
+thread; leader = bench-topic partition-0 leader mapped by endpoint match
+(unmappable ⇒ throw — never kill the wrong node). Acceptance vs real
+Docker: committed write; leader detection; dead broker ⇒ write fails <8 s
+asynchronously. **G1 flaw-B regression**: measured against
+`kafka-producer-perf-test` exec'd inside the broker container — final run
+0.95x. The symmetric 15% gate moved to G3/M6.1 (cluster) with measured
+justification: across 4 laptop configurations the ratio swung 0.2x–2.8x
+for identified environmental reasons (oracle ramp fraction at short runs;
+null-key sticky vs keyed partitioning ≤2x; window/latency Little's-Law cap
+on 1 partition; 5 s vs 120 s delivery-timeout asymmetry under laptop
+writeback storms) — full evidence in the parity test's javadoc. Fallout
+fix (TDD): `Result.firstError` — the engine keeps and WARNs the first
+failure cause (a 551-error run with no cause cost a diagnosis cycle).
+**F19 also fixed (TDD)**: `FaultInjector.apply` now isolates the DETECTED
+leader for NETWORK_PARTITION and takes packet-loss percent as a parameter
+(red run showed partition:0 + hardcoded loss:5). Suite: **66 tests green.**
 
 **Compiled, dependency-free Java skeleton** (`harness/src/main/java/`, JDK 21,
 `javac`-clean, ~600 lines, 10 source files):

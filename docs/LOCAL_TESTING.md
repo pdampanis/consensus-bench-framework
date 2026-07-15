@@ -32,7 +32,7 @@ mvn21 clean verify
 **Expect** (versions/counts as of 2026-07-15 — counts only grow):
 
 ```
-Tests run: 52, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 66, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -41,13 +41,13 @@ The provider tests need Docker; the first ever run pulls the pinned etcd
 image (~50 MB). If you see `client version 1.32 is too old`, the
 testcontainers pin regressed below 1.21.4 (Docker 29 needs ≥1.21.4).
 
-What the 52 tests pin, so you know what a failure means:
+What the 66 tests pin, so you know what a failure means:
 - `ArgParserTest` (6) — CLI contract: `--key value` pairs, bare `-v/--verbose`,
   fail-closed on a dangling key, duration>warmup guard.
 - `EventLogTest` (3) + engine event tests — failover instrumentation:
   kill→first-commit gap recovered from a scripted stall (±150 ms on one
   clock), off-by-default, overflow drops loudly, no recovery ⇒ no number.
-- `WorkloadEngineTest` (15) — the instrument itself: open-loop rate adherence,
+- `WorkloadEngineTest` (17) — the instrument itself: open-loop rate adherence,
   **coordinated-omission correction** (a scripted 1 s stall must charge ~100
   ops their queueing delay), drain accounting (no lost samples), buckets ==
   histogram, warmup flagging, dead-cluster ⇒ errors-not-data, **K=1000
@@ -73,12 +73,28 @@ What the 52 tests pin, so you know what a failure means:
   param-sensitive**, fault/failover fields null↔real correctly.
 - `ClusterProviderCloseTest` (2) — teardown continues on failure but the
   failure is logged, never swallowed.
-- `LocalDockerProviderTest` (3, integration, real Docker) — digest-pinned
+- `LocalDockerProviderTest` (5, integration, real Docker) — digest-pinned
   3-node etcd: quorum write; kill 1 → commits resume after re-election;
   kill 2 → writes fail (fail-closed); `stop()` leaves zero `thesis-*`
-  containers.
+  containers; **KRaft size-1** (digest-pinned apache/kafka 3.9.1): healthy
+  broker commits an acks=all produce, multi-node fails closed (P2.2a).
 - `LocalRunTest` (1, integration) — the full one-command loop twice in a
   row, including pre-clean of a planted leftover container.
+- `KafkaDriverTest` (2, integration) — the production Kafka driver (P2.2b):
+  committed acks=all write timed in the callback; the single broker maps to
+  leader index 0; **dead broker → the write fails within delivery.timeout
+  (5 s) + slack, asynchronously** (metadata warmed at connect, so `send()`
+  never blocks the issue loop).
+- `KafkaPerfTestParityTest` (1, integration, ~70 s) — the G1 flaw-B
+  regression: harness saturation vs `kafka-producer-perf-test` exec'd
+  inside the same broker, order-of-magnitude band (see the test javadoc
+  for why 3x locally and 15% at G3/M6.1; last measured ratio 0.95x).
+- `FaultInjectorApplyTest` (6) — F13/F19 targeting pins: NETWORK_PARTITION
+  isolates the DETECTED leader; PACKET_LOSS percent is a parameter;
+  DOUBLE_KILL deterministic nodes 0+1; baseline touches nothing.
+- `WorkloadEngineTest` also pins (P2.2 fallout) that the FIRST error's
+  cause is kept on the Result — an error count with no cause is
+  undebuggable.
 - `EtcdDriverTest` (3, integration) — the production jetcd driver:
   committed gRPC writes; leader detection **cross-validated against the
   HTTP-gateway stack** (two independent clients must agree); kill the
@@ -341,7 +357,7 @@ verified against live exporters at M5.2 (task P4.3).
 
 | # | Check | Command | Green means |
 |---|-------|---------|-------------|
-| 1 | Build + tests | `mvn21 clean verify` | `Tests run: 52+, Failures: 0` + `BUILD SUCCESS` |
+| 1 | Build + tests | `mvn21 clean verify` | `Tests run: 66+, Failures: 0` + `BUILD SUCCESS` |
 | 0 | **One-command loop** | §2.8 `local-run` | complete manifest, ~8 s, zero `thesis-*` survivors |
 | 2 | Quiet smoke | §2.2 | 4 INFO lines, `errors=0`, throughput ≈ rate |
 | 3 | Verbose smoke | §2.3 | same INFO + phase DEBUG + per-second ticker |
