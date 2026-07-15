@@ -50,6 +50,15 @@
            Engine 29 (min API 1.40) rejects at the environment probe. -->
       <version>1.21.4</version>
     </dependency>
+    <!-- KRaft substrate (P2.2a): the kafka module owns the advertised-
+         listener/mapped-port bootstrap dance that a bare GenericContainer
+         would have to hand-roll. Same version as core, same compile-scope
+         rationale. -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>kafka</artifactId>
+      <version>1.21.4</version>
+    </dependency>
 
     <!-- Remote orchestration (M4) -->
     <dependency>

@@ -42,15 +42,20 @@ public final class LocalDockerProvider implements ClusterProvider {
     public static final String ETCD_IMAGE =
             "quay.io/coreos/etcd@sha256:5a65b4c67dea6e835c2812cf2fdea064f494c68b509fab939b12c0fa1fa423bb";
 
+    /** apache/kafka 3.9.1 pinned by REGISTRY DIGEST (D2) — KRaft combined
+     *  controller+broker mode, the KafkaDriver's substrate (P2.2a). */
+    public static final String KAFKA_IMAGE =
+            "apache/kafka@sha256:4ceccc577f03f51f6af8dbfda55194d0d892f4fa7913ffbded567ce3895622ed";
+
     private final List<GenericContainer<?>> containers = new ArrayList<>();
     private final List<String> endpoints = new ArrayList<>();
     private Network network;
 
     @Override
     public List<NodeHandle> start(SystemUnderTest system, int clusterSize) {
-        if (system != SystemUnderTest.ETCD) {
+        if (system != SystemUnderTest.ETCD && system != SystemUnderTest.KRAFT) {
             throw new UnsupportedOperationException(
-                    "LocalDockerProvider supports ETCD only for now (P0.2); asked for " + system);
+                    "LocalDockerProvider supports ETCD and KRAFT for now; asked for " + system);
         }
         if (clusterSize < 1) {
             throw new IllegalArgumentException("clusterSize must be >= 1, got " + clusterSize);
@@ -63,6 +68,9 @@ public final class LocalDockerProvider implements ClusterProvider {
         // thesis- prefix keeps every container findable (and P0.3-cleanable).
         String suffix = Integer.toHexString(ThreadLocalRandom.current().nextInt(0x10000));
         network = Network.newNetwork();
+        if (system == SystemUnderTest.KRAFT) {
+            return startKraft(clusterSize, suffix);
+        }
         String initialCluster = IntStream.rangeClosed(1, clusterSize)
                 .mapToObj(i -> alias(system, i) + "=http://" + alias(system, i) + ":2380")
                 .collect(Collectors.joining(","));
@@ -100,6 +108,40 @@ public final class LocalDockerProvider implements ClusterProvider {
         }
         log.debug("phase: wait-healthy done — endpoints {}", endpoints);
         return handles;
+    }
+
+    /**
+     * Single-node KRaft (combined controller+broker) via the Testcontainers
+     * kafka module — it owns the advertised-listener/mapped-port bootstrap
+     * dance (the broker must advertise the host-mapped port, which is only
+     * known after start; hand-rolling that is exactly the fiddly glue this
+     * provider exists to avoid). Multi-broker KRaft needs full listener and
+     * controller-quorum wiring per node and lands with the remote provider
+     * work — claiming it now would be v6's ship-unverified sin, so it fails
+     * closed instead.
+     */
+    private List<NodeHandle> startKraft(int clusterSize, String suffix) {
+        if (clusterSize != 1) {
+            throw new UnsupportedOperationException(
+                    "KRAFT supports size 1 only for now (P2.2a); asked for " + clusterSize);
+        }
+        String alias = alias(SystemUnderTest.KRAFT, 1); // "k1"
+        String containerName = "thesis-" + alias + "-" + suffix;
+        org.testcontainers.kafka.KafkaContainer c =
+                new org.testcontainers.kafka.KafkaContainer(DockerImageName.parse(KAFKA_IMAGE)
+                        .asCompatibleSubstituteFor("apache/kafka"))
+                        .withNetwork(network)
+                        .withNetworkAliases(alias)
+                        .withCreateContainerCmdModifier(cmd -> cmd.withName(containerName));
+        containers.add(c);
+        log.debug("phase: deploy — starting 1 KRAFT container");
+        c.start();
+        // Normalize to bare host:port — the drivers' endpoint contract.
+        String bootstrap = c.getBootstrapServers();
+        int proto = bootstrap.indexOf("://");
+        endpoints.add(proto >= 0 ? bootstrap.substring(proto + 3) : bootstrap);
+        log.debug("phase: wait-healthy done — endpoints {}", endpoints);
+        return List.of(new NodeHandle(0, containerName, "127.0.0.1", alias));
     }
 
     @Override

@@ -113,4 +113,45 @@ class LocalDockerProviderTest {
         assertThrows(UnsupportedOperationException.class,
                 () -> provider.start(SystemUnderTest.KAFKA_ZK, 3));
     }
+
+    // ---- P2.2a: KRaft single-node (the KafkaDriver's substrate) ----
+
+    @Test
+    void kraft_size1_commitsAnAcksAllProduce_thenStopLeavesNoContainers() throws Exception {
+        var provider = new LocalDockerProvider();
+        try {
+            List<ClusterProvider.NodeHandle> nodes = provider.start(SystemUnderTest.KRAFT, 1);
+            assertEquals(1, nodes.size());
+            assertEquals("k1", nodes.get(0).privateIp(), "network alias must follow containerName()");
+            String bootstrap = provider.clientEndpoints().get(0);
+            assertFalse(bootstrap.contains("://"),
+                    "endpoint must be a bare host:port bootstrap address, got " + bootstrap);
+
+            // Committed produce with the same semantics the driver will use:
+            // acks=all — the send future completes only on broker commit.
+            var props = new java.util.Properties();
+            props.put("bootstrap.servers", bootstrap);
+            props.put("acks", "all");
+            props.put("key.serializer",
+                    org.apache.kafka.common.serialization.ByteArraySerializer.class.getName());
+            props.put("value.serializer",
+                    org.apache.kafka.common.serialization.ByteArraySerializer.class.getName());
+            try (var p = new org.apache.kafka.clients.producer.KafkaProducer<byte[], byte[]>(props)) {
+                p.send(new org.apache.kafka.clients.producer.ProducerRecord<>(
+                        "p22a-smoke", "k".getBytes(), new byte[8])).get(30, TimeUnit.SECONDS);
+            }
+        } finally {
+            provider.stop();
+        }
+        assertEquals(0, thesisContainersAlive(), "stop() must leave zero thesis-* containers");
+    }
+
+    @Test
+    void kraftMultiNodeFailsClosedUntilTheCampaignProviderLands() {
+        // Multi-broker KRaft needs the full listener/quorum wiring the remote
+        // provider will own; claiming it now would be v6's ship-unverified sin.
+        var provider = new LocalDockerProvider();
+        assertThrows(UnsupportedOperationException.class,
+                () -> provider.start(SystemUnderTest.KRAFT, 3));
+    }
 }
