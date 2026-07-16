@@ -325,7 +325,7 @@ stage completes**.
 - **Caveats**: O(n²) message complexity (vote gossip) — the preregistered
   expectation vs HotStuff's O(n); block-interval wait dominates latency.
 
-### 4.5 Paxos (Paxi) — ✅ write path, 🔶 leader detection P2.4
+### 4.5 Paxos (Paxi) — ✅ driver + leader detection (P2.4b), local 3-node substrate (P2.4a)
 
 ```
  TOPOLOGY: 3 replicas (Paxi framework)  COMMIT PATH (stable leader)
@@ -339,14 +339,24 @@ stage completes**.
 
 - **Driver**: `PaxiDriver` — pooled async java.net.http, integer key in the
   URL path (Paxi Atoi-parses it; the typed int contract exists because a
-  byte-blob key would have failed every op). Paxos gets ONE endpoint
-  (leader-based; forwarding internal).
-- **Tested**: key encoding pinned numeric-only (source-verified vs http.go
-  Atoi, 2026-07-16); the D7 knob's realized conflict fraction pinned at
-  engine level. P2.4 adds **`Ballot` response-header parsing** for leader
-  detection (F22: paxi has no `/state`; every committed paxos write returns
-  the leader's ballot as `"<n>.<zone>.<node>"`) + a 3-node smoke; Paxi's
-  own benchmarker returns at G3 as the cross-validation oracle (D4).
+  byte-blob key would have failed every op). F24 pinned by test: PAXOS
+  writes pin to ONE endpoint (single client entry; forwarding internal —
+  in practice the provider's probe-write gate elects node 0, so the entry
+  IS the leader); the endpoint list stays node-ordered for index identity.
+- **Leader detection**: the `Ballot` response header of a committed write
+  (F22: paxi has no `/state`; format `"<n>.<zone>.<node>"`, ID part = the
+  leader — authoritative from ANY entry because a forwarding follower
+  relays the leader's reply). Fail-loud on multi-zone/malformed ballots.
+- **Tested**: 4 unit contracts (ballot parsing incl. fail-loud shapes,
+  endpoint strategy) + acceptance vs real Docker (paxi:6823d0b built from
+  pinned source): committed write; leader corroborated through an
+  independent stack AND entry; follower-kill → commits continue on 2/3.
+  Paxi's own benchmarker returns at G3 as the cross-validation oracle (D4).
+- **Fault caveat (F26, source-verified)**: stock paxi has NO failure
+  detector — followers forward to the last-known leader forever, and a
+  hard leader kill wedges writes (silent drop at the transport; our F18
+  5 s bound turns that into honest errors). The paxi leader_kill design is
+  preregistered at P3.3 (adaptive-wedge vs ephemeral_leader vs Crash(t)).
 - **Caveats**: in-memory commit — no disk in the path (the Paxi authors
   compared against etcd by DISABLING its persistence; we refuse and
   document instead). Absolute numbers are compared with that asymmetry

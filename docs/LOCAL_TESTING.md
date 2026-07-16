@@ -32,7 +32,7 @@ mvn21 clean verify
 **Expect** (versions/counts as of 2026-07-16 — counts only grow):
 
 ```
-Tests run: 74, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 79, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -41,7 +41,7 @@ The provider tests need Docker; the first ever run pulls the pinned etcd
 image (~50 MB). If you see `client version 1.32 is too old`, the
 testcontainers pin regressed below 1.21.4 (Docker 29 needs ≥1.21.4).
 
-What the 74 tests pin, so you know what a failure means:
+What the 79 tests pin, so you know what a failure means:
 - `ArgParserTest` (6) — CLI contract: `--key value` pairs, bare `-v/--verbose`,
   fail-closed on a dangling key, duration>warmup guard.
 - `EventLogTest` (3) + engine event tests — failover instrumentation:
@@ -109,6 +109,16 @@ What the 74 tests pin, so you know what a failure means:
 - `WorkloadEngineTest` also pins (P2.2 fallout) that the FIRST error's
   cause is kept on the Result — an error count with no cause is
   undebuggable.
+- `PaxiDriverContractTest` (4) — P2.4b unit contracts: Ballot header
+  ("n.zone.node") → leader node index; multi-zone or malformed ballots
+  fail LOUD (never kill the wrong node); F24 endpoint strategy (PAXOS
+  pins writes to one entry, EPAXOS round-robins).
+- `PaxiDriverTest` (1, integration, ~3 s) — the production Paxos driver
+  on real paxi:6823d0b: committed write; Ballot-header leader detection
+  **corroborated through an independent stack AND entry** (raw JDK HTTP
+  via a follower names the same leader); follower-kill → writes keep
+  committing on the 2/3 majority. Leader-kill is deliberately absent
+  (F26 — stock paxi has no failure detector; P3.3 preregisters it).
 - `EtcdDriverTest` (3, integration) — the production jetcd driver:
   committed gRPC writes; leader detection **cross-validated against the
   HTTP-gateway stack** (two independent clients must agree); kill the

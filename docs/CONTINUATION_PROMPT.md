@@ -47,7 +47,7 @@ PROJECT_STATE.md, ask me; don't silently pick one.
 **P0 and P1 are fully closed; P2.1 (jetcd EtcdDriver), P2.2 (KafkaDriver +
 KRaft substrate + G1 flaw-B parity) and P2.3 (CometBftDriver — 602 tx/s
 measured, 100x the retired probe's ceiling, p50 ≈ block interval) are
-done. Suite: 74 tests green via `mvn21 clean verify` (integration tests
+done. Suite: 79 tests green via `mvn21 clean verify` (integration tests
 need the local Docker daemon).** The measurement instrument is complete:
 open-loop engine with CO correction, real HdrHistogram + latency.hlog,
 EventLog failover, manifest v2, first-error capture, `local-run`
@@ -57,16 +57,17 @@ PROJECT_STATE.md §3 the evidence, MEASUREMENT_DIAGRAMS.md the architecture
 reference.
 
 Proposed next increment (confirm with me before coding, then do only this):
-**P2.4 — Paxi substrate + leader detection.** Prerequisite: Paxi publishes
-NO Docker image — build one from source (github.com/ailidani/paxi @
-6823d0b, `infra/paxi/Dockerfile`), source-commit-pinned (D2-adapted). Then
-extend LocalDockerProvider (3-node Paxi, generated config.json,
-probe-write quorum gate), verify the PaxiDriver write path against the
-real server (the Atoi int-key contract is already source-verified — F22),
-TDD **`Ballot` response-header parsing** for currentLeaderIndex() (F22:
-paxi has NO `/state` endpoint; committed paxos writes return the leader's
-ballot as "<n>.<zone>.<node>"), resolve F24 (PAXOS write path pins one
-endpoint), and exercise the D7 conflict sweep end-to-end.
+**P2.4c — EPaxos exercised + D7 conflict sweep end-to-end.** P2.4a
+(substrate: `infra/paxi/Dockerfile` @ 6823d0b, `docker build -t
+paxi:6823d0b infra/paxi` once per machine; LocalDockerProvider 3-node
+PAXOS/EPAXOS with a committed-probe-write quorum gate) and P2.4b
+(production PaxiDriver: Ballot-header leader detection — F22, paxi has NO
+/state; F24 endpoint strategy pinned) are DONE. Remaining: run EPAXOS
+through the engine on the real 3-node cluster (round-robin exercised,
+commits clean) and the D7 conflict knob end-to-end (c=10% run completes
+with the c10 path/manifest identity — functional evidence; performance
+deltas are cluster work). Mind F26 (stock paxi has no failure detector —
+leader_kill design is P3.3's preregistration).
 
 Then P2.5 (HotStuff SUMMARY parser, fixture-tested), each TDD from its
 acceptance criterion in PENDING_TASKS.md.
@@ -105,7 +106,7 @@ Don't let this become an afterthought bolted on at analysis time.
 - the consensus papers already in the project
 
 Start by reading PROJECT_STATE.md, confirming `mvn21 clean verify` is still
-green (74 tests, Docker required), then propose the P2.4 increment and wait
+green (79 tests, Docker required), then propose the P2.4 increment and wait
 for my go-ahead.
 
 ────────────────────────────────────────────────────────────────────────────

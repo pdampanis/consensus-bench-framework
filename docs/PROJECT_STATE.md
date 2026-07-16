@@ -31,9 +31,16 @@ JDK 21 HttpClient (F17 residual). Same-day continuation, P2.4a DONE
 (TDD): paxi image built from pinned source (infra/paxi/Dockerfile,
 6823d0b, image id bc12c64d3391) + LocalDockerProvider 3-node PAXOS/EPAXOS
 with a committed-probe-write quorum gate (election is lazy; no /health)
-and fail-closed requireLocalImage. Suite: 74 tests green. Next: P2.4b
-(PaxiDriver write path vs the real server + Ballot-header leader
-detection + F24 endpoint strategy).**
+and fail-closed requireLocalImage. Suite: 74 tests green. P2.4b ALSO DONE
+(TDD): production PaxiDriver — Ballot-header leader detection (fail-loud
+on multi-zone/malformed), F24 endpoint strategy pinned by test (PAXOS one
+entry, EPAXOS round-robin), fail-closed connect probe; acceptance vs real
+Docker: committed write, leader corroborated through an independent stack
+AND entry, follower-kill → commits continue on 2/3. F26 ledgered
+(source-verified + follower-kill side empirically confirmed): stock paxi
+has no failure detector — hard leader kill = silent wedge; leader_kill
+design preregistered at P3.3. Suite: 79 tests green. Next: P2.4c (EPaxos
+exercised + D7 conflict sweep end-to-end).**
 
 ---
 

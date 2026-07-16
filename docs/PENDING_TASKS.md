@@ -387,6 +387,18 @@ P1.3 → P1.4 → P1.6.
   zero leftover containers. Defaults kept deliberately: `-adaptive=true`
   (stable leader, internal forwarding) and reply-on-EXECUTE (commit+apply,
   = etcd semantics). EPAXOS wired but first exercised at P2.4c.
+  **P2.4b (production PaxiDriver) DONE 2026-07-16, TDD:** Ballot-header
+  leader detection (`leaderNodeIndexFromBallot`, fail-loud on multi-zone/
+  malformed — never kill the wrong node) + F24 resolved by code
+  (`endpointIndexFor` pinned by test: PAXOS = one client entry, EPAXOS =
+  round-robin; node-ordered list kept for index identity) + fail-closed
+  connect probe that also warms the pooled connection (no handshake in any
+  latency sample — the flaw-B lesson). Unit: 4 contract tests. Acceptance
+  green vs real Docker (3.0 s): committed write; leader detected via
+  Ballot and **corroborated through an independent stack AND entry** (raw
+  JDK HTTP via a follower names the same leader — forwarded replies carry
+  the leader's ballot); follower-kill → writes keep committing on 2/3.
+  Leader-kill deliberately NOT tested (F26; P3.3 preregisters it).
   **Mechanism corrected 2026-07-16 (F22): paxi has NO `/state` endpoint** —
   verified against ailidani/paxi @ 6823d0b (= master HEAD; the Dockerfile
   pin): http.go registers only `/`, `/history`, `/crash`, `/drop`. Leader
@@ -516,7 +528,7 @@ in-flight P2.4a red test failing for the right reason):
 |---|---------|------|--------|
 | F22 | P2.4's planned leader-detection endpoint `/state` DOES NOT EXIST in paxi @ 6823d0b — replacement: the `Ballot` response header (see P2.4 above); Atoi key contract verified, closing the P1.1 note | P2.4 docs | **DONE 2026-07-16** (plan corrected in PENDING_TASKS/IMPLEMENTATION_PLAN/MASTER_PLAN/MEASUREMENT_DIAGRAMS) |
 | F23 | Engine bucket array sized duration+5 == the 5 s driver bound: a commit in second duration+5 (timeout slop) was dropped from buckets while the histogram kept it (WorkloadEngine ctor) | engine | **DONE 2026-07-16** (TDD red→green: `lateCompletionsUpToTheDriverBoundStayInTheBuckets`; capacity now duration+6) |
-| F24 | PaxiDriver round-robins endpoints for PAXOS too — the "Paxos gets ONE endpoint" rule exists only as calling convention; also currentLeaderIndex() needs the full node-ordered list to return an index | P2.4b | open — resolve in the driver increment (write path pins one endpoint for PAXOS; endpoint list stays node-ordered for identity) |
+| F24 | PaxiDriver round-robins endpoints for PAXOS too — the "Paxos gets ONE endpoint" rule exists only as calling convention; also currentLeaderIndex() needs the full node-ordered list to return an index | P2.4b | **DONE 2026-07-16** (TDD: `endpointIndexFor` — PAXOS pins endpoint 0, EPAXOS round-robins; node-ordered list kept for identity) |
 | F25 | The new P2.4a test pins `privateIp()=="paxi2"` — deepens the F20 alias-in-privateIp trap; both must move together at P3.3 | P3.3 | open (noted on F20) |
 
 F17 residual "HttpClient close" — **DONE 2026-07-16**: EtcdHttpDriver and
@@ -527,7 +539,7 @@ request carries a 5 s timeout). Remaining F17 residuals: tag-pins, JMX names
 
 | # | Finding | Task | Status |
 |---|---------|------|--------|
-| F26 | **Stock paxi cannot recover from a hard leader kill** (source-verified @ 6823d0b): a follower that knows a ballot always FORWARDS client requests to that leader (paxos/replica.go handleRequest) — there is no failure detector and no re-election trigger; Forward rides the tcp transport (node.go → n.Send), and a send to a dead peer retries its dial 100×50 ms then **panics the forwarding follower's process** (socket.go:98-100). Paxi's designed fault primitive is `/crash?t=` (socket pause, process alive), not process death. `-ephemeral_leader=true` changes this (followers self-elect instead of forwarding) but also changes baseline semantics (election competition on every non-leader request). | P3.3 | open — **preregister the paxi leader_kill design** before the goldens: choose adaptive-mode + documented wedge/crash as the honest "no failure detector" result, vs ephemeral_leader mode, vs paxi's own Crash(t); verify empirically whichever is chosen. Expected-vs-observed material for the thesis (implementation property, not protocol property). |
+| F26 | **Stock paxi cannot recover from a hard leader kill** (source-verified @ 6823d0b): a follower that knows a ballot always FORWARDS client requests to that leader (paxos/replica.go handleRequest) — there is no failure detector and no re-election trigger. Refined by deeper source read: on an ESTABLISHED-but-broken connection the transport writer just logs and drops (transport.go Dial goroutine), so a hard leader kill produces a silent WEDGE — forwarded writes get no reply and fail only at our F18 5 s bound, indefinitely; the **panic** path (socket.go:98-100, dial retry 100×50 ms) fires only when no prior connection existed. Consequently the LEADER survives follower death (its P2a to the dead peer is logged-and-dropped; 2/3 quorum commits — empirically confirmed by PaxiDriverTest's follower-kill). Paxi's designed fault primitive is `/crash?t=` (socket pause, process alive). `-ephemeral_leader=true` enables follower self-election but changes baseline semantics. | P3.3 | open — **preregister the paxi leader_kill design** before the goldens: adaptive-mode + documented wedge as the honest "no failure detector" result, vs ephemeral_leader mode, vs paxi's own Crash(t); verify empirically whichever is chosen. Expected-vs-observed material for the thesis (implementation property, not protocol property). |
 
 ---
 
