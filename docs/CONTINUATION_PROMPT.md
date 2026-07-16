@@ -44,17 +44,19 @@ PROJECT_STATE.md, ask me; don't silently pick one.
 
 ## Where to start
 
-**P0 and P1 are fully closed; P2.1 (jetcd EtcdDriver), P2.2 (KafkaDriver +
-KRaft substrate + G1 flaw-B parity) and P2.3 (CometBftDriver — 602 tx/s
-measured, 100x the retired probe's ceiling, p50 ≈ block interval) are
-done. Suite: 79 tests green via `mvn21 clean verify` (integration tests
-need the local Docker daemon).** The measurement instrument is complete:
-open-loop engine with CO correction, real HdrHistogram + latency.hlog,
-EventLog failover, manifest v2, first-error capture, `local-run`
-one-command loop, etcd/Kafka/CometBFT production drivers with bounded
-(5 s) completion. Do NOT redo any of it — PENDING_TASKS.md is the ledger,
-PROJECT_STATE.md §3 the evidence, MEASUREMENT_DIAGRAMS.md the architecture
-reference.
+**P0, P1, and THE WHOLE P2 DRIVER PHASE are closed (2026-07-16): P2.1
+etcd/jetcd, P2.2 Kafka (+G1 flaw-B parity), P2.3 CometBFT (602 tx/s
+acceptance), P2.4 Paxi a/b/c (pinned-source image, probe-write quorum
+gate, Ballot-header leader detection, EPaxos exercised, D7 sweep e2e),
+P2.5 HotStuff SUMMARY parser. Suite: 85 tests green via `mvn21 clean
+verify` (integration tests need the local Docker daemon + the once-per-
+machine `docker build -t paxi:6823d0b infra/paxi`).** The measurement
+instrument is complete: open-loop engine with CO correction, real
+HdrHistogram + latency.hlog, EventLog failover, manifest v2, first-error
+capture, `local-run` one-command loop, five production driver surfaces
+with bounded (5 s) completion. Do NOT redo any of it — PENDING_TASKS.md
+is the ledger (F1–F27), PROJECT_STATE.md §3 the evidence,
+MEASUREMENT_DIAGRAMS.md the architecture reference.
 
 Proposed next increment (confirm with me before coding, then do only this):
 **THE P2 DRIVER PHASE IS COMPLETE.** First: confirm Gate G1 sign-off —
