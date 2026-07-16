@@ -1,0 +1,16 @@
+# LOCAL LEARNING DEMO — not the campaign config (that is ../prometheus.yml,
+# templated from the VM inventory). This one scrapes ONE target: a
+# node_exporter running on your own laptop, so you can learn the
+# Prometheus/Grafana UI and see REAL graphs (your CPU, memory, disk,
+# network) without any cloud VM. The metric names are identical to the
+# campaign's, so what you learn here transfers directly.
+global:
+  scrape_interval: 5s        # same cadence the campaign uses
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: node
+    static_configs:
+      # host networking: node_exporter is on the laptop's own :9100
+      - targets: ["localhost:9100"]
+        labels: { campaign: demo, role: loadgen }

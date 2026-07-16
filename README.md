@@ -96,6 +96,7 @@ consensus-bench-thesis/
     ├── CAMPAIGN_RUNBOOK.md         topology, phases, cost, retrieval protocol
     ├── EXECUTION_AND_COST_MODEL.md one-system-at-a-time model, per-system cost
     ├── LOCAL_TESTING.md            manual verification: exact commands + outputs
+    ├── MONITORING_GUIDE.md         novice guide: watch/debug runs, Grafana+Prometheus demo
     ├── MEASUREMENT_DIAGRAMS.md     engine core + per-system commit-path diagrams
     ├── METRICS_AND_SOURCES.md      metric definitions + papers to study
     ├── JAVA_HARNESS_ASSESSMENT.md  why Java, why a harness

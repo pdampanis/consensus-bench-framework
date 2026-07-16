@@ -1,0 +1,14 @@
+# Dashboards-as-code (Grafana provisioning): every .json in this folder is
+# loaded automatically on startup, so the repo — not the UI — is the source
+# of truth. Editing a dashboard in the browser is fine for exploring, but
+# only what is saved back here survives a rebuild.
+apiVersion: 1
+providers:
+  - name: consensus-bench
+    orgId: 1
+    folder: consensus-bench
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

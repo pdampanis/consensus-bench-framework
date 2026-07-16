@@ -1,6 +1,7 @@
 apiVersion: 1
 datasources:
   - name: Prometheus
+    uid: prometheus            # fixed uid so provisioned dashboards can reference it
     type: prometheus
     access: proxy
     url: http://localhost:9090

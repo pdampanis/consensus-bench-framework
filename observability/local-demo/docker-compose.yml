@@ -1,0 +1,45 @@
+# LOCAL LEARNING DEMO — bring up Prometheus + Grafana + node_exporter on
+# your laptop so you can SEE what the campaign's observability layer looks
+# like, with zero cloud cost. Run from this directory:
+#
+#   docker compose up -d
+#   # open Grafana:    http://localhost:3000   (login admin / demo-only)
+#   # open Prometheus: http://localhost:9090
+#   docker compose down          # stop it all
+#
+# host networking (Linux) keeps it simple: every service is on localhost,
+# exactly like the campaign's obs VM. All three images are digest-pinnable
+# for reproducibility; tags are used here for readability in a throwaway
+# demo (the campaign pins digests — D2).
+services:
+  node_exporter:
+    image: quay.io/prometheus/node-exporter:v1.8.2
+    network_mode: host
+    pid: host
+    command:
+      - --path.rootfs=/host
+    volumes:
+      - /:/host:ro,rslave
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    network_mode: host
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    network_mode: host
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: demo-only   # local throwaway; never a real secret
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_DEFAULT_THEME: light
+    volumes:
+      # reuse the SAME provisioning the campaign uses: the Prometheus
+      # datasource + the starter dashboards load automatically.
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+    restart: unless-stopped
