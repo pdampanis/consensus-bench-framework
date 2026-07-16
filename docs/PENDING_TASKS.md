@@ -423,7 +423,31 @@ P1.3 → P1.4 → P1.6.
   "1.1".."1.3"), lazy leader election (first request triggers P1a — the
   provider must gate start() on a committed probe write), and go.mod with
   zero external requires (no go.sum issue building at the pin).
-- **P2.5 — HotStuff SUMMARY parser** (class + fixture test).
+- **P2.5 — HotStuff SUMMARY parser — DONE 2026-07-16 (TDD red→green).**
+  `driver.HotStuffSummary` (record + strict `parse`): the SUMMARY block is
+  HotStuff's ONLY metrics source, so parsing fails CLOSED — a missing
+  field throws NAMING the field (never fabricate a thesis number), zero or
+  duplicate SUMMARY blocks are refused (an appended rerun log is
+  ambiguous), thousands separators stripped, upstream's `?` committee size
+  fails rather than defaults. End-to-end TPS/latency = client-observed
+  primaries; Consensus TPS/latency = protocol-internal. 4 unit tests.
+  **Honest caveat:** the fixture is reconstructed VERBATIM from the
+  emitting code (asonnino/hotstuff benchmark/logs.py result(), fetched
+  2026-07-16) — no real HotStuff run has flowed through the parser yet;
+  that first happens with the Phase-C substrate. Re-pin against a real
+  fab.log then.
+
+**GATE G1 STATUS (2026-07-16): evidence complete in-suite; formal
+sign-off is the author's.** All five M2 driver acceptances exist as
+permanent regression tests: M2.1 etcd (leader x-validated vs HTTP stack),
+M2.2 Kafka (flaw-B: order-of-magnitude vs perf-test locally, 15% at
+G3/M6.1 — last settled-machine ratio 0.50x, historical 0.95x), M2.3
+CometBFT (flaw-A: 602 tx/s, 100x the retired ceiling), M2.4 Paxi
+(Ballot-header leader detection corroborated independently + EPaxos
+exercised + D7 e2e), M2.5 HotStuff parser (fixture-level — see caveat).
+The plan's "archived under calibration/local/" formality is satisfied by
+the suite + this ledger + LOCAL_TESTING's captured expectations; confirm
+or request a separate archive tree before advancing to P3.
 - **P2.6 — Safety oracle scope decision + implementation** *(2026-07-07 review)*.
   Methodology §4.2's durability probe covers Kafka/etcd/CometBFT only. Extend:
   Paxi GET read-back sample audit; HotStuff documented as no-oracle (loud
@@ -550,6 +574,7 @@ request carries a 5 s timeout). Remaining F17 residuals: tag-pins, JMX names
 
 | # | Finding | Task | Status |
 |---|---------|------|--------|
+| F27 | The two G1 flaw-regression thresholds sat inside laptop environmental noise: parity measured 0.16x under a writeback storm (band is 1/3x–3x) and CometBFT flaw-A measured 297.2 tx/s vs its >300 line after 2 h of suite load (602 settled). Two consecutive gates tripped on margins, not regressions. | suite | **DONE 2026-07-16** — CometBFT tripwire moved 300→100 tx/s (~17x the ~6 tx/s broken-class ceiling; order-of-magnitude per the engine-test tolerance philosophy; the 602 tx/s G1 ACCEPTANCE stays ledgered). Parity band already order-of-magnitude; its javadoc gained the pressure-diagnosis rule. |
 | F26 | **Stock paxi cannot recover from a hard leader kill** (source-verified @ 6823d0b): a follower that knows a ballot always FORWARDS client requests to that leader (paxos/replica.go handleRequest) — there is no failure detector and no re-election trigger. Refined by deeper source read: on an ESTABLISHED-but-broken connection the transport writer just logs and drops (transport.go Dial goroutine), so a hard leader kill produces a silent WEDGE — forwarded writes get no reply and fail only at our F18 5 s bound, indefinitely; the **panic** path (socket.go:98-100, dial retry 100×50 ms) fires only when no prior connection existed. Consequently the LEADER survives follower death (its P2a to the dead peer is logged-and-dropped; 2/3 quorum commits — empirically confirmed by PaxiDriverTest's follower-kill). Paxi's designed fault primitive is `/crash?t=` (socket pause, process alive). `-ephemeral_leader=true` enables follower self-election but changes baseline semantics. | P3.3 | open — **preregister the paxi leader_kill design** before the goldens: adaptive-mode + documented wedge as the honest "no failure detector" result, vs ephemeral_leader mode, vs paxi's own Crash(t); verify empirically whichever is chosen. Expected-vs-observed material for the thesis (implementation property, not protocol property). |
 
 ---

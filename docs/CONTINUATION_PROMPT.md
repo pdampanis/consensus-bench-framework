@@ -57,20 +57,20 @@ PROJECT_STATE.md §3 the evidence, MEASUREMENT_DIAGRAMS.md the architecture
 reference.
 
 Proposed next increment (confirm with me before coding, then do only this):
-**P2.5 — HotStuff SUMMARY parser (fixture-tested).** P2.4 is FULLY CLOSED
-(substrate + production PaxiDriver + Ballot-header leader detection +
-EPaxos exercised + D7 sweep end-to-end; ledger has the evidence). The
-SUMMARY format is already captured from asonnino/hotstuff
-benchmark/logs.py (see PENDING_TASKS "Immediate next increment"):
-thousands-separated integers, CONFIG block (Faults / Committee size /
-Input rate / Transaction size / Execution time) and RESULTS block
-(Consensus TPS/BPS/latency, End-to-end TPS/BPS/latency in ms). Build the
-fixture verbatim, TDD the parser class; End-to-end TPS/latency are the
-client-observed primaries. Mind F26 for later fault design (stock paxi
-has no failure detector — leader_kill design is P3.3's preregistration).
-
-After P2.5, Gate G1 closes (all five driver acceptances archived); then
-P3.3 (RemoteSshProvider + FaultInjector + golden tests, G2).
+**THE P2 DRIVER PHASE IS COMPLETE.** First: confirm Gate G1 sign-off —
+the evidence is in-suite (flaw-A/flaw-B regressions + all five driver
+acceptances; see the G1 STATUS entry in PENDING_TASKS) — or request a
+separate calibration/local/ archive tree. Then the next increment is
+**P3.3 — RemoteSshProvider + FaultInjector + golden tests (Gate G2)**,
+carrying three preregistrations into the goldens: F13/F19 (leader-
+targeted faults, parameterized packet loss, DOUBLE_KILL as nodes 0+1),
+F26 (paxi leader_kill: choose adaptive-wedge vs ephemeral_leader vs
+paxi's own /crash?t= — decide BEFORE writing the paxi goldens), and F20
+(NodeHandle.privateIp carries a Docker alias locally — the remote
+provider must put a real IP there or rename the field; the P2.4a test
+pins the alias, F25). Also pending decisions: P2.6 (safety-oracle scope,
+before M5.5) and P2.0 (scheduler scaling — only if G1-rate evidence
+triggers it).
 
 ## What "done" looks like for this whole effort
 

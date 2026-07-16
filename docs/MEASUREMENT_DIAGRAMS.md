@@ -398,7 +398,7 @@ stage completes**.
   local runs are functional evidence only — the fast-vs-slow-path
   performance question is answered on the campaign cluster.
 
-### 4.7 HotStuff (asonnino build) — 🔶 boundary P2.5
+### 4.7 HotStuff (asonnino build) — ✅ SUMMARY parser (P2.5), 🔶 substrate (Phase C)
 
 ```
  TOPOLOGY: 4 replicas + rate-limited    CHAINED PIPELINE (one view per block):
@@ -412,9 +412,13 @@ stage completes**.
 ```
 
 - **Why a boundary, honestly**: no Prometheus metrics, mean-heavy client
-  output — the SUMMARY parser (P2.5, fixture-tested) is the only metrics
-  source, so per-block SUT logs are collected per P4.5 ("its logs ARE its
-  metrics"), and every figure it appears in carries the caveat.
+  output — the SUMMARY parser (`HotStuffSummary`, P2.5 DONE: strict
+  fail-closed parse, missing fields named, duplicate blocks refused,
+  fixture verbatim from upstream logs.py) is the only metrics source, so
+  per-block SUT logs are collected per P4.5 ("its logs ARE its metrics"),
+  and every figure it appears in carries the caveat. The fixture is
+  format-derived; re-pin against a real fab.log when Phase C's substrate
+  first runs.
 - **Config requirement**: tx size MUST be set to 1024 B (the old 512 B
   default breaks the cross-system value-size contract).
 - **Caveats**: client caps input rate (saturation = raise `HS_RATE` until

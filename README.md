@@ -131,14 +131,15 @@ consensus-bench-thesis/
 
 ## Honest caveats (do not skip)
 
-- **Still missing before G1**: only the HotStuff SUMMARY parser (P2.5).
-  P2.4 is fully closed — Paxi substrate, production driver, Ballot-header
-  leader detection, EPaxos exercised, D7 sweep end-to-end (the image is
-  built from pinned source: `docker build -t paxi:6823d0b infra/paxi`
-  once per machine). Kafka's local parity gate is the order-of-magnitude
-  band (the 15% comparison runs at G3/M6.1 on the cluster). Paxi
-  leader_kill semantics are preregistered at P3.3 (F26: stock paxi has no
-  failure detector).
+- **The P2 driver phase is COMPLETE (2026-07-16)** — etcd, Kafka,
+  CometBFT, Paxos/EPaxos (image built from pinned source: `docker build
+  -t paxi:6823d0b infra/paxi` once per machine), HotStuff SUMMARY parser.
+  **G1 evidence is in-suite; formal sign-off is the author's** (see the
+  G1 STATUS entry in PENDING_TASKS). Honest residuals: the HotStuff
+  fixture is format-derived until a real Phase-C run re-pins it; Kafka's
+  local parity gate is the order-of-magnitude band (15% at G3/M6.1 on the
+  cluster); paxi leader_kill semantics are preregistered at P3.3 (F26:
+  stock paxi has no failure detector).
 - **No remote layer yet**: RemoteSshProvider + FaultInjector + golden tests
   (P3.3) and the canary (P3.4) gate any `terraform apply` (G2).
 - **No ValidityChecker / PrometheusExporter / campaign runner yet**

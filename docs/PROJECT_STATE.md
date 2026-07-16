@@ -43,9 +43,13 @@ design preregistered at P3.3. P2.4c ALSO DONE — **P2.4 FULLY CLOSED**:
 EPaxos exercised for the first time (engine round-robin over all three
 replicas, 0 errors) and the D7 knob end-to-end (c=10% run against the
 real cluster → `c10` path + manifest identity, 0 errors). Suite: 81
-tests green. Next: P2.5 (HotStuff SUMMARY parser, fixture-tested — the
-SUMMARY format is already captured from asonnino/hotstuff
-benchmark/logs.py in PENDING_TASKS).**
+tests green. P2.5 ALSO DONE (TDD): `HotStuffSummary` strict fail-closed
+parser (missing fields named, duplicate blocks refused; fixture verbatim
+from upstream logs.py — re-pin vs a real fab.log at Phase C). **THE P2
+DRIVER PHASE IS COMPLETE — G1 evidence is in-suite (see the G1 STATUS
+entry in PENDING_TASKS); formal sign-off is the author's.** Suite: 85
+tests green. Next: P3.3 (RemoteSshProvider + FaultInjector + golden
+tests, G2) with the F13/F19/F26 fault preregistrations.**
 
 ---
 

@@ -101,8 +101,11 @@ What the 79 tests pin, so you know what a failure means:
 - `CometBftDriverTest` (2, integration, ~20 s) — the G1 flaw-A regression:
   committed `broadcast_tx_commit` writes (200 ≠ commit: both check_tx and
   tx_result codes must be 0), nonce-unique txs (mempool duplicate cache),
-  **saturation ≥300 tx/s sustained** (last measured 602 tx/s — 100x the
-  retired probe's ~6 tx/s ceiling) with p50 ≈ the block interval.
+  **saturation >100 tx/s sustained** — an order-of-magnitude tripwire vs
+  the ~6 tx/s blocking-client ceiling (the G1 ACCEPTANCE measured 602
+  tx/s; 2026-07-16 the same code measured 297 under accumulated suite
+  load, so the threshold discriminates the flaw class, not the machine's
+  mood) with p50 ≈ the block interval.
 - `FaultInjectorApplyTest` (6) — F13/F19 targeting pins: NETWORK_PARTITION
   isolates the DETECTED leader; PACKET_LOSS percent is a parameter;
   DOUBLE_KILL deterministic nodes 0+1; baseline touches nothing.
@@ -125,6 +128,11 @@ What the 79 tests pin, so you know what a failure means:
   commits clean against the real cluster and carries its identity
   end-to-end (`.../epaxos/baseline/size3/c10/<runId>` + manifest
   `conflict_ratio: 0.10`, `status: complete`).
+- `HotStuffSummaryTest` (4) — P2.5: the strict SUMMARY parser (HotStuff's
+  ONLY metrics source): canonical fixture parses with thousands
+  separators stripped; a missing field fails closed NAMING the field;
+  zero or duplicate SUMMARY blocks are refused. Fixture is verbatim the
+  upstream logs.py format (re-pin vs a real fab.log at Phase C).
 - `EtcdDriverTest` (3, integration) — the production jetcd driver:
   committed gRPC writes; leader detection **cross-validated against the
   HTTP-gateway stack** (two independent clients must agree); kill the
