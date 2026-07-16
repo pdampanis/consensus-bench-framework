@@ -362,7 +362,7 @@ stage completes**.
   document instead). Absolute numbers are compared with that asymmetry
   stated every time.
 
-### 4.6 EPaxos (Paxi) — ✅ write path (round-robin), 🔶 exercised sweep P2.4
+### 4.6 EPaxos (Paxi) — ✅ driver + engine-exercised + D7 sweep (P2.4c)
 
 ```
  LEADERLESS: every replica is a command leader for the keys it receives —
@@ -388,8 +388,15 @@ stage completes**.
   CONSTRUCTION (key 0 is excluded from the uniform range — no (1−c)/K
   bias), pinned at 5σ tolerance; same engine, same schedule as Paxos, so
   the EPaxos−Paxos delta isolates the protocol difference.
+- **Tested (P2.4c, vs real Docker)**: the engine's round-robin drove all
+  three replicas at 150 ops/s with ZERO errors (a non-committing entry
+  would surface as ~1/3 errors); the c=10% run committed clean and carried
+  its identity end-to-end (`.../size3/c10/...` + manifest
+  `conflict_ratio: 0.10` from a run against the real system).
 - **Caveats**: same in-memory store as Paxos (D6); result path gains the
-  `c<pct>` segment so conflict cells can never collide with baseline.
+  `c<pct>` segment so conflict cells can never collide with baseline;
+  local runs are functional evidence only — the fast-vs-slow-path
+  performance question is answered on the campaign cluster.
 
 ### 4.7 HotStuff (asonnino build) — 🔶 boundary P2.5
 

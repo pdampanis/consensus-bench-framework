@@ -39,8 +39,13 @@ Docker: committed write, leader corroborated through an independent stack
 AND entry, follower-kill → commits continue on 2/3. F26 ledgered
 (source-verified + follower-kill side empirically confirmed): stock paxi
 has no failure detector — hard leader kill = silent wedge; leader_kill
-design preregistered at P3.3. Suite: 79 tests green. Next: P2.4c (EPaxos
-exercised + D7 conflict sweep end-to-end).**
+design preregistered at P3.3. P2.4c ALSO DONE — **P2.4 FULLY CLOSED**:
+EPaxos exercised for the first time (engine round-robin over all three
+replicas, 0 errors) and the D7 knob end-to-end (c=10% run against the
+real cluster → `c10` path + manifest identity, 0 errors). Suite: 81
+tests green. Next: P2.5 (HotStuff SUMMARY parser, fixture-tested — the
+SUMMARY format is already captured from asonnino/hotstuff
+benchmark/logs.py in PENDING_TASKS).**
 
 ---
 

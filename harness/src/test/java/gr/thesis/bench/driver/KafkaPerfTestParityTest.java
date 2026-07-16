@@ -44,6 +44,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * symmetric 15% comparison runs as M6.1 calibration — where the plan
  * always put it ("on the real cluster, <=15% or explained").
  *
+ * 2026-07-16 evidence extension: after a day of back-to-back suites and
+ * image builds (measured: ~620 MB dirty+writeback, load 7.3) this test
+ * measured 0.16x and, on a rerun under the same pressure, timed out in
+ * connect()'s 10 s topic creation; on the settled machine (dirty 1 MB,
+ * load <3) the very same code measured 0.50x green. Laptop disk pressure
+ * alone swings the harness side ~5x — if this test fails locally, check
+ * /proc/meminfo Dirty/Writeback and the load average BEFORE suspecting
+ * the code, and rerun settled.
+ *
  * Configuration chosen on measured stability, not aesthetics: both sides
  * run the driver's native 6-partition shape (fully matching the pipeline
  * via 1-partition topics was tried — single-pipeline acks=all on a laptop

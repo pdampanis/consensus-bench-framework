@@ -119,6 +119,12 @@ What the 79 tests pin, so you know what a failure means:
   via a follower names the same leader); follower-kill → writes keep
   committing on the 2/3 majority. Leader-kill is deliberately absent
   (F26 — stock paxi has no failure detector; P3.3 preregisters it).
+- `PaxiConflictSweepTest` (2, integration, ~19 s) — P2.4c: EPaxos driven
+  by the engine round-robin over all three replicas (0 errors — a
+  non-committing entry would surface as ~1/3 errors); the D7 c=10% run
+  commits clean against the real cluster and carries its identity
+  end-to-end (`.../epaxos/baseline/size3/c10/<runId>` + manifest
+  `conflict_ratio: 0.10`, `status: complete`).
 - `EtcdDriverTest` (3, integration) — the production jetcd driver:
   committed gRPC writes; leader detection **cross-validated against the
   HTTP-gateway stack** (two independent clients must agree); kill the

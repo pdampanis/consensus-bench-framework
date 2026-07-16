@@ -399,6 +399,17 @@ P1.3 → P1.4 → P1.6.
   JDK HTTP via a follower names the same leader — forwarded replies carry
   the leader's ballot); follower-kill → writes keep committing on 2/3.
   Leader-kill deliberately NOT tested (F26; P3.3 preregisters it).
+  **P2.4c DONE 2026-07-16 — P2.4 IS FULLY CLOSED.** EPaxos exercised for
+  real (first time ever): the engine drove round-robin writes over all
+  three replicas at 150 ops/s — **0 errors** (a dead or non-committing
+  entry would have surfaced as ~1/3 errors), ~450 post-warmup commits.
+  The D7 knob end-to-end: a c=10% run against the REAL cluster completed
+  with 0 errors and carried its identity through the whole chain — engine
+  `keyFor(c)` → real EPaxos commits → `epaxos/baseline/size3/c10/<runId>`
+  path + `"conflict_ratio": 0.10` manifest + `status: complete`. Laptop
+  numbers stay functional evidence only; the fast-vs-slow-path performance
+  question is the campaign cluster's (G3 cross-validates vs Paxi's own
+  benchmarker per D4).
   **Mechanism corrected 2026-07-16 (F22): paxi has NO `/state` endpoint** —
   verified against ailidani/paxi @ 6823d0b (= master HEAD; the Dockerfile
   pin): http.go registers only `/`, `/history`, `/crash`, `/drop`. Leader
@@ -544,6 +555,21 @@ request carries a 5 s timeout). Remaining F17 residuals: tag-pins, JMX names
 ---
 
 ## Immediate next increment (proposed)
+
+**P2.5 — HotStuff SUMMARY parser (fixture-tested).** The exact format is
+captured from asonnino/hotstuff `benchmark/benchmark/logs.py` (result()
+method, fetched 2026-07-16): a `SUMMARY:` block with `+ CONFIG:` (Faults,
+Committee size, Input rate, Transaction size, Execution time, consensus/
+mempool tunables) and `+ RESULTS:` (Consensus TPS/BPS/latency, End-to-end
+TPS/BPS/latency) — **integers carry thousands separators** ("7,812 tx/s")
+and latencies are in ms. End-to-end TPS/latency are the client-observed
+primaries (our metric class); Consensus TPS/latency are internal. Build
+the fixture verbatim from that format; the parser is a small class the
+campaign runner feeds from the client log (P4.5 collects it — HotStuff's
+logs ARE its metrics). Tx size MUST be 1024 B on the campaign (the
+cross-system value-size contract).
+
+(The section below is the pre-P2.4 text, kept for history.)
 
 **P2.4 — Paxi (Paxos/EPaxos) substrate + leader detection.** Prerequisite
 discovered: Paxi publishes NO Docker image — build one from source

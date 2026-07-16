@@ -57,20 +57,20 @@ PROJECT_STATE.md §3 the evidence, MEASUREMENT_DIAGRAMS.md the architecture
 reference.
 
 Proposed next increment (confirm with me before coding, then do only this):
-**P2.4c — EPaxos exercised + D7 conflict sweep end-to-end.** P2.4a
-(substrate: `infra/paxi/Dockerfile` @ 6823d0b, `docker build -t
-paxi:6823d0b infra/paxi` once per machine; LocalDockerProvider 3-node
-PAXOS/EPAXOS with a committed-probe-write quorum gate) and P2.4b
-(production PaxiDriver: Ballot-header leader detection — F22, paxi has NO
-/state; F24 endpoint strategy pinned) are DONE. Remaining: run EPAXOS
-through the engine on the real 3-node cluster (round-robin exercised,
-commits clean) and the D7 conflict knob end-to-end (c=10% run completes
-with the c10 path/manifest identity — functional evidence; performance
-deltas are cluster work). Mind F26 (stock paxi has no failure detector —
-leader_kill design is P3.3's preregistration).
+**P2.5 — HotStuff SUMMARY parser (fixture-tested).** P2.4 is FULLY CLOSED
+(substrate + production PaxiDriver + Ballot-header leader detection +
+EPaxos exercised + D7 sweep end-to-end; ledger has the evidence). The
+SUMMARY format is already captured from asonnino/hotstuff
+benchmark/logs.py (see PENDING_TASKS "Immediate next increment"):
+thousands-separated integers, CONFIG block (Faults / Committee size /
+Input rate / Transaction size / Execution time) and RESULTS block
+(Consensus TPS/BPS/latency, End-to-end TPS/BPS/latency in ms). Build the
+fixture verbatim, TDD the parser class; End-to-end TPS/latency are the
+client-observed primaries. Mind F26 for later fault design (stock paxi
+has no failure detector — leader_kill design is P3.3's preregistration).
 
-Then P2.5 (HotStuff SUMMARY parser, fixture-tested), each TDD from its
-acceptance criterion in PENDING_TASKS.md.
+After P2.5, Gate G1 closes (all five driver acceptances archived); then
+P3.3 (RemoteSshProvider + FaultInjector + golden tests, G2).
 
 ## What "done" looks like for this whole effort
 
