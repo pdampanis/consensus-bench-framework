@@ -174,6 +174,34 @@ class LocalDockerProviderTest {
                 () -> provider.start(SystemUnderTest.TENDERMINT, 4));
     }
 
+    // ---- P2.4a: Paxi 3-node (Paxos/EPaxos substrate, image built from
+    //      pinned source — infra/paxi/Dockerfile) ----
+
+    @Test
+    void paxos_size3_formsQuorumOnStart_thenStopLeavesNoContainers() throws Exception {
+        var provider = new LocalDockerProvider();
+        try {
+            List<ClusterProvider.NodeHandle> nodes = provider.start(SystemUnderTest.PAXOS, 3);
+            assertEquals(3, nodes.size());
+            assertEquals("paxi2", nodes.get(1).privateIp(), "network alias must follow containerName()");
+            assertEquals(3, provider.clientEndpoints().size());
+            // start() returning IS the quorum gate: the provider commits a
+            // probe write before handing out endpoints (paxi elects its
+            // first leader lazily, on the first request — an ungated start
+            // would hand out a cluster that hangs pre-mesh requests forever).
+        } finally {
+            provider.stop();
+        }
+        assertEquals(0, thesisContainersAlive(), "stop() must leave zero thesis-* containers");
+    }
+
+    @Test
+    void paxiOnlySupportsTheThesisShapeOfThree() {
+        var provider = new LocalDockerProvider();
+        assertThrows(UnsupportedOperationException.class,
+                () -> provider.start(SystemUnderTest.PAXOS, 5));
+    }
+
     @Test
     void kraftMultiNodeFailsClosedUntilTheCampaignProviderLands() {
         // Multi-broker KRaft needs the full listener/quorum wiring the remote

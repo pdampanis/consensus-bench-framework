@@ -32,7 +32,7 @@ mvn21 clean verify
 **Expect** (versions/counts as of 2026-07-16 — counts only grow):
 
 ```
-Tests run: 72, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 74, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -41,7 +41,7 @@ The provider tests need Docker; the first ever run pulls the pinned etcd
 image (~50 MB). If you see `client version 1.32 is too old`, the
 testcontainers pin regressed below 1.21.4 (Docker 29 needs ≥1.21.4).
 
-What the 72 tests pin, so you know what a failure means:
+What the 74 tests pin, so you know what a failure means:
 - `ArgParserTest` (6) — CLI contract: `--key value` pairs, bare `-v/--verbose`,
   fail-closed on a dangling key, duration>warmup guard.
 - `EventLogTest` (3) + engine event tests — failover instrumentation:
@@ -76,14 +76,17 @@ What the 72 tests pin, so you know what a failure means:
   param-sensitive**, fault/failover fields null↔real correctly.
 - `ClusterProviderCloseTest` (2) — teardown continues on failure but the
   failure is logged, never swallowed.
-- `LocalDockerProviderTest` (7, integration, real Docker) — digest-pinned
+- `LocalDockerProviderTest` (9, integration, real Docker) — digest-pinned
   3-node etcd: quorum write; kill 1 → commits resume after re-election;
   kill 2 → writes fail (fail-closed); `stop()` leaves zero `thesis-*`
   containers; **KRaft size-1** (digest-pinned apache/kafka 3.9.1): healthy
   broker commits an acks=all produce, multi-node fails closed (P2.2a);
   **CometBFT size-1** (digest-pinned v0.38.17, kvstore app, subscription
   limit raised 100→2000): /health answers, teardown clean, multi-node
-  fails closed (P2.3a).
+  fails closed (P2.3a); **Paxi size-3** (source-pinned build `paxi:6823d0b`
+  — `docker build -t paxi:6823d0b infra/paxi` once): start() returns only
+  after a committed probe write (election is lazy, no /health), size≠3
+  fails closed, teardown clean (P2.4a).
 - `LocalRunTest` (1, integration) — the full one-command loop twice in a
   row, including pre-clean of a planted leftover container.
 - `KafkaDriverTest` (2, integration) — the production Kafka driver (P2.2b):

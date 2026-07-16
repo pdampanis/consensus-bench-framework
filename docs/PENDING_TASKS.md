@@ -375,6 +375,18 @@ P1.3 → P1.4 → P1.6.
   ≥200 floor was window-bound at 220 tx/s = window/latency — Little's Law,
   same lesson as P2.2c). Suite: **71 tests green.**
 - **P2.4 — Paxi substrate + leader detection + exercise P1.2 knob.**
+  **P2.4a (substrate) DONE 2026-07-16, TDD red→green:** `infra/paxi/
+  Dockerfile` (source-commit pin 6823d0b; first local build: image id
+  bc12c64d3391, 16.1 MB — record per D2-adapted) + `LocalDockerProvider`
+  3-node PAXOS/EPAXOS (`-algorithm` from the enum; generated minimal
+  config.json — Config.Load() decodes into a defaults-prefilled singleton;
+  **committed-probe-write quorum gate**, because election is lazy and no
+  /health exists; fail-closed `requireLocalImage` with the build command in
+  the message — the image exists in no registry). Acceptance green vs real
+  Docker in 2.8 s: 3 nodes, quorum probe committed, size≠3 fails closed,
+  zero leftover containers. Defaults kept deliberately: `-adaptive=true`
+  (stable leader, internal forwarding) and reply-on-EXECUTE (commit+apply,
+  = etcd semantics). EPAXOS wired but first exercised at P2.4c.
   **Mechanism corrected 2026-07-16 (F22): paxi has NO `/state` endpoint** —
   verified against ailidani/paxi @ 6823d0b (= master HEAD; the Dockerfile
   pin): http.go registers only `/`, `/history`, `/crash`, `/drop`. Leader
@@ -512,6 +524,10 @@ PaxiDriver `close()` now call JDK 21 `HttpClient.close()` (bounded: every
 request carries a 5 s timeout). Remaining F17 residuals: tag-pins, JMX names
 (P4.3). Also fixed: LOCAL_TESTING build-time drift (~1.5 → ~3 min measured
 2026-07-16 as integration tests accumulated).
+
+| # | Finding | Task | Status |
+|---|---------|------|--------|
+| F26 | **Stock paxi cannot recover from a hard leader kill** (source-verified @ 6823d0b): a follower that knows a ballot always FORWARDS client requests to that leader (paxos/replica.go handleRequest) — there is no failure detector and no re-election trigger; Forward rides the tcp transport (node.go → n.Send), and a send to a dead peer retries its dial 100×50 ms then **panics the forwarding follower's process** (socket.go:98-100). Paxi's designed fault primitive is `/crash?t=` (socket pause, process alive), not process death. `-ephemeral_leader=true` changes this (followers self-elect instead of forwarding) but also changes baseline semantics (election competition on every non-leader request). | P3.3 | open — **preregister the paxi leader_kill design** before the goldens: choose adaptive-mode + documented wedge/crash as the honest "no failure detector" result, vs ephemeral_leader mode, vs paxi's own Crash(t); verify empirically whichever is chosen. Expected-vs-observed material for the thesis (implementation property, not protocol property). |
 
 ---
 

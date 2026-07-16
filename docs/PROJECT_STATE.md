@@ -27,7 +27,13 @@ paxi has NO `/state` endpoint — P2.4 leader detection corrected to the
 `Ballot` response header (source-verified @ 6823d0b, which also closed the
 P1.1 Atoi re-verify note); engine bucket array boundary fixed TDD (F23,
 capacity duration+6); EtcdHttpDriver/PaxiDriver close() now release the
-JDK 21 HttpClient (F17 residual). Suite: 72 tests green.**
+JDK 21 HttpClient (F17 residual). Same-day continuation, P2.4a DONE
+(TDD): paxi image built from pinned source (infra/paxi/Dockerfile,
+6823d0b, image id bc12c64d3391) + LocalDockerProvider 3-node PAXOS/EPAXOS
+with a committed-probe-write quorum gate (election is lazy; no /health)
+and fail-closed requireLocalImage. Suite: 74 tests green. Next: P2.4b
+(PaxiDriver write path vs the real server + Ballot-header leader
+detection + F24 endpoint strategy).**
 
 ---
 

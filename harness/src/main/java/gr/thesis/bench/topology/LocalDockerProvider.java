@@ -52,6 +52,14 @@ public final class LocalDockerProvider implements ClusterProvider {
     public static final String COMETBFT_IMAGE =
             "cometbft/cometbft@sha256:22c2ac018f40665e5c113e485d81531d8421f4fc76f9c8b013fbb6c0c16e150d";
 
+    /** Paxi (Paxos/EPaxos, SIGMOD'19) — built from PINNED SOURCE because the
+     *  project publishes no image. A local build has no registry digest, so
+     *  the D2 pin is the source commit baked into infra/paxi/Dockerfile
+     *  (6823d0b). Not pullable: build it once with
+     *  {@code docker build -t paxi:6823d0b infra/paxi} — start() fails
+     *  closed with that instruction when the image is absent. */
+    public static final String PAXI_IMAGE = "paxi:6823d0b";
+
     private final List<GenericContainer<?>> containers = new ArrayList<>();
     private final List<String> endpoints = new ArrayList<>();
     private Network network;
@@ -59,9 +67,11 @@ public final class LocalDockerProvider implements ClusterProvider {
     @Override
     public List<NodeHandle> start(SystemUnderTest system, int clusterSize) {
         if (system != SystemUnderTest.ETCD && system != SystemUnderTest.KRAFT
-                && system != SystemUnderTest.TENDERMINT) {
+                && system != SystemUnderTest.TENDERMINT
+                && system != SystemUnderTest.PAXOS && system != SystemUnderTest.EPAXOS) {
             throw new UnsupportedOperationException(
-                    "LocalDockerProvider supports ETCD/KRAFT/TENDERMINT for now; asked for " + system);
+                    "LocalDockerProvider supports ETCD/KRAFT/TENDERMINT/PAXOS/EPAXOS for now; asked for "
+                            + system);
         }
         if (clusterSize < 1) {
             throw new IllegalArgumentException("clusterSize must be >= 1, got " + clusterSize);
@@ -79,6 +89,9 @@ public final class LocalDockerProvider implements ClusterProvider {
         }
         if (system == SystemUnderTest.TENDERMINT) {
             return startCometBft(clusterSize, suffix);
+        }
+        if (system == SystemUnderTest.PAXOS || system == SystemUnderTest.EPAXOS) {
+            return startPaxi(system, clusterSize, suffix);
         }
         String initialCluster = IntStream.rangeClosed(1, clusterSize)
                 .mapToObj(i -> alias(system, i) + "=http://" + alias(system, i) + ":2380")
@@ -194,6 +207,113 @@ public final class LocalDockerProvider implements ClusterProvider {
         endpoints.add("http://" + c.getHost() + ":" + c.getMappedPort(26657));
         log.debug("phase: wait-healthy done — endpoints {}", endpoints);
         return List.of(new NodeHandle(0, containerName, "127.0.0.1", alias));
+    }
+
+    /**
+     * 3-node Paxi (P2.4a) — one binary serves both PAXOS and EPAXOS via
+     * {@code -algorithm}. Facts verified against the pinned source
+     * (2026-07-16, commit 6823d0b — see PENDING_TASKS F22):
+     *  - config.json needs only the two address maps; Config.Load() decodes
+     *    into a defaults-prefilled singleton (config.go). IDs are Zone.Node
+     *    ("1.1".."1.3"); http binds ":"+port of its URL, host part is
+     *    name-resolution only.
+     *  - Leader election is LAZY: the first client request triggers Phase-1a
+     *    over the peer mesh. There is no /health; the only honest readiness
+     *    gate is a COMMITTED PROBE WRITE — an ungated start would hand out a
+     *    cluster whose first (measured!) requests hang in election.
+     *  - A send to a not-yet-reachable peer retries its dial 100x50 ms (~5 s,
+     *    socket.go) before panicking, so parallel start + probe-retry is safe.
+     *  - Default flags are the thesis semantics: -adaptive=true (stable
+     *    leader, internal forwarding) and reply-on-EXECUTE (commit + apply,
+     *    matching etcd's semantics) — neither is overridden.
+     */
+    private List<NodeHandle> startPaxi(SystemUnderTest system, int clusterSize, String suffix) {
+        if (clusterSize != 3) {
+            throw new UnsupportedOperationException(
+                    system + " supports the thesis shape of 3 only (P2.4a); asked for " + clusterSize);
+        }
+        requireLocalImage(PAXI_IMAGE, "docker build -t " + PAXI_IMAGE + " infra/paxi");
+
+        StringBuilder addrs = new StringBuilder();
+        StringBuilder https = new StringBuilder();
+        for (int i = 1; i <= clusterSize; i++) {
+            if (i > 1) { addrs.append(", "); https.append(", "); }
+            addrs.append("\"1.").append(i).append("\": \"tcp://").append(alias(system, i)).append(":1735\"");
+            https.append("\"1.").append(i).append("\": \"http://").append(alias(system, i)).append(":8080\"");
+        }
+        String config = "{ \"address\": {" + addrs + "}, \"http_address\": {" + https + "} }";
+        String algorithm = system == SystemUnderTest.EPAXOS ? "epaxos" : "paxos";
+
+        List<NodeHandle> handles = new ArrayList<>(clusterSize);
+        for (int i = 1; i <= clusterSize; i++) {
+            String alias = alias(system, i);
+            String containerName = "thesis-" + alias + "-" + suffix;
+            GenericContainer<?> c = new GenericContainer<>(DockerImageName.parse(PAXI_IMAGE))
+                    .withNetwork(network)
+                    .withNetworkAliases(alias)
+                    .withExposedPorts(8080)
+                    .withCreateContainerCmdModifier(cmd -> cmd.withName(containerName))
+                    .withCopyToContainer(
+                            org.testcontainers.images.builder.Transferable.of(config), "/config.json")
+                    .withCommand("-id", "1." + i, "-algorithm", algorithm)
+                    // Listening ports are all a per-container gate can see
+                    // (no /health, election is lazy); the cluster-level gate
+                    // is the probe write below.
+                    .waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(30)));
+            containers.add(c);
+            handles.add(new NodeHandle(i - 1, containerName, "127.0.0.1", alias));
+        }
+
+        log.debug("phase: deploy — starting {} {} container(s) in parallel", clusterSize, system);
+        Startables.deepStart(containers).join();
+        for (GenericContainer<?> c : containers) {
+            endpoints.add("http://" + c.getHost() + ":" + c.getMappedPort(8080));
+        }
+        probeCommittedWrite(endpoints.get(0), Duration.ofSeconds(30));
+        log.debug("phase: wait-healthy done (probe write committed) — endpoints {}", endpoints);
+        return handles;
+    }
+
+    /** Fail closed, with the fix in the message, when a build-from-source
+     *  image is absent — Testcontainers would otherwise fail trying to PULL
+     *  an image that exists in no registry. */
+    private static void requireLocalImage(String image, String buildCommand) {
+        try {
+            DockerClientFactory.instance().client().inspectImageCmd(image).exec();
+        } catch (com.github.dockerjava.api.exception.NotFoundException e) {
+            throw new IllegalStateException(
+                    "image " + image + " is not built locally — run: " + buildCommand, e);
+        }
+    }
+
+    /** The Paxi quorum gate: retry one bounded write until it commits (200).
+     *  First success proves leader elected + majority mesh up. */
+    private static void probeCommittedWrite(String endpoint, Duration deadline) {
+        var req = java.net.http.HttpRequest.newBuilder(java.net.URI.create(endpoint + "/1"))
+                .timeout(Duration.ofSeconds(5))
+                .PUT(java.net.http.HttpRequest.BodyPublishers.ofByteArray(new byte[8]))
+                .build();
+        long end = System.nanoTime() + deadline.toNanos();
+        Exception last = null;
+        try (var http = java.net.http.HttpClient.newHttpClient()) {
+            while (System.nanoTime() < end) {
+                try {
+                    var resp = http.send(req, java.net.http.HttpResponse.BodyHandlers.discarding());
+                    if (resp.statusCode() == 200) return;
+                    last = new IllegalStateException("probe write returned HTTP " + resp.statusCode());
+                } catch (Exception e) {
+                    last = e;
+                }
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
+        throw new IllegalStateException(
+                "paxi cluster failed its probe-write quorum gate within " + deadline, last);
     }
 
     @Override

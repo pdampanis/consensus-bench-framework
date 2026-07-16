@@ -47,7 +47,7 @@ PROJECT_STATE.md, ask me; don't silently pick one.
 **P0 and P1 are fully closed; P2.1 (jetcd EtcdDriver), P2.2 (KafkaDriver +
 KRaft substrate + G1 flaw-B parity) and P2.3 (CometBftDriver — 602 tx/s
 measured, 100x the retired probe's ceiling, p50 ≈ block interval) are
-done. Suite: 72 tests green via `mvn21 clean verify` (integration tests
+done. Suite: 74 tests green via `mvn21 clean verify` (integration tests
 need the local Docker daemon).** The measurement instrument is complete:
 open-loop engine with CO correction, real HdrHistogram + latency.hlog,
 EventLog failover, manifest v2, first-error capture, `local-run`
@@ -105,7 +105,7 @@ Don't let this become an afterthought bolted on at analysis time.
 - the consensus papers already in the project
 
 Start by reading PROJECT_STATE.md, confirming `mvn21 clean verify` is still
-green (72 tests, Docker required), then propose the P2.4 increment and wait
+green (74 tests, Docker required), then propose the P2.4 increment and wait
 for my go-ahead.
 
 ────────────────────────────────────────────────────────────────────────────

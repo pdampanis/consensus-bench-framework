@@ -76,7 +76,7 @@ consensus-bench-thesis/
 │   │   ├── topology/               ClusterProvider SPI + LocalDockerProvider
 │   │   └── Main.java               CLI: endpoint-run + local-run (one command,
 │   │                               clean→deploy→run→teardown)
-│   ├── src/test/java/              72 tests (TDD; integration tests need Docker)
+│   ├── src/test/java/              74 tests (TDD; integration tests need Docker)
 │   └── results/                    M0 EVIDENCE — real etcd run outputs
 ├── infra/
 │   ├── main.tf                     cluster as Terraform, phase-parameterized
@@ -111,7 +111,7 @@ consensus-bench-thesis/
 ## Current status (verified, not asserted — as of 2026-07-15)
 
 - **P0 + P1 fully closed; P2.1 (etcd/jetcd), P2.2 (Kafka), and P2.3
-  (CometBFT) done. Suite: 72 tests green** (`mvn21 clean verify`; the
+  (CometBFT) done. Suite: 74 tests green** (`mvn21 clean verify`; the
   integration tests need the local Docker daemon). Details and evidence:
   `docs/PROJECT_STATE.md` §3, ledger in `docs/PENDING_TASKS.md`, diagrams
   in `docs/MEASUREMENT_DIAGRAMS.md`.
@@ -152,7 +152,7 @@ consensus-bench-thesis/
 
 ```bash
 # 1. build + full suite (needs Docker; ~1.5 min)
-cd harness && mvn21 clean verify          # expect: Tests run: 72, BUILD SUCCESS
+cd harness && mvn21 clean verify          # expect: Tests run: 74, BUILD SUCCESS
 
 # 2. the one-command local loop (the P0 deliverable)
 java -jar target/consensus-bench-0.1.0-SNAPSHOT.jar \
