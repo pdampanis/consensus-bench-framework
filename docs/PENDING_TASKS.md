@@ -480,6 +480,21 @@ Kafka+ZK per D10 — zk1-3 + broker1-3 colocated, CometBFT testnet, Paxi trio).*
   sshd in Docker (digest-pinned linuxserver/openssh-server): stdout
   verbatim, non-zero exit + stderr surfaced, fail-closed throw, pooled
   reuse. 4 tests green.
+  **P3.3b (M4.2, etcd) DONE 2026-07-16, golden-file TDD:**
+  `RemoteSshProvider` (etcd size 1..provisioned; every other system fails
+  closed until its block lands with its own golden) driven ENTIRELY
+  through SshExecutor. The golden was written FIRST as the spec —
+  `src/test/resources/goldens/etcd-size3-start-stop.txt` carries a G2
+  read-through checklist in its header (real private IPs everywhere,
+  --network host, digest-pinned image, advertise URLs per node,
+  deterministic thesis-etcd<i> names, curl-on-node health, full
+  teardown) and the test compares the recorded sequence VERBATIM.
+  Pre-clean and teardown accept only "No such container" as a benign
+  non-zero (never `|| true`); the health gate polls until a deadline and
+  fails closed NAMING the node. F20 resolved (real IP in NodeHandle,
+  pinned by test; javadoc defines per-substrate semantics). 4 tests.
+  NOT yet verified: real-VM behavior (docker stderr wording, cloud-init,
+  private-net routing) — exactly what the P3.4 canary exists for.
   **Remote-deltas preregistration (2026-07-16 — the topology/network/
   traffic changes between the local Docker substrate and the servers;
   every golden must reflect these):**
@@ -575,7 +590,7 @@ and `CAMPAIGN_RUNBOOK.md`.
 |---|--------------------|------|--------|
 | F18 | jetcd put has no client deadline → quorum-lost write bounded only by etcd's ~7 s server grace (or nothing, if the picked endpoint is dead); drain barrier can outwait/hang the run (EtcdDriver.java:74, WorkloadEngine.java:141) | fixed in P2.1 | **DONE 2026-07-15** (TDD; orTimeout 5 s; SPI contract documented; 52 green) |
 | F19 | `FaultInjector.apply()` default contradicts F13 preregistration: NETWORK_PARTITION isolates node 0 not the leader; PACKET_LOSS hardcodes 5% (ClusterProvider.java:54-63) | fixed pre-P3.3 | **DONE 2026-07-15** (TDD, recording-injector test per scenario; red showed partition:0 + loss:5) |
-| F20 | `NodeHandle.privateIp` carries the Docker network ALIAS ("etcd1"), not an IP (LocalDockerProvider.java:93) — semantic trap for RemoteSshProvider | P3.3 | open — rename or fill with a real IP when the remote provider lands |
+| F20 | `NodeHandle.privateIp` carries the Docker network ALIAS ("etcd1"), not an IP (LocalDockerProvider.java:93) — semantic trap for RemoteSshProvider | P3.3 | **DONE 2026-07-16** (P3.3b): RemoteSshProvider fills a REAL private IP (pinned by test); NodeHandle's javadoc now defines the field's semantics per substrate (real IP remotely, alias locally where the alias IS the address). F25's local alias pin stays valid. |
 | F21 | Manifest JSON string-concat leaves runId/imageRef unescaped (CsvResultsWriter.java:137+); and nothing pins the campaign's 1024 B value size (Main defaults 256) | M3.3 | open — campaign runner must set valsize=1024 and runIds stay `[a-z0-9]+` until escaped |
 
 Doc-drift items fixed 2026-07-15: README (status/caveats/handoff/layout),

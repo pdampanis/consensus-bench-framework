@@ -1,0 +1,22 @@
+# GOLDEN (G2): every remote command RemoteSshProvider runs for an etcd
+# size-3 start + stop, verbatim, in order, as host:port$ command.
+# Human read-through checklist: real PRIVATE IPs everywhere (10.0.0.11-13,
+# never a Docker alias — F20); --network host so clients/peers use the
+# private net natively (no mapped ports, D2); advertise URLs carry the
+# node's own private IP; the image is the registry DIGEST, not a tag;
+# deterministic thesis-etcd<i> names (one cluster at a time on the
+# campaign, EXECUTION_AND_COST_MODEL §1 — and pre-clean covers crashes);
+# health = curl ON the node against localhost (host networking), retried
+# by the provider until quorum answers; teardown removes every container.
+10.0.0.11:22$ docker rm -f thesis-etcd1
+10.0.0.12:22$ docker rm -f thesis-etcd2
+10.0.0.13:22$ docker rm -f thesis-etcd3
+10.0.0.11:22$ docker run -d --name thesis-etcd1 --network host quay.io/coreos/etcd@sha256:5a65b4c67dea6e835c2812cf2fdea064f494c68b509fab939b12c0fa1fa423bb etcd --name etcd1 --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://10.0.0.11:2379 --listen-peer-urls http://0.0.0.0:2380 --initial-advertise-peer-urls http://10.0.0.11:2380 --initial-cluster etcd1=http://10.0.0.11:2380,etcd2=http://10.0.0.12:2380,etcd3=http://10.0.0.13:2380 --initial-cluster-state new --initial-cluster-token thesis-bench
+10.0.0.12:22$ docker run -d --name thesis-etcd2 --network host quay.io/coreos/etcd@sha256:5a65b4c67dea6e835c2812cf2fdea064f494c68b509fab939b12c0fa1fa423bb etcd --name etcd2 --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://10.0.0.12:2379 --listen-peer-urls http://0.0.0.0:2380 --initial-advertise-peer-urls http://10.0.0.12:2380 --initial-cluster etcd1=http://10.0.0.11:2380,etcd2=http://10.0.0.12:2380,etcd3=http://10.0.0.13:2380 --initial-cluster-state new --initial-cluster-token thesis-bench
+10.0.0.13:22$ docker run -d --name thesis-etcd3 --network host quay.io/coreos/etcd@sha256:5a65b4c67dea6e835c2812cf2fdea064f494c68b509fab939b12c0fa1fa423bb etcd --name etcd3 --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://10.0.0.13:2379 --listen-peer-urls http://0.0.0.0:2380 --initial-advertise-peer-urls http://10.0.0.13:2380 --initial-cluster etcd1=http://10.0.0.11:2380,etcd2=http://10.0.0.12:2380,etcd3=http://10.0.0.13:2380 --initial-cluster-state new --initial-cluster-token thesis-bench
+10.0.0.11:22$ curl -sf --max-time 2 http://127.0.0.1:2379/health
+10.0.0.12:22$ curl -sf --max-time 2 http://127.0.0.1:2379/health
+10.0.0.13:22$ curl -sf --max-time 2 http://127.0.0.1:2379/health
+10.0.0.11:22$ docker rm -f thesis-etcd1
+10.0.0.12:22$ docker rm -f thesis-etcd2
+10.0.0.13:22$ docker rm -f thesis-etcd3

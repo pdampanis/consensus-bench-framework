@@ -32,7 +32,7 @@ mvn21 clean verify
 **Expect** (versions/counts as of 2026-07-16 — counts only grow):
 
 ```
-Tests run: 89, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 93, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -41,7 +41,7 @@ The provider tests need Docker; the first ever run pulls the pinned etcd
 image (~50 MB). If you see `client version 1.32 is too old`, the
 testcontainers pin regressed below 1.21.4 (Docker 29 needs ≥1.21.4).
 
-What the 89 tests pin, so you know what a failure means:
+What the 93 tests pin, so you know what a failure means:
 - `ArgParserTest` (6) — CLI contract: `--key value` pairs, bare `-v/--verbose`,
   fail-closed on a dangling key, duration>warmup guard.
 - `EventLogTest` (3) + engine event tests — failover instrumentation:
@@ -137,6 +137,12 @@ What the 89 tests pin, so you know what a failure means:
   golden-file substrate) records every command verbatim in order as
   `host:port$ command`; canned responses; `execOrThrow` fails closed
   naming the command AND the remote stderr; failures are recorded too.
+- `RemoteSshProviderTest` (4) — P3.3b: the etcd remote provider's FULL
+  command sequence (start+stop, size 3) compared VERBATIM against the
+  reviewed golden (`src/test/resources/goldens/etcd-size3-start-stop.txt`
+  — read its header checklist at G2); NodeHandle carries REAL private IPs
+  (F20) and host-networked endpoints; unsupported systems and oversized
+  clusters fail closed; the health gate fails closed NAMING the node.
 - `SshjExecutorTest` (1, integration, ~5 s) — the REAL sshj executor
   against a key-authenticated sshd container (digest-pinned): stdout
   verbatim, non-zero exit + stderr surfaced (never swallowed),

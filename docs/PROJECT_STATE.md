@@ -55,7 +55,14 @@ topology/network changes between local Docker and the servers: real
 private IPs in NodeHandle (F20), host networking endpoints, netem iface
 via `ip -o route get` (never assumed), pairwise-IP partitions that
 preserve the loadgen→leader measurement path, LAN-RTT timing notes.
-Suite: 89 tests green. Next: P3.3b (RemoteSshProvider, etcd first).**
+Suite: 89 tests green. P3.3b ALSO DONE (golden-file TDD): RemoteSshProvider
+(etcd first, others fail closed) — the golden was written FIRST as the
+spec, the recorded command sequence matches it verbatim, F20 resolved
+(real private IPs in NodeHandle, pinned by test), health gate fails
+closed naming the node. Suite: 93 tests green. Next: P3.3c (remote
+FaultInjector: docker kill / netem via `ip -o route get` iface
+resolution / pairwise-IP iptables partition preserving the
+loadgen→leader path, heal in finally — golden-file TDD).**
 
 ---
 

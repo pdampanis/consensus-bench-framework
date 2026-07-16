@@ -41,7 +41,12 @@ public interface ClusterProvider extends AutoCloseable {
     }
 
     /** A single consensus node: enough identity to kill, partition, or
-     *  throttle it without string surgery. */
+     *  throttle it without string surgery. {@code privateIp} is the address
+     *  peers, clients, and faults act on — a REAL private IP on the campaign
+     *  (RemoteSshProvider, F20) and the Docker network alias on the local
+     *  substrate (where the alias IS that address). {@code host} is where
+     *  management reaches the node: the same private IP remotely (the
+     *  harness runs on the loadgen), 127.0.0.1 locally. */
     record NodeHandle(int index, String containerName, String host, String privateIp) {}
 
     /** Faults operate on handles, not derived names. */
