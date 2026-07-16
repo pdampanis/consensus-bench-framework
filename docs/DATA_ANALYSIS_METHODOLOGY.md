@@ -205,6 +205,24 @@ BFT-vs-CFT absolute comparison is confounded by hardware as well as protocol;
 we therefore make only within-family absolute comparisons and treat
 cross-family differences as directional, argued through the published results.
 
+**Fault-model seam (Paxi, preregistered — F26, source-verified 2026-07-16):**
+stock Paxi ships **no failure detector** — a follower forwards client
+requests to the last-known leader indefinitely, so a hard leader kill
+(`docker kill`, the same fault the CFT/BFT systems get) produces a
+LIVENESS WEDGE, not a failover. We run Paxi in its default adaptive mode
+and report this honestly: the *expected* observation for Paxi `leader_kill`
+is that writes wedge (fail at the client's 5 s bound) with **no recovery**,
+which is an implementation property of this research framework, not a
+property of the Paxos protocol — the contrast with etcd/KRaft's sub-second
+Raft re-election is itself a result. Consequence for reporting: Paxi
+contributes no point to the failover ECDF (F4) — a documented absence,
+never a fabricated recovery time — and its recovery-profile timeline (F5)
+shows the wedge. (Rejected alternatives, recorded: `-ephemeral_leader`
+would give a comparable failover but changes the *baseline* semantics too,
+so every Paxi cell would run non-default; Paxi's own `/crash?t=` primitive
+is a socket pause, not process death, a different fault class from the
+other systems' `docker kill`.)
+
 **Construct**: client-observed commit is the measured object — protocol-
 internal consensus latency is inferred, not measured, except where server
 metrics expose it; Paxi's in-memory commit vs fsync-backed systems; CometBFT

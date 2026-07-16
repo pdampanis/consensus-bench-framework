@@ -64,9 +64,12 @@ closed naming the node. Suite: 93 tests green. P3.3c ALSO DONE (golden-file TDD)
 IPs, loadgen→leader path preserved)/slow_node(host stress-ng)/double_kill,
 heal replays LIFO best-effort-but-loud; golden matched verbatim, 5 tests
 incl. iface-resolved-not-assumed + heal-on-inject-throw. Suite: 98 tests
-green. Next: P3.3d (golden files for the OTHER systems' start/stop +
-faults, then the G2 human read-through) — decide F26 (paxi leader_kill)
-before any paxi fault golden. Then P3.4 canary (G2 billing gate).**
+green. **F26 DECIDED by the author 2026-07-16: paxi leader_kill = adaptive-
+mode WEDGE (honest — no failure detector; implementation property, no
+failover-ECDF point; methodology §7 preregistration written).** Next:
+P3.3d (RemoteSshProvider for the remaining systems + their goldens, paxi
+carrying the wedge; then the G2 human read-through). Then P3.4 canary
+(G2 billing gate — nothing applied yet, G2 intact).**
 
 ---
 
