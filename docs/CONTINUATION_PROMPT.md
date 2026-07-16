@@ -108,8 +108,8 @@ Don't let this become an afterthought bolted on at analysis time.
 - the consensus papers already in the project
 
 Start by reading PROJECT_STATE.md, confirming `mvn21 clean verify` is still
-green (79 tests, Docker required), then propose the P2.4 increment and wait
-for my go-ahead.
+green (85 tests, Docker required), then confirm G1 sign-off and propose
+the P3.3 increment, and wait for my go-ahead.
 
 ────────────────────────────────────────────────────────────────────────────
 Note on the model switch: this project involves consensus/BFT and distributed-

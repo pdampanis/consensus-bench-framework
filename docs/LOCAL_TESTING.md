@@ -32,7 +32,7 @@ mvn21 clean verify
 **Expect** (versions/counts as of 2026-07-16 — counts only grow):
 
 ```
-Tests run: 79, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 85, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -41,7 +41,7 @@ The provider tests need Docker; the first ever run pulls the pinned etcd
 image (~50 MB). If you see `client version 1.32 is too old`, the
 testcontainers pin regressed below 1.21.4 (Docker 29 needs ≥1.21.4).
 
-What the 79 tests pin, so you know what a failure means:
+What the 85 tests pin, so you know what a failure means:
 - `ArgParserTest` (6) — CLI contract: `--key value` pairs, bare `-v/--verbose`,
   fail-closed on a dangling key, duration>warmup guard.
 - `EventLogTest` (3) + engine event tests — failover instrumentation:
