@@ -82,5 +82,10 @@ public final class PaxiDriver implements ConsensusDriver {
         return system == SystemUnderTest.EPAXOS ? Optional.empty() : Optional.of(0);
     }
 
-    @Override public void close() { client = null; }
+    @Override public void close() {
+        // JDK 21 HttpClient.close() releases the client's threads; every
+        // request is bounded at 5 s, so this cannot hang (F17 residual).
+        if (client != null) client.close();
+        client = null;
+    }
 }

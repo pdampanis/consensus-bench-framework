@@ -22,6 +22,12 @@ closed, P2.1 done. Backlog + ledger: `docs/PENDING_TASKS.md`.
 (100x the retired probe's ceiling), p50 ≈ block interval; suite 71 green;
 see PENDING_TASKS for the probed facts (subscription cap, kvstore '='
 split, nonce). Next: P2.4 (needs a built-from-source Paxi image first).**
+**2026-07-16 third hard review + fixes (F22–F25, ledger in PENDING_TASKS):
+paxi has NO `/state` endpoint — P2.4 leader detection corrected to the
+`Ballot` response header (source-verified @ 6823d0b, which also closed the
+P1.1 Atoi re-verify note); engine bucket array boundary fixed TDD (F23,
+capacity duration+6); EtcdHttpDriver/PaxiDriver close() now release the
+JDK 21 HttpClient (F17 residual). Suite: 72 tests green.**
 
 ---
 
@@ -172,7 +178,8 @@ contention, D7 unfireable). Now: `ConsensusDriver.write(int keyId, value)`
 with `KEY_SPACE = 1000` (Paxi Table 3) as the SPI contract — the typed int
 makes the bug inexpressible. Drivers own their encodings, precomputed at
 connect() (etcd `bench/k<id>` base64 cache; Paxi `/<id>` URI table,
-numeric-only for its Atoi parser). Suite: **25 tests green**, all Docker
+numeric-only for its Atoi parser — source-verified vs paxi/http.go
+2026-07-16, F22). Suite: **25 tests green**, all Docker
 integration tests re-passed on the new contract.
 
 **P1.2 (D7 conflict knob) — DONE 2026-07-08, TDD.** `Config.conflictRatio`

@@ -155,8 +155,10 @@ plainly in the methodology.
 3. Implement KafkaDriver (producer, acks=all, callback-timed commit ack),
    EtcdDriver (jetcd, natively async), CometBftDriver (pooled
    HttpClient.sendAsync on broadcast_tx_commit, in-flight window ≥200 —
-   un-caps the 6 tx/s ceiling), finish PaxiDriver leader detection via
-   /state polling. HotStuff stays the documented docker-exec boundary.
+   un-caps the 6 tx/s ceiling), finish PaxiDriver leader detection via the
+   `Ballot` response header (2026-07-16 correction, F22: paxi exposes no
+   /state endpoint; committed paxos writes return the leader's ballot).
+   HotStuff stays the documented docker-exec boundary.
 4. WorkloadEngine additions: stepped **rate sweep** mode (for
    throughput–latency curves, the papers' canonical figure) and saturation
    search (raise in-flight until throughput plateaus — Paxi's method).

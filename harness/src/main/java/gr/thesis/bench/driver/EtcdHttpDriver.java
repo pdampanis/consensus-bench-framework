@@ -76,6 +76,10 @@ public final class EtcdHttpDriver implements ConsensusDriver {
 
     @Override public void close() {
         log.debug("phase: driver close");
+        // JDK 21 HttpClient is AutoCloseable: close() releases the selector/
+        // executor threads. It waits for in-flight requests, all of which are
+        // bounded at 5 s here, so teardown cannot hang (F17 residual).
+        if (client != null) client.close();
         client = null;
     }
 }

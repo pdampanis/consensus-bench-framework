@@ -81,7 +81,12 @@ public final class WorkloadEngine {
         this.cfg = cfg;
         this.recorder = recorder;
         this.events = events;
-        this.perSecondCommits = new AtomicLongArray(cfg.durationSecs() + 5);
+        // Capacity must strictly EXCEED duration + the 5 s per-op completion
+        // bound (ConsensusDriver.write contract): an op issued in the run's
+        // last instant plus timeout-callback slop can complete in second
+        // duration+5, and a commit the drain barrier waited for must never
+        // vanish from the buckets (F23).
+        this.perSecondCommits = new AtomicLongArray(cfg.durationSecs() + 6);
     }
 
     public Result run() throws Exception {

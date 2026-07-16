@@ -374,7 +374,20 @@ P1.3 → P1.4 → P1.6.
   p50 = 1.09 s ≈ the block interval, error rate <1%.** Window 600 (the
   ≥200 floor was window-bound at 220 tx/s = window/latency — Little's Law,
   same lesson as P2.2c). Suite: **71 tests green.**
-- **P2.4 — Paxi leader detection** (`/state` parse) + exercise P1.2 knob.
+- **P2.4 — Paxi substrate + leader detection + exercise P1.2 knob.**
+  **Mechanism corrected 2026-07-16 (F22): paxi has NO `/state` endpoint** —
+  verified against ailidani/paxi @ 6823d0b (= master HEAD; the Dockerfile
+  pin): http.go registers only `/`, `/history`, `/crash`, `/drop`. Leader
+  detection instead reads the **`Ballot` response header** every committed
+  paxos write carries (paxos/replica.go HTTPHeaderBallot; format
+  `"<n>.<zone>.<node>"`, and the ID part IS the leader — paxi's own client
+  parses exactly this). Also verified: the Atoi int-key contract
+  (`strconv.Atoi(r.URL.Path[1:])` — the P1.1 re-verify note is CLOSED),
+  `server/server.go` flags (`-id Z.N -algorithm paxos|epaxos -config`),
+  config.json shape (`address` tcp:// + `http_address` http:// maps, IDs
+  "1.1".."1.3"), lazy leader election (first request triggers P1a — the
+  provider must gate start() on a committed probe write), and go.mod with
+  zero external requires (no go.sum issue building at the pin).
 - **P2.5 — HotStuff SUMMARY parser** (class + fixture test).
 - **P2.6 — Safety oracle scope decision + implementation** *(2026-07-07 review)*.
   Methodology §4.2's durability probe covers Kafka/etcd/CometBFT only. Extend:
@@ -483,18 +496,38 @@ M6.4 — the "EXACT output contract" is otherwise unverifiable. Not yet a
 numbered task because the source location is outside this repo; resolve with
 the author.
 
+**2026-07-16 third hard review — findings F22–F25** (full code+docs pass;
+suite re-verified by execution first: 71 committed tests green, plus the
+in-flight P2.4a red test failing for the right reason):
+
+| # | Finding | Task | Status |
+|---|---------|------|--------|
+| F22 | P2.4's planned leader-detection endpoint `/state` DOES NOT EXIST in paxi @ 6823d0b — replacement: the `Ballot` response header (see P2.4 above); Atoi key contract verified, closing the P1.1 note | P2.4 docs | **DONE 2026-07-16** (plan corrected in PENDING_TASKS/IMPLEMENTATION_PLAN/MASTER_PLAN/MEASUREMENT_DIAGRAMS) |
+| F23 | Engine bucket array sized duration+5 == the 5 s driver bound: a commit in second duration+5 (timeout slop) was dropped from buckets while the histogram kept it (WorkloadEngine ctor) | engine | **DONE 2026-07-16** (TDD red→green: `lateCompletionsUpToTheDriverBoundStayInTheBuckets`; capacity now duration+6) |
+| F24 | PaxiDriver round-robins endpoints for PAXOS too — the "Paxos gets ONE endpoint" rule exists only as calling convention; also currentLeaderIndex() needs the full node-ordered list to return an index | P2.4b | open — resolve in the driver increment (write path pins one endpoint for PAXOS; endpoint list stays node-ordered for identity) |
+| F25 | The new P2.4a test pins `privateIp()=="paxi2"` — deepens the F20 alias-in-privateIp trap; both must move together at P3.3 | P3.3 | open (noted on F20) |
+
+F17 residual "HttpClient close" — **DONE 2026-07-16**: EtcdHttpDriver and
+PaxiDriver `close()` now call JDK 21 `HttpClient.close()` (bounded: every
+request carries a 5 s timeout). Remaining F17 residuals: tag-pins, JMX names
+(P4.3). Also fixed: LOCAL_TESTING build-time drift (~1.5 → ~3 min measured
+2026-07-16 as integration tests accumulated).
+
 ---
 
 ## Immediate next increment (proposed)
 
 **P2.4 — Paxi (Paxos/EPaxos) substrate + leader detection.** Prerequisite
 discovered: Paxi publishes NO Docker image — build one from source
-(github.com/ailidani/paxi, Go; pin the commit, multi-stage Dockerfile) and
-digest-pin it (D2). Then: extend `LocalDockerProvider` (3-node Paxi,
-config.json wiring), verify the PaxiDriver write path against the real
-server (re-verify the Atoi int-key contract vs paxi/http.go — P1.1 note),
-TDD `/state` ballot parsing for `currentLeaderIndex()` (fixture + live
-smoke), and exercise the D7 conflict sweep end-to-end (realized slow-path
-fraction visible between c=0 and c=10%). Then P2.5 (HotStuff SUMMARY
-parser, fixture-tested). Confirm and implement one at a time (test → code
-→ run → checkpoint).
+(github.com/ailidani/paxi @ 6823d0b, Go; `infra/paxi/Dockerfile` exists,
+source-commit-pinned per D2-adapted). Then: extend `LocalDockerProvider`
+(3-node Paxi, generated config.json, probe-write quorum gate — paxi elects
+its first leader lazily), verify the PaxiDriver write path against the
+real server (Atoi contract already source-verified 2026-07-16, F22), TDD
+**`Ballot` response-header parsing** for `currentLeaderIndex()` (fixture +
+live smoke — `/state` does not exist, F22) and resolve F24 (PAXOS write
+path pins one endpoint; node-ordered list kept for identity), and exercise
+the D7 conflict sweep end-to-end (functional on the laptop: c>0 run
+completes clean with the c-path/manifest identity). Then P2.5 (HotStuff
+SUMMARY parser, fixture-tested). Implement one increment at a time (test →
+code → run → checkpoint).

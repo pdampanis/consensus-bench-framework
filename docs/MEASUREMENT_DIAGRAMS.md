@@ -341,10 +341,12 @@ stage completes**.
   URL path (Paxi Atoi-parses it; the typed int contract exists because a
   byte-blob key would have failed every op). Paxos gets ONE endpoint
   (leader-based; forwarding internal).
-- **Tested**: key encoding pinned numeric-only; the D7 knob's realized
-  conflict fraction pinned at engine level. P2.4 adds `/state` ballot
-  parsing (leader detection) + a 3-process smoke; Paxi's own benchmarker
-  returns at G3 as the cross-validation oracle (D4).
+- **Tested**: key encoding pinned numeric-only (source-verified vs http.go
+  Atoi, 2026-07-16); the D7 knob's realized conflict fraction pinned at
+  engine level. P2.4 adds **`Ballot` response-header parsing** for leader
+  detection (F22: paxi has no `/state`; every committed paxos write returns
+  the leader's ballot as `"<n>.<zone>.<node>"`) + a 3-node smoke; Paxi's
+  own benchmarker returns at G3 as the cross-validation oracle (D4).
 - **Caveats**: in-memory commit — no disk in the path (the Paxi authors
   compared against etcd by DISABLING its persistence; we refuse and
   document instead). Absolute numbers are compared with that asymmetry

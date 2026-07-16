@@ -50,6 +50,26 @@ class WorkloadEngineTest {
     }
 
     @Test
+    void lateCompletionsUpToTheDriverBoundStayInTheBuckets() throws Exception {
+        // The ConsensusDriver contract bounds completion at 5 s. An op issued
+        // in the run's last scheduling instant can therefore complete up to
+        // ~duration+5 s later — and timeout-callback slop can tip it into
+        // second duration+5. The bucket array needs headroom for that second,
+        // or the commit silently vanishes from throughput.csv while the
+        // histogram keeps it (2026-07-16 review finding F23: the array was
+        // sized duration+5, making the boundary second exactly out of range).
+        var driver = FakeDriver.responding(5_300); // 5 s bound + realistic slop
+        var cfg = new WorkloadEngine.Config(1, 0, 10, 64, 8, 0.0);
+        var rec = new LatencyRecorder();
+        var r = new WorkloadEngine(driver, cfg, rec).run();
+
+        assertEquals(0, r.errors());
+        assertEquals(driver.issued(), rec.countAfterWarmup(), "drain waits for every op");
+        assertEquals(rec.countAfterWarmup(), Arrays.stream(r.committedPerSecond()).sum(),
+                "a commit the drain barrier waited for must never vanish from the buckets");
+    }
+
+    @Test
     void perSecondBucketsSumToRecordedCommits() throws Exception {
         var driver = FakeDriver.responding(1);
         var cfg = new WorkloadEngine.Config(2, 0, 100, 64, 8, 0.0);

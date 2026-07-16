@@ -22,17 +22,17 @@ export JAR=$REPO/harness/target/consensus-bench-0.1.0-SNAPSHOT.jar
 
 ---
 
-## 1. Build + full test suite (~1.5 min; needs the Docker daemon)
+## 1. Build + full test suite (~3 min; needs the Docker daemon)
 
 ```bash
 cd $REPO/harness
 mvn21 clean verify
 ```
 
-**Expect** (versions/counts as of 2026-07-15 — counts only grow):
+**Expect** (versions/counts as of 2026-07-16 — counts only grow):
 
 ```
-Tests run: 71, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 72, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -41,16 +41,18 @@ The provider tests need Docker; the first ever run pulls the pinned etcd
 image (~50 MB). If you see `client version 1.32 is too old`, the
 testcontainers pin regressed below 1.21.4 (Docker 29 needs ≥1.21.4).
 
-What the 71 tests pin, so you know what a failure means:
+What the 72 tests pin, so you know what a failure means:
 - `ArgParserTest` (6) — CLI contract: `--key value` pairs, bare `-v/--verbose`,
   fail-closed on a dangling key, duration>warmup guard.
 - `EventLogTest` (3) + engine event tests — failover instrumentation:
   kill→first-commit gap recovered from a scripted stall (±150 ms on one
   clock), off-by-default, overflow drops loudly, no recovery ⇒ no number.
-- `WorkloadEngineTest` (17) — the instrument itself: open-loop rate adherence,
+- `WorkloadEngineTest` (18) — the instrument itself: open-loop rate adherence,
   **coordinated-omission correction** (a scripted 1 s stall must charge ~100
   ops their queueing delay), drain accounting (no lost samples), buckets ==
-  histogram, warmup flagging, dead-cluster ⇒ errors-not-data, **K=1000
+  histogram **including the duration+5 boundary second** (F23: a commit the
+  drain waited for must never vanish from the buckets), warmup flagging,
+  dead-cluster ⇒ errors-not-data, **K=1000
   reused keyspace** (bounded + ~fully covered — the old unique-key bug
   measured 778k distinct keys over 778k ops), **D7 conflict routing**
   (realized fraction ≈ c at ≥5σ tolerance; c=0 ⇒ zero hot-key writes;
