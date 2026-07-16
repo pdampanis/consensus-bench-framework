@@ -437,8 +437,8 @@ P1.3 → P1.4 → P1.6.
   that first happens with the Phase-C substrate. Re-pin against a real
   fab.log then.
 
-**GATE G1 STATUS (2026-07-16): evidence complete in-suite; formal
-sign-off is the author's.** All five M2 driver acceptances exist as
+**GATE G1: SIGNED OFF by the author, 2026-07-16** (in-suite evidence
+accepted; no separate calibration/local/ archive requested). All five M2 driver acceptances exist as
 permanent regression tests: M2.1 etcd (leader x-validated vs HTTP stack),
 M2.2 Kafka (flaw-B: order-of-magnitude vs perf-test locally, 15% at
 G3/M6.1 — last settled-machine ratio 0.50x, historical 0.95x), M2.3
@@ -470,12 +470,49 @@ Kafka+ZK per D10 — zk1-3 + broker1-3 colocated, CometBFT testnet, Paxi trio).*
 - **P3.2 — `main.tf` D8/D9/D11 parameters — DONE 2026-07-08** (see snapshot).
 - **P3.3 — `RemoteSshProvider` + FaultInjector + golden tests** (G2 — human
   read-through of recorded remote command sequences before any VM is billed).
+  **P3.3a (M4.1) DONE 2026-07-16, TDD:** `SshExecutor` SPI (ExecResult
+  carries exit+stdout+stderr — no stream ever discarded; `execOrThrow`
+  fails closed naming the command AND the remote stderr) +
+  `RecordingSshExecutor` (test scope — the golden-file substrate: every
+  command verbatim, in order, as `host:port$ command`) + `SshjExecutor`
+  (pooled client per host:port, 30 s command bound, PromiscuousVerifier
+  documented for the private net). Acceptance vs a REAL key-authenticated
+  sshd in Docker (digest-pinned linuxserver/openssh-server): stdout
+  verbatim, non-zero exit + stderr surfaced, fail-closed throw, pooled
+  reuse. 4 tests green.
+  **Remote-deltas preregistration (2026-07-16 — the topology/network/
+  traffic changes between the local Docker substrate and the servers;
+  every golden must reflect these):**
+  1. **F20 resolves here**: on the remote provider, `NodeHandle.privateIp`
+     carries the REAL private IP (10.0.0.11+ from the generated
+     inventory); the P2.4a test's alias pin (F25) is updated in the same
+     increment.
+  2. **Host networking, no mapped ports** (D2): clientEndpoints() become
+     `http://10.0.0.1x:<native port>`; cluster-formation flags advertise
+     private IPs, not Docker aliases; health gates now traverse the
+     private net from the loadgen.
+  3. **netem must shape the PRIVATE interface**: resolved per node at
+     runtime via `ip -o route get <peer_private_ip>` and parsed from the
+     recorded output — never an assumed `eth0` (on Hetzner the public and
+     private NICs differ; shaping the public iface would fault the admin
+     path and leave consensus traffic untouched: a silent no-op fault).
+  4. **Partition preserves the measurement path**: iptables rules block
+     the leader↔other-NODE private IPs pairwise, never the subnet — the
+     loadgen→leader path must survive, because observing the partitioned
+     leader IS the measurement. Heal in `finally`, provably always emitted.
+  5. **Timing**: inter-node RTT moves from loopback-µs to real-NIC
+     0.2–0.3 ms (D1) — the 5 s driver bounds and 30 s command bound are
+     unaffected; health/probe RETRY loops must tolerate the extra
+     round-trips, and saturation numbers will differ from laptop numbers
+     by design (only cluster numbers are thesis data).
   Notes: evaluate **Pumba** (runs on each VM, Docker-native kill/netem — no
   data-path hop) as the fault executor vs hand-rolled `tc`/`iptables`; golden
   tests bind either way. Fault semantics to preregister while writing goldens
   (review F13): PARTITION isolates the *leader* (not node 0), PACKET_LOSS %
   becomes a parameter, DOUBLE_KILL on BFT n=4 is an intentional
-  liveness-loss demonstration (2 > f=1) and is documented as such.
+  liveness-loss demonstration (2 > f=1) and is documented as such; plus
+  F26 (paxi leader_kill: adaptive-wedge vs ephemeral_leader vs /crash?t=
+  — decide before the paxi goldens).
 - **P3.4 — Canary** (one etcd cell on 2 temporary VMs, < €0.10).
 - **P3.5 — Pre-apply price/plan verification.** `hcloud server-type list` →
   confirm ccx13/ccx23/ccx33/cpx21 names + prices; sync `local.hourly_eur` in

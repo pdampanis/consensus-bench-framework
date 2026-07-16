@@ -46,10 +46,16 @@ real cluster → `c10` path + manifest identity, 0 errors). Suite: 81
 tests green. P2.5 ALSO DONE (TDD): `HotStuffSummary` strict fail-closed
 parser (missing fields named, duplicate blocks refused; fixture verbatim
 from upstream logs.py — re-pin vs a real fab.log at Phase C). **THE P2
-DRIVER PHASE IS COMPLETE — G1 evidence is in-suite (see the G1 STATUS
-entry in PENDING_TASKS); formal sign-off is the author's.** Suite: 85
-tests green. Next: P3.3 (RemoteSshProvider + FaultInjector + golden
-tests, G2) with the F13/F19/F26 fault preregistrations.**
+DRIVER PHASE IS COMPLETE; GATE G1 SIGNED OFF BY THE AUTHOR 2026-07-16.**
+P3.3a (M4.1) DONE (TDD): `SshExecutor` SPI + `RecordingSshExecutor`
+(the golden-file substrate) + `SshjExecutor` (pooled, 30 s bound),
+acceptance vs a real key-authenticated sshd in Docker. The
+**remote-deltas preregistration** (PENDING_TASKS P3.3) pins the
+topology/network changes between local Docker and the servers: real
+private IPs in NodeHandle (F20), host networking endpoints, netem iface
+via `ip -o route get` (never assumed), pairwise-IP partitions that
+preserve the loadgen→leader measurement path, LAN-RTT timing notes.
+Suite: 89 tests green. Next: P3.3b (RemoteSshProvider, etcd first).**
 
 ---
 

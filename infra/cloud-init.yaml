@@ -23,6 +23,7 @@ packages:
   - stress-ng
   - xxd
   - jq
+  - curl # P3.3 health gates run `curl` ON the node via SSH — never assume the base image ships it
 
 runcmd:
   # Clock discipline first: every validity window depends on it.

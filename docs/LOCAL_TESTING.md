@@ -32,7 +32,7 @@ mvn21 clean verify
 **Expect** (versions/counts as of 2026-07-16 — counts only grow):
 
 ```
-Tests run: 85, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 89, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -41,7 +41,7 @@ The provider tests need Docker; the first ever run pulls the pinned etcd
 image (~50 MB). If you see `client version 1.32 is too old`, the
 testcontainers pin regressed below 1.21.4 (Docker 29 needs ≥1.21.4).
 
-What the 85 tests pin, so you know what a failure means:
+What the 89 tests pin, so you know what a failure means:
 - `ArgParserTest` (6) — CLI contract: `--key value` pairs, bare `-v/--verbose`,
   fail-closed on a dangling key, duration>warmup guard.
 - `EventLogTest` (3) + engine event tests — failover instrumentation:
@@ -133,6 +133,14 @@ What the 85 tests pin, so you know what a failure means:
   separators stripped; a missing field fails closed NAMING the field;
   zero or duplicate SUMMARY blocks are refused. Fixture is verbatim the
   upstream logs.py format (re-pin vs a real fab.log at Phase C).
+- `SshExecutorContractTest` (3) — P3.3a: the recording executor (the G2
+  golden-file substrate) records every command verbatim in order as
+  `host:port$ command`; canned responses; `execOrThrow` fails closed
+  naming the command AND the remote stderr; failures are recorded too.
+- `SshjExecutorTest` (1, integration, ~5 s) — the REAL sshj executor
+  against a key-authenticated sshd container (digest-pinned): stdout
+  verbatim, non-zero exit + stderr surfaced (never swallowed),
+  fail-closed throw, pooled per-host connection reuse.
 - `EtcdDriverTest` (3, integration) — the production jetcd driver:
   committed gRPC writes; leader detection **cross-validated against the
   HTTP-gateway stack** (two independent clients must agree); kill the

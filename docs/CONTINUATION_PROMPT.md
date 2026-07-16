@@ -48,7 +48,7 @@ PROJECT_STATE.md, ask me; don't silently pick one.
 etcd/jetcd, P2.2 Kafka (+G1 flaw-B parity), P2.3 CometBFT (602 tx/s
 acceptance), P2.4 Paxi a/b/c (pinned-source image, probe-write quorum
 gate, Ballot-header leader detection, EPaxos exercised, D7 sweep e2e),
-P2.5 HotStuff SUMMARY parser. Suite: 85 tests green via `mvn21 clean
+P2.5 HotStuff SUMMARY parser. Suite: 89 tests green via `mvn21 clean
 verify` (integration tests need the local Docker daemon + the once-per-
 machine `docker build -t paxi:6823d0b infra/paxi`).** The measurement
 instrument is complete: open-loop engine with CO correction, real
@@ -59,20 +59,22 @@ is the ledger (F1–F27), PROJECT_STATE.md §3 the evidence,
 MEASUREMENT_DIAGRAMS.md the architecture reference.
 
 Proposed next increment (confirm with me before coding, then do only this):
-**THE P2 DRIVER PHASE IS COMPLETE.** First: confirm Gate G1 sign-off —
-the evidence is in-suite (flaw-A/flaw-B regressions + all five driver
-acceptances; see the G1 STATUS entry in PENDING_TASKS) — or request a
-separate calibration/local/ archive tree. Then the next increment is
-**P3.3 — RemoteSshProvider + FaultInjector + golden tests (Gate G2)**,
-carrying three preregistrations into the goldens: F13/F19 (leader-
-targeted faults, parameterized packet loss, DOUBLE_KILL as nodes 0+1),
-F26 (paxi leader_kill: choose adaptive-wedge vs ephemeral_leader vs
-paxi's own /crash?t= — decide BEFORE writing the paxi goldens), and F20
-(NodeHandle.privateIp carries a Docker alias locally — the remote
-provider must put a real IP there or rename the field; the P2.4a test
-pins the alias, F25). Also pending decisions: P2.6 (safety-oracle scope,
-before M5.5) and P2.0 (scheduler scaling — only if G1-rate evidence
-triggers it).
+**P3.3b — RemoteSshProvider, etcd first.** G1 is SIGNED OFF (2026-07-16)
+and P3.3a (M4.1: SshExecutor SPI + RecordingSshExecutor golden substrate
++ SshjExecutor, acceptance vs a real sshd) is DONE. Build the remote
+provider for etcd size 1/3 ONLY (other systems fail closed until their
+blocks land), driven entirely through SshExecutor so the golden tests
+read back exact command sequences. It must honor the **remote-deltas
+preregistration** in PENDING_TASKS P3.3: real private IPs in NodeHandle
+(resolves F20; update the P2.4a alias pin, F25), host-networking
+endpoints (no mapped ports), health gates over the private net, and the
+generated inventory as the address source. Then P3.3c (remote
+FaultInjector: docker kill / netem with `ip -o route get` iface
+resolution / pairwise-IP iptables partition preserving the
+loadgen→leader path, heal in finally) and P3.3d (golden files per
+(system, scenario, size), G2 human read-through — F13/F19/F26
+preregistrations bind). Also pending decisions: P2.6 (safety-oracle
+scope, before M5.5) and P2.0 (scheduler scaling — only if triggered).
 
 ## What "done" looks like for this whole effort
 
@@ -108,7 +110,7 @@ Don't let this become an afterthought bolted on at analysis time.
 - the consensus papers already in the project
 
 Start by reading PROJECT_STATE.md, confirming `mvn21 clean verify` is still
-green (85 tests, Docker required), then confirm G1 sign-off and propose
+green (89 tests, Docker required), then confirm G1 sign-off and propose
 the P3.3 increment, and wait for my go-ahead.
 
 ────────────────────────────────────────────────────────────────────────────
