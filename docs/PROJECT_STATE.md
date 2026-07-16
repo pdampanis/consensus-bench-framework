@@ -59,10 +59,14 @@ Suite: 89 tests green. P3.3b ALSO DONE (golden-file TDD): RemoteSshProvider
 (etcd first, others fail closed) — the golden was written FIRST as the
 spec, the recorded command sequence matches it verbatim, F20 resolved
 (real private IPs in NodeHandle, pinned by test), health gate fails
-closed naming the node. Suite: 93 tests green. Next: P3.3c (remote
-FaultInjector: docker kill / netem via `ip -o route get` iface
-resolution / pairwise-IP iptables partition preserving the
-loadgen→leader path, heal in finally — golden-file TDD).**
+closed naming the node. Suite: 93 tests green. P3.3c ALSO DONE (golden-file TDD): SshFaultInjector
+— kill/packet_loss(netem on the RESOLVED iface)/partition(pairwise node
+IPs, loadgen→leader path preserved)/slow_node(host stress-ng)/double_kill,
+heal replays LIFO best-effort-but-loud; golden matched verbatim, 5 tests
+incl. iface-resolved-not-assumed + heal-on-inject-throw. Suite: 98 tests
+green. Next: P3.3d (golden files for the OTHER systems' start/stop +
+faults, then the G2 human read-through) — decide F26 (paxi leader_kill)
+before any paxi fault golden. Then P3.4 canary (G2 billing gate).**
 
 ---
 

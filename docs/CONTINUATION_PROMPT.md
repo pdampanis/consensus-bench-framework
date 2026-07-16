@@ -48,7 +48,7 @@ PROJECT_STATE.md, ask me; don't silently pick one.
 etcd/jetcd, P2.2 Kafka (+G1 flaw-B parity), P2.3 CometBFT (602 tx/s
 acceptance), P2.4 Paxi a/b/c (pinned-source image, probe-write quorum
 gate, Ballot-header leader detection, EPaxos exercised, D7 sweep e2e),
-P2.5 HotStuff SUMMARY parser. Suite: 93 tests green via `mvn21 clean
+P2.5 HotStuff SUMMARY parser. Suite: 98 tests green via `mvn21 clean
 verify` (integration tests need the local Docker daemon + the once-per-
 machine `docker build -t paxi:6823d0b infra/paxi`).** The measurement
 instrument is complete: open-loop engine with CO correction, real
@@ -110,7 +110,7 @@ Don't let this become an afterthought bolted on at analysis time.
 - the consensus papers already in the project
 
 Start by reading PROJECT_STATE.md, confirming `mvn21 clean verify` is still
-green (93 tests, Docker required), then confirm G1 sign-off and propose
+green (98 tests, Docker required), then confirm G1 sign-off and propose
 the P3.3 increment, and wait for my go-ahead.
 
 ────────────────────────────────────────────────────────────────────────────

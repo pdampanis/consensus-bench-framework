@@ -76,7 +76,7 @@ consensus-bench-thesis/
 │   │   ├── topology/               ClusterProvider SPI + LocalDockerProvider
 │   │   └── Main.java               CLI: endpoint-run + local-run (one command,
 │   │                               clean→deploy→run→teardown)
-│   ├── src/test/java/              93 tests (TDD; integration tests need Docker)
+│   ├── src/test/java/              98 tests (TDD; integration tests need Docker)
 │   └── results/                    M0 EVIDENCE — real etcd run outputs
 ├── infra/
 │   ├── main.tf                     cluster as Terraform, phase-parameterized
@@ -111,7 +111,7 @@ consensus-bench-thesis/
 ## Current status (verified, not asserted — as of 2026-07-16)
 
 - **P0, P1, and the whole P2 driver phase closed; GATE G1 SIGNED OFF.
-  P3.3a+b (SSH seam + etcd remote provider, golden-verified) done. Suite: 93 tests green** (`mvn21 clean
+  P3.3a-c (SSH seam + etcd remote provider + fault injector, golden-verified) done. Suite: 98 tests green** (`mvn21 clean
   verify`; the integration tests need the local Docker daemon + the
   once-per-machine `docker build -t paxi:6823d0b infra/paxi`). Details
   and evidence: `docs/PROJECT_STATE.md` §3, ledger in
@@ -158,7 +158,7 @@ consensus-bench-thesis/
 
 ```bash
 # 1. build + full suite (needs Docker; ~1.5 min)
-cd harness && mvn21 clean verify          # expect: Tests run: 93, BUILD SUCCESS
+cd harness && mvn21 clean verify          # expect: Tests run: 98, BUILD SUCCESS
 
 # 2. the one-command local loop (the P0 deliverable)
 java -jar target/consensus-bench-0.1.0-SNAPSHOT.jar \

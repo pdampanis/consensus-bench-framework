@@ -1,0 +1,61 @@
+# GOLDEN (G2): every remote command the SSH FaultInjector runs, per
+# scenario, on an etcd size-3 cluster (nodes 0/1/2 = 10.0.0.11/12/13,
+# detected leader = node 1 = 10.0.0.12). Verbatim, in order, host:port$ cmd.
+#
+# Human read-through — the network/topology invariants this MUST satisfy:
+#  * netem shapes the interface carrying the PRIVATE traffic, resolved at
+#    runtime from `ip -o route get <peer_private_ip>` (parsed field after
+#    "dev") — NEVER an assumed eth0. On Hetzner the public and private NICs
+#    differ; shaping the wrong one faults the admin path and leaves
+#    consensus untouched (a silent no-op fault).
+#  * PARTITION is pairwise node-IP DROP rules (leader<->each other node),
+#    never a subnet block — the loadgen->leader measurement path MUST
+#    survive, because observing the isolated leader IS the measurement.
+#  * every fault's heal is emitted in a `finally`, so a golden always shows
+#    the undo even if you stop reading at the inject. Heal is best-effort
+#    but LOUD: each undo runs and a non-zero exit is logged at WARN (undo
+#    commands legitimately return non-zero when there is nothing to undo —
+#    tc/iptables/pkill cannot distinguish that from a real error at the
+#    CLI, so the WARN is the signal, never a silent `|| true`).
+#  * commands address the TARGET's own private IP as the SSH host.
+#
+# --- LEADER_KILL (detected leader = node 1) ---
+[[LEADER_KILL]]
+10.0.0.12:22$ docker kill thesis-etcd2
+#
+# --- PACKET_LOSS 30% on the leader's private iface ---
+[[PACKET_LOSS]]
+10.0.0.12:22$ ip -o route get 10.0.0.11
+10.0.0.12:22$ sudo tc qdisc add dev PRIVATE_IFACE root netem loss 30%
+# heal:
+10.0.0.12:22$ sudo tc qdisc del dev PRIVATE_IFACE root
+#
+# --- NETWORK_PARTITION: isolate the leader from the other NODES only ---
+[[NETWORK_PARTITION]]
+10.0.0.12:22$ sudo iptables -A INPUT -s 10.0.0.11 -j DROP
+10.0.0.12:22$ sudo iptables -A OUTPUT -d 10.0.0.11 -j DROP
+10.0.0.12:22$ sudo iptables -A INPUT -s 10.0.0.13 -j DROP
+10.0.0.12:22$ sudo iptables -A OUTPUT -d 10.0.0.13 -j DROP
+# heal replays LIFO (reverse of apply — the correct general undo order,
+# robust even when operations are dependent; for independent iptables
+# rules the -D order is functionally irrelevant but must match the code):
+10.0.0.12:22$ sudo iptables -D OUTPUT -d 10.0.0.13 -j DROP
+10.0.0.12:22$ sudo iptables -D INPUT -s 10.0.0.13 -j DROP
+10.0.0.12:22$ sudo iptables -D OUTPUT -d 10.0.0.11 -j DROP
+10.0.0.12:22$ sudo iptables -D INPUT -s 10.0.0.11 -j DROP
+#
+# --- SLOW_NODE: CPU pressure on the leader VM via HOST stress-ng
+#     (cloud-init installs it on every node); backgrounded with a hard
+#     --timeout so an aborted run cannot leave the VM pinned, and heal
+#     pkills it explicitly. The consensus container shares the host CPU,
+#     so this throttles the node without touching the data path. ---
+[[SLOW_NODE]]
+10.0.0.12:22$ stress-ng --cpu 2 --timeout 120s & echo started
+# heal (best-effort + loud; the --timeout may already have ended it):
+10.0.0.12:22$ pkill -f 'stress-ng --cpu 2'
+#
+# --- DOUBLE_KILL: deterministic nodes 0+1 (any two lose a 3-node quorum;
+#     on BFT n=4 the intentional liveness-loss demo, 2>f=1) ---
+[[DOUBLE_KILL]]
+10.0.0.11:22$ docker kill thesis-etcd1
+10.0.0.12:22$ docker kill thesis-etcd2

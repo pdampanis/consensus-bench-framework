@@ -495,6 +495,24 @@ Kafka+ZK per D10 — zk1-3 + broker1-3 colocated, CometBFT testnet, Paxi trio).*
   pinned by test; javadoc defines per-substrate semantics). 4 tests.
   NOT yet verified: real-VM behavior (docker stderr wording, cloud-init,
   private-net routing) — exactly what the P3.4 canary exists for.
+  **P3.3c (M4.3, remote FaultInjector) DONE 2026-07-16, golden-file TDD:**
+  `SshFaultInjector` on the same seam — kill (docker kill, abrupt SIGKILL),
+  packet_loss (netem on the iface RESOLVED at runtime from `ip -o route
+  get <peer>` output — never assumed eth0), partition (PAIRWISE node-IP
+  DROP rules preserving the loadgen→leader path, never a subnet block),
+  slow_node (HOST stress-ng, cloud-init-installed, hard --timeout),
+  double_kill (deterministic 0+1). Every applied fault registers its undo;
+  `heal()` replays LIFO, best-effort but LOUD (WARN on non-zero, never
+  `|| true` — undo commands legitimately non-zero when there's nothing to
+  undo, and tc/iptables/pkill can't distinguish that at the CLI). Golden
+  `src/test/resources/goldens/etcd-size3-faults.txt` (per-scenario blocks,
+  network-invariant checklist in the header) matched verbatim; 5 tests
+  incl. iface-resolved-not-assumed, subnet-never-blocked, and
+  heal-emitted-even-when-inject-throws. NOT verified on a real VM (sudo
+  availability, exact tc/iptables/`ip route` output, stress-ng effect) —
+  the P3.4 canary's job. **F13/F19 targeting inherited from apply()
+  (pinned by FaultInjectorApplyTest); F26 (paxi leader_kill) still
+  undecided — no paxi fault golden until it is.**
   **Remote-deltas preregistration (2026-07-16 — the topology/network/
   traffic changes between the local Docker substrate and the servers;
   every golden must reflect these):**

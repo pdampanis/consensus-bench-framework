@@ -196,7 +196,20 @@ than average-in broken runs (no silent outlier removal, ever).
    node per VM, private net 10.0.0.0/24, spread placement group,
    loadgen ccx13 (D11) + obs cpx21; phases A/B/C per CAMPAIGN_RUNBOOK §2.
    One system under test at a time, serial blocks (EXECUTION_AND_COST_MODEL).
+   Substrate ✅ (P3.3, golden-verified — NOT yet run on a VM): RemoteSsh-
+   Provider (etcd) + SshFaultInjector, both through the SshExecutor seam;
+   goldens under src/test/resources/goldens/ are the G2 human read-through.
 ```
+
+The local→campaign deltas the goldens encode (why laptop faults would be
+WRONG on the servers): --network host means native ports on real private
+IPs, no mapped ports; netem shapes the iface RESOLVED from `ip -o route
+get <peer>` (Hetzner's public/private NICs differ — a wrong iface is a
+silent no-op fault); partitions are pairwise node-IP DROP rules, never a
+subnet block, so the loadgen→leader path (the measurement itself) survives;
+inter-node RTT moves from loopback-µs to real-NIC 0.2–0.3 ms (D1), so only
+cluster numbers are thesis data. The one thing goldens CAN'T prove — real
+sudo/tc/iptables/cloud-init behavior — is exactly the P3.4 canary's job.
 
 ---
 

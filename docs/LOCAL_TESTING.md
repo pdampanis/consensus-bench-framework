@@ -32,7 +32,7 @@ mvn21 clean verify
 **Expect** (versions/counts as of 2026-07-16 — counts only grow):
 
 ```
-Tests run: 93, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 98, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -41,7 +41,7 @@ The provider tests need Docker; the first ever run pulls the pinned etcd
 image (~50 MB). If you see `client version 1.32 is too old`, the
 testcontainers pin regressed below 1.21.4 (Docker 29 needs ≥1.21.4).
 
-What the 93 tests pin, so you know what a failure means:
+What the 98 tests pin, so you know what a failure means:
 - `ArgParserTest` (6) — CLI contract: `--key value` pairs, bare `-v/--verbose`,
   fail-closed on a dangling key, duration>warmup guard.
 - `EventLogTest` (3) + engine event tests — failover instrumentation:
@@ -143,6 +143,13 @@ What the 93 tests pin, so you know what a failure means:
   — read its header checklist at G2); NodeHandle carries REAL private IPs
   (F20) and host-networked endpoints; unsupported systems and oversized
   clusters fail closed; the health gate fails closed NAMING the node.
+- `SshFaultInjectorTest` (5) — P3.3c: each fault scenario's remote command
+  sequence matched VERBATIM against per-scenario blocks in
+  `goldens/etcd-size3-faults.txt` (read its network-invariant header at
+  G2); netem shapes the iface RESOLVED from `ip -o route get` (never an
+  assumed eth0); partition is pairwise node-IP DROP rules that never
+  block the subnet/loadgen; heal is emitted even when injection throws
+  (a persisted rule would corrupt every later run).
 - `SshjExecutorTest` (1, integration, ~5 s) — the REAL sshj executor
   against a key-authenticated sshd container (digest-pinned): stdout
   verbatim, non-zero exit + stderr surfaced (never swallowed),
