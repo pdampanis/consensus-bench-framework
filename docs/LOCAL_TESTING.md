@@ -32,7 +32,7 @@ mvn21 clean verify
 **Expect** (versions/counts as of 2026-07-16 — counts only grow):
 
 ```
-Tests run: 98, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 101, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -41,7 +41,7 @@ The provider tests need Docker; the first ever run pulls the pinned etcd
 image (~50 MB). If you see `client version 1.32 is too old`, the
 testcontainers pin regressed below 1.21.4 (Docker 29 needs ≥1.21.4).
 
-What the 98 tests pin, so you know what a failure means:
+What the 101 tests pin, so you know what a failure means:
 - `ArgParserTest` (6) — CLI contract: `--key value` pairs, bare `-v/--verbose`,
   fail-closed on a dangling key, duration>warmup guard.
 - `EventLogTest` (3) + engine event tests — failover instrumentation:
@@ -143,6 +143,12 @@ What the 98 tests pin, so you know what a failure means:
   — read its header checklist at G2); NodeHandle carries REAL private IPs
   (F20) and host-networked endpoints; unsupported systems and oversized
   clusters fail closed; the health gate fails closed NAMING the node.
+- `RemoteSshProviderTest` also (P3.3d-paxi, +3) — the Paxos remote start
+  sequence matched VERBATIM against `goldens/paxos-size3-start-stop.txt`
+  (config.json with real private IPs via single-quoted printf, bind-mount,
+  committed-probe-write gate); EPAXOS swaps only the `-algorithm` token;
+  and the **F26 wedge** is pinned — paxi leader_kill is exactly one
+  `docker kill` with nothing to heal (no failure detector).
 - `SshFaultInjectorTest` (5) — P3.3c: each fault scenario's remote command
   sequence matched VERBATIM against per-scenario blocks in
   `goldens/etcd-size3-faults.txt` (read its network-invariant header at

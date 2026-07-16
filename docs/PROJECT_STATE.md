@@ -66,10 +66,14 @@ heal replays LIFO best-effort-but-loud; golden matched verbatim, 5 tests
 incl. iface-resolved-not-assumed + heal-on-inject-throw. Suite: 98 tests
 green. **F26 DECIDED by the author 2026-07-16: paxi leader_kill = adaptive-
 mode WEDGE (honest — no failure detector; implementation property, no
-failover-ECDF point; methodology §7 preregistration written).** Next:
-P3.3d (RemoteSshProvider for the remaining systems + their goldens, paxi
-carrying the wedge; then the G2 human read-through). Then P3.4 canary
-(G2 billing gate — nothing applied yet, G2 intact).**
+failover-ECDF point; methodology §7 preregistration written).** P3.3d-paxi ALSO DONE (golden-file TDD): RemoteSshProvider now serves
+PAXOS/EPAXOS (config.json with real private IPs via single-quoted printf,
+bind-mounted; committed-probe-write gate; -adaptive default per F26; the
+leader_kill WEDGE pinned — one docker kill, no heal). Suite: 101 tests
+green. Next P3.3d: Kafka/KRaft remote (multi-broker private-listener
+wiring — the highest-risk recipe), CometBFT, HotStuff; then the G2 human
+read-through of all goldens. Then P3.4 canary (G2 billing gate — nothing
+applied yet, G2 intact).**
 
 ---
 

@@ -80,6 +80,65 @@ class RemoteSshProviderTest {
                 "cannot start more members than provisioned nodes");
     }
 
+    // ---- P3.3d: Paxi (Paxos/EPaxos) remote substrate ----
+
+    private static RecordingSshExecutor paxiReadyRecorder() {
+        var ssh = new RecordingSshExecutor();
+        // The probe write commits (paxi returns 200; curl -sf exit 0).
+        ssh.respondTo("curl -sf --max-time 2 -X PUT --data-binary probeval http://10.0.0.11:8080/1",
+                new SshExecutor.ExecResult(0, "", ""));
+        return ssh;
+    }
+
+    @Test
+    void paxosSize3StartStopMatchesTheGoldenCommandSequence() throws Exception {
+        var ssh = paxiReadyRecorder();
+        try (var provider = new RemoteSshProvider(ssh, IPS, Duration.ofSeconds(5))) {
+            provider.start(SystemUnderTest.PAXOS, 3);
+            provider.stop();
+        }
+        Path golden = Path.of("src/test/resources/goldens/paxos-size3-start-stop.txt");
+        List<String> expected = Files.readAllLines(golden).stream()
+                .filter(l -> !l.startsWith("#") && !l.isBlank())
+                .toList();
+        assertEquals(expected, ssh.commands(),
+                "the recorded paxi sequence must match the reviewed golden verbatim");
+    }
+
+    @Test
+    void epaxosSwapsOnlyTheAlgorithmFlagAndKeepsClientEndpoints() throws Exception {
+        var ssh = paxiReadyRecorder();
+        try (var provider = new RemoteSshProvider(ssh, IPS, Duration.ofSeconds(5))) {
+            provider.start(SystemUnderTest.EPAXOS, 3);
+            // Only the -algorithm token differs from paxos (same binary, D4).
+            assertTrue(ssh.commands().stream().anyMatch(c -> c.endsWith("-id 1.1 -algorithm epaxos")),
+                    "EPAXOS must run the same binary with -algorithm epaxos");
+            assertTrue(ssh.commands().stream().noneMatch(c -> c.contains("-algorithm paxos")),
+                    "no paxos algorithm token in an epaxos cluster");
+            assertEquals(List.of(
+                    "http://10.0.0.11:8080", "http://10.0.0.12:8080", "http://10.0.0.13:8080"),
+                    provider.clientEndpoints());
+        }
+    }
+
+    @Test
+    void paxiLeaderKillIsAPlainDockerKillWithNoRecovery_theF26Wedge() throws Exception {
+        // F26 (locked): stock paxi has no failure detector, so leader_kill is
+        // just SIGKILL of the leader container — no netem, no heal, no
+        // re-election command. The wedge is emergent; the injector must not
+        // pretend otherwise.
+        var ssh = paxiReadyRecorder();
+        try (var provider = new RemoteSshProvider(ssh, IPS, Duration.ofSeconds(5))) {
+            var nodes = provider.start(SystemUnderTest.PAXOS, 3);
+            var rec = new RecordingSshExecutor();
+            var inj = new SshFaultInjector(rec, nodes);
+            inj.apply(gr.thesis.bench.core.Scenario.LEADER_KILL, nodes, 1, 0);
+            inj.heal();
+            assertEquals(List.of("10.0.0.12:22$ docker kill thesis-paxi2"), rec.commands(),
+                    "paxi leader_kill = one docker kill, nothing to heal (the wedge)");
+        }
+    }
+
     @Test
     void healthGateFailsClosedNamingTheUnhealthyNode() {
         var ssh = new RecordingSshExecutor();

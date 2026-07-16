@@ -1,0 +1,33 @@
+# GOLDEN (G2): every remote command RemoteSshProvider runs for a Paxos
+# size-3 start + stop (paxi framework), verbatim, in order, host:port$ cmd.
+# Human read-through checklist (what differs from etcd, and why it's right):
+#  * config.json carries REAL private IPs in BOTH maps — address (tcp,
+#    inter-node :1735) and http_address (client REST :8080); IDs are
+#    single-zone "1.1".."1.3" (source-verified paxi shape). It is written
+#    to the node with a single-quoted printf (the JSON's own quotes are
+#    double, so single-quoting is safe and the file is human-reviewable —
+#    no base64 to hide behind).
+#  * --network host + a bind mount of that file to /config.json (paxi reads
+#    config.json from cwd=/, no WORKDIR in the image); the image is the
+#    SOURCE-pinned tag paxi:6823d0b (no registry digest exists — D2-adapted).
+#  * -adaptive is paxi's DEFAULT and stays on (F26 decision): a hard
+#    leader_kill wedges rather than fails over — the honest "no failure
+#    detector" result.
+#  * readiness is a COMMITTED PROBE WRITE, not a port/health check: paxi
+#    elects its first leader LAZILY on the first request and exposes no
+#    /health. The probe PUTs key 1 to node1 over the private net and is
+#    retried by the provider until it returns 200.
+#  * deterministic thesis-paxi<i> names; pre-clean + full teardown.
+10.0.0.11:22$ docker rm -f thesis-paxi1
+10.0.0.12:22$ docker rm -f thesis-paxi2
+10.0.0.13:22$ docker rm -f thesis-paxi3
+10.0.0.11:22$ printf '%s' '{"address": {"1.1": "tcp://10.0.0.11:1735", "1.2": "tcp://10.0.0.12:1735", "1.3": "tcp://10.0.0.13:1735"}, "http_address": {"1.1": "http://10.0.0.11:8080", "1.2": "http://10.0.0.12:8080", "1.3": "http://10.0.0.13:8080"}}' > /root/thesis-paxi-config.json
+10.0.0.12:22$ printf '%s' '{"address": {"1.1": "tcp://10.0.0.11:1735", "1.2": "tcp://10.0.0.12:1735", "1.3": "tcp://10.0.0.13:1735"}, "http_address": {"1.1": "http://10.0.0.11:8080", "1.2": "http://10.0.0.12:8080", "1.3": "http://10.0.0.13:8080"}}' > /root/thesis-paxi-config.json
+10.0.0.13:22$ printf '%s' '{"address": {"1.1": "tcp://10.0.0.11:1735", "1.2": "tcp://10.0.0.12:1735", "1.3": "tcp://10.0.0.13:1735"}, "http_address": {"1.1": "http://10.0.0.11:8080", "1.2": "http://10.0.0.12:8080", "1.3": "http://10.0.0.13:8080"}}' > /root/thesis-paxi-config.json
+10.0.0.11:22$ docker run -d --name thesis-paxi1 --network host -v /root/thesis-paxi-config.json:/config.json paxi:6823d0b -id 1.1 -algorithm paxos
+10.0.0.12:22$ docker run -d --name thesis-paxi2 --network host -v /root/thesis-paxi-config.json:/config.json paxi:6823d0b -id 1.2 -algorithm paxos
+10.0.0.13:22$ docker run -d --name thesis-paxi3 --network host -v /root/thesis-paxi-config.json:/config.json paxi:6823d0b -id 1.3 -algorithm paxos
+10.0.0.11:22$ curl -sf --max-time 2 -X PUT --data-binary probeval http://10.0.0.11:8080/1
+10.0.0.11:22$ docker rm -f thesis-paxi1
+10.0.0.12:22$ docker rm -f thesis-paxi2
+10.0.0.13:22$ docker rm -f thesis-paxi3

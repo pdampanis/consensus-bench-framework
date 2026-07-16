@@ -511,8 +511,22 @@ Kafka+ZK per D10 — zk1-3 + broker1-3 colocated, CometBFT testnet, Paxi trio).*
   heal-emitted-even-when-inject-throws. NOT verified on a real VM (sudo
   availability, exact tc/iptables/`ip route` output, stress-ng effect) —
   the P3.4 canary's job. **F13/F19 targeting inherited from apply()
-  (pinned by FaultInjectorApplyTest); F26 (paxi leader_kill) still
-  undecided — no paxi fault golden until it is.**
+  (pinned by FaultInjectorApplyTest); F26 (paxi leader_kill) LOCKED as the
+  adaptive-mode wedge — see F26-DECISION.**
+  **P3.3d-paxi (RemoteSshProvider PAXOS/EPAXOS) DONE 2026-07-16,
+  golden-file TDD:** the provider now dispatches etcd vs paxi; the paxi
+  branch generates config.json with REAL private IPs (address tcp:1735 +
+  http_address http:8080, single-zone IDs), writes it with a
+  single-quoted printf (human-reviewable, no base64), bind-mounts it to
+  /config.json, runs `paxi:6823d0b -id 1.<i> -algorithm {paxos|epaxos}`
+  (D4, one binary), gates readiness on a COMMITTED PROBE WRITE (no
+  /health; election is lazy). `-adaptive` stays default per F26. Golden
+  `paxos-size3-start-stop.txt` matched verbatim; epaxos swaps only the
+  algorithm token; **the F26 wedge is pinned** — paxi leader_kill records
+  exactly one `docker kill thesis-paxi<leader>` and nothing to heal.
+  7 provider tests. Remaining P3.3d: Kafka/KRaft (multi-broker
+  private-listener wiring — the highest-risk remote recipe), CometBFT
+  (4-validator testnet genesis), HotStuff; then the G2 human read-through.
   **Remote-deltas preregistration (2026-07-16 — the topology/network/
   traffic changes between the local Docker substrate and the servers;
   every golden must reflect these):**
