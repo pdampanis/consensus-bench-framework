@@ -87,10 +87,23 @@ public final class SshFaultInjector implements FaultInjector {
         // HOST stress-ng (cloud-init installs it): the consensus container
         // shares the host CPU, so this throttles the node without touching
         // the data path. Hard --timeout so an aborted run can't pin the VM;
-        // heal pkills it explicitly.
+        // heal pkills it explicitly (the pattern still matches — nohup
+        // execs, so the process cmdline stays "stress-ng --cpu 2 ...").
         undo.push(new String[]{node.privateIp(), "pkill -f 'stress-ng --cpu 2'"});
         ssh.execOrThrow(node.privateIp(), SSH_PORT,
-                "stress-ng --cpu 2 --timeout 120s & echo started");
+                backgrounded("stress-ng --cpu 2 --timeout 120s"));
+    }
+
+    /** How a long-running fault process is left behind on the node while
+     *  the SSH command returns immediately. Package-private so the real-
+     *  sshd acceptance test pins the SHAPE itself (F28): without the
+     *  stream redirect, the backgrounded process inherits the exec
+     *  channel's stdout/stderr and sshd holds the channel open until IT
+     *  exits — measured red as a 30 s join timeout against a real sshd,
+     *  i.e. the fault injection itself would stall and abort. nohup
+     *  additionally shields the process from a SIGHUP at session close. */
+    static String backgrounded(String command) {
+        return "nohup " + command + " >/dev/null 2>&1 & echo started";
     }
 
     @Override

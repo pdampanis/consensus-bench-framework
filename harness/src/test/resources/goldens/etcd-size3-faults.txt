@@ -48,9 +48,15 @@
 #     (cloud-init installs it on every node); backgrounded with a hard
 #     --timeout so an aborted run cannot leave the VM pinned, and heal
 #     pkills it explicitly. The consensus container shares the host CPU,
-#     so this throttles the node without touching the data path. ---
+#     so this throttles the node without touching the data path.
+#     nohup + >/dev/null 2>&1 are LOAD-BEARING (F28): without the stream
+#     redirect the backgrounded process inherits the exec channel's pipes
+#     and sshd holds the channel open until stress-ng exits — measured as
+#     a 30 s join timeout against a real sshd, stalling and aborting the
+#     injection itself. pkill still matches: nohup execs, so the process
+#     cmdline stays "stress-ng --cpu 2 ...". ---
 [[SLOW_NODE]]
-10.0.0.12:22$ stress-ng --cpu 2 --timeout 120s & echo started
+10.0.0.12:22$ nohup stress-ng --cpu 2 --timeout 120s >/dev/null 2>&1 & echo started
 # heal (best-effort + loud; the --timeout may already have ended it):
 10.0.0.12:22$ pkill -f 'stress-ng --cpu 2'
 #

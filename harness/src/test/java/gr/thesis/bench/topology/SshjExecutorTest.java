@@ -70,6 +70,24 @@ class SshjExecutorTest {
                 //    plain success here, pinned as no-reconnect by the
                 //    executor's cache (one client per host:port).
                 assertEquals("second", ssh.exec(host, port, "echo second").stdout().trim());
+
+                // 5. F28 — slowNode's backgrounding SHAPE must return
+                //    immediately even though the process keeps running.
+                //    A backgrounded remote process that inherits the exec
+                //    channel's stdout/stderr keeps the channel open until
+                //    IT exits (sshd waits for EOF on the pipes), so the
+                //    30 s command bound trips exactly at fault-injection
+                //    time — measured red against this real sshd. `sleep`
+                //    stands in for stress-ng (not in the sshd image); the
+                //    shape under test is the injector's own.
+                long t0 = System.nanoTime();
+                var bg = ssh.exec(host, port, SshFaultInjector.backgrounded("sleep 120"));
+                long elapsedMs = (System.nanoTime() - t0) / 1_000_000;
+                assertEquals(0, bg.exitCode());
+                assertEquals("started", bg.stdout().trim());
+                assertTrue(elapsedMs < 5_000,
+                        "backgrounding must not hold the exec channel open (took "
+                                + elapsedMs + " ms)");
             }
         }
     }
