@@ -79,8 +79,14 @@ server.properties + kafka-server-start.sh; SAME image digest as KRaft —
 F6 stays identical-binaries; ZK mode logs "started
 (kafka.server.KafkaServer)"), and the digest-pinned zookeeper:3.9
 ensemble serves Prometheus :7000 via ZOO_CFG_EXTRA (znode_count —
-P4.3's source); acks=all committed under min-ISR 2, Isr=3.
-Suite: 112 tests green via `mvn21 clean verify`
+P4.3's source); acks=all committed under min-ISR 2, Isr=3. STEP 2 is
+ALSO DONE: golden `kafka_zk-size3-start-stop.txt` (two containers per
+VM, private-IP wiring, server.properties printf'd inside the broker
+start script, ZK :7000 gate + ZK-MODE started line + api-versions==3,
+teardown brokers-then-ensemble) matched verbatim by the provider
+KAFKA_ZK branch — the RemoteSshProvider now serves SIX of seven
+systems; only HOTSTUFF fails closed.
+Suite: 114 tests green via `mvn21 clean verify`
 (integration tests need the local Docker daemon + the once-per-machine
 `docker build -t paxi:6823d0b infra/paxi`).** The measurement instrument
 is complete. Do NOT redo any of it — PENDING_TASKS.md is the ledger
@@ -88,18 +94,20 @@ is complete. Do NOT redo any of it — PENDING_TASKS.md is the ledger
 architecture reference.
 
 Proposed next increment (confirm with me before coding, then do only this):
-**P3.3d-kafka_zk STEP 2 — the remote golden + provider KAFKA_ZK branch.**
-Encode the verified colocated shape: per VM TWO containers (thesis-zk<i>
-+ thesis-k<i>), private-IP ZOO_SERVERS/zookeeper.connect/advertised
-listeners, the printf'd server.properties golden-reviewable inside the
-broker's start script, gates = ZK :7000/metrics curl per node, broker
-"started (kafka.server.KafkaServer)" log grep (the ZK-MODE line — a
-wrong-mode broker cannot pass), api-versions count == 3 on node1;
-teardown brokers FIRST then the ensemble. Then the provider branch to
-match verbatim. After that: HotStuff (asonnino image from pinned source
-first — the paxi pattern), the G2 human read-through of ALL goldens,
-and the P3.4 canary. Also pending: P2.6 (safety-oracle scope, before
-M5.5), P2.0 (scheduler scaling — only if triggered).
+**P3.3d-hotstuff — the last system, verify-first, starting with the
+image.** The asonnino/hotstuff build is research code (Rust node +
+Python/fab orchestration): (1) pin a source commit and write
+infra/hotstuff/Dockerfile (the paxi pattern — multi-stage cargo build,
+record the image id); (2) probe the node binary's ACTUAL CLI contract
+(keys/committee file generation, ports, mempool/consensus params) — do
+NOT assume fab's localnet semantics transfer; (3) verify a 4-node
+formation locally (committee file with all keys, one container per
+node, a committed client burst visible in the SUMMARY-feeding logs);
+(4) only then the remote golden + provider HOTSTUFF branch. Expect
+this to span multiple increments — the image+CLI probe alone is one.
+After that: the G2 human read-through of ALL goldens, and the P3.4
+canary. Also pending: P2.6 (safety-oracle scope, before M5.5), P2.0
+(scheduler scaling — only if triggered).
 
 ## What "done" looks like for this whole effort
 
@@ -135,8 +143,8 @@ Don't let this become an afterthought bolted on at analysis time.
 - the consensus papers already in the project
 
 Start by reading PROJECT_STATE.md, confirming `mvn21 clean verify` is still
-green (112 tests, Docker required), then propose the P3.3d-kafka_zk
-STEP-2 golden increment, and wait for my go-ahead.
+green (114 tests, Docker required), then propose the P3.3d-hotstuff
+image+CLI-probe increment, and wait for my go-ahead.
 
 ────────────────────────────────────────────────────────────────────────────
 Note on the model switch: this project involves consensus/BFT and distributed-

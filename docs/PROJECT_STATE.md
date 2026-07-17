@@ -55,9 +55,16 @@ The zookeeper:3.9 image (digest-pinned, new ZOOKEEPER_IMAGE constant)
 forms the ensemble from ZOO_MY_ID+ZOO_SERVERS and serves Prometheus on
 :7000 via ZOO_CFG_EXTRA (verified: znode_count — P4.3's source).
 End-to-end: 3 brokers registered via the ensemble, acks=all committed
-under min.insync.replicas=2, Isr=3. Remaining P3.3d: the kafka_zk
-golden (step 2), HotStuff — verify-first.**
-Suite: **112 tests green.**
+under min.insync.replicas=2, Isr=3. STEP 2 ALSO DONE (golden-file TDD):
+`kafka_zk-size3-start-stop.txt` written FIRST — two containers per VM,
+private-IP wiring, the server.properties printf'd inside the broker's
+start script, gates = ZK :7000/metrics per node + the ZK-MODE started
+line + api-versions==3, teardown brokers-then-ensemble (aux list in
+stop(), pinned) — matched verbatim by the provider KAFKA_ZK branch.
+The RemoteSshProvider now serves SIX of seven systems; only HOTSTUFF
+fails closed. Remaining P3.3d: HotStuff (asonnino image from pinned
+source first). Then the G2 human read-through of ALL goldens, P3.4
+canary.** Suite: **114 tests green.**
 Prior update, 2026-07-15 — second hard review (F18–F21 ledgered; F18 jetcd
 5 s deadline fixed TDD; doc drift fixed) **and P2.2 (KafkaDriver) completed
 TDD end-to-end**: KRaft single-node substrate (P2.2a), production

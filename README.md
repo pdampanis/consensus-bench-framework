@@ -76,7 +76,7 @@ consensus-bench-thesis/
 │   │   ├── topology/               ClusterProvider SPI + LocalDockerProvider
 │   │   └── Main.java               CLI: endpoint-run + local-run (one command,
 │   │                               clean→deploy→run→teardown)
-│   ├── src/test/java/              112 tests (TDD; integration tests need Docker)
+│   ├── src/test/java/              114 tests (TDD; integration tests need Docker)
 │   └── results/                    M0 EVIDENCE — real etcd run outputs
 ├── infra/
 │   ├── main.tf                     cluster as Terraform, phase-parameterized
@@ -115,9 +115,10 @@ consensus-bench-thesis/
   P3.3a-d (SSH seam + etcd/KRaft/paxi remote providers + fault injector,
   golden-verified — the KRaft and CometBFT recipes each de-risked by a
   real multi-node formation run BEFORE their goldens were written).
-  Remote providers now serve etcd/KRaft/CometBFT/Paxos/EPaxos; the
-  Kafka+ZK (D10) colocated shape is verified by execution (golden
-  pending), leaving only HotStuff. Suite: 112 tests green** (`mvn21 clean
+  The RemoteSshProvider serves SIX of seven systems — etcd, KRaft,
+  Kafka+ZK (D10 colocated), CometBFT, Paxos, EPaxos — each recipe
+  verified by a real formation run BEFORE its golden; only HotStuff
+  remains. Suite: 114 tests green** (`mvn21 clean
   verify`; the integration tests need the local Docker daemon + the
   once-per-machine `docker build -t paxi:6823d0b infra/paxi`). Details
   and evidence: `docs/PROJECT_STATE.md` §3, ledger in
@@ -164,7 +165,7 @@ consensus-bench-thesis/
 
 ```bash
 # 1. build + full suite (needs Docker; ~1.5 min)
-cd harness && mvn21 clean verify          # expect: Tests run: 112, BUILD SUCCESS
+cd harness && mvn21 clean verify          # expect: Tests run: 114, BUILD SUCCESS
 
 # 2. the one-command local loop (the P0 deliverable)
 java -jar target/consensus-bench-0.1.0-SNAPSHOT.jar \
@@ -174,7 +175,7 @@ java -jar target/consensus-bench-0.1.0-SNAPSHOT.jar \
 #    → docs/LOCAL_TESTING.md (9-point green checklist)
 ```
 
-Then continue from `docs/PENDING_TASKS.md` (next: **P3.3d-kafka_zk STEP 2 —
-the remote golden + provider branch**; the colocated shape is verified
-fact as of 2026-07-17), one
+Then continue from `docs/PENDING_TASKS.md` (next: **P3.3d-hotstuff — the
+asonnino image from pinned source, then verify-first formation**; after
+it, the G2 human read-through of ALL goldens and the P3.4 canary), one
 increment per session, per the working agreement in `docs/PROJECT_STATE.md` §9.

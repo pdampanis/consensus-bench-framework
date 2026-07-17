@@ -92,7 +92,7 @@ class RemoteSshProviderTest {
     void unsupportedSystemsAndOversizedClustersFailClosed() {
         var provider = new RemoteSshProvider(new RecordingSshExecutor(), IPS, Duration.ofSeconds(5));
         assertThrows(UnsupportedOperationException.class,
-                () -> provider.start(SystemUnderTest.KAFKA_ZK, 3));
+                () -> provider.start(SystemUnderTest.HOTSTUFF, 4));
         assertThrows(IllegalArgumentException.class,
                 () -> provider.start(SystemUnderTest.ETCD, 4),
                 "cannot start more members than provisioned nodes");
@@ -221,6 +221,58 @@ class RemoteSshProviderTest {
                 "the gate node must be NAMED: " + e.getMessage());
         assertTrue(e.getMessage().contains("2") && e.getMessage().contains("3"),
                 "the observed vs required broker count must be in the message: " + e.getMessage());
+    }
+
+    // ---- P3.3d: Kafka+ZK (D10 colocated) remote substrate (shape
+    //      verified by KafkaZkColocatedFormationTest, 2026-07-17) ----
+
+    @Test
+    void kafkaZkSize3StartStopMatchesTheGoldenCommandSequence() throws Exception {
+        // The api-versions quorum oracle command is IDENTICAL to KRaft's
+        // (same broker container name, same bootstrap) — one recorder
+        // serves both; ZK-up curls and broker log-greps succeed by default.
+        var ssh = kraftReadyRecorder();
+        try (var provider = new RemoteSshProvider(ssh, IPS, Duration.ofSeconds(5))) {
+            provider.start(SystemUnderTest.KAFKA_ZK, 3);
+            provider.stop();
+        }
+        Path golden = Path.of("src/test/resources/goldens/kafka_zk-size3-start-stop.txt");
+        List<String> expected = Files.readAllLines(golden).stream()
+                .filter(l -> !l.startsWith("#") && !l.isBlank())
+                .toList();
+        assertEquals(expected, ssh.commands(),
+                "the recorded Kafka+ZK sequence must match the reviewed golden verbatim");
+    }
+
+    @Test
+    void kafkaZkBrokerHandlesBareEndpointsAndEnsembleTeardown() throws Exception {
+        var ssh = kraftReadyRecorder();
+        try (var provider = new RemoteSshProvider(ssh, IPS, Duration.ofSeconds(5))) {
+            var nodes = provider.start(SystemUnderTest.KAFKA_ZK, 3);
+            assertEquals(List.of("10.0.0.11:9092", "10.0.0.12:9092", "10.0.0.13:9092"),
+                    provider.clientEndpoints(), "bare host:port — the Kafka bootstrap contract");
+            // The handle IS the broker: faults kill the broker while the
+            // colocated ZK survives — the D10 comparison's semantic.
+            assertEquals("thesis-k2", nodes.get(1).containerName());
+            assertEquals("10.0.0.12", nodes.get(1).privateIp());
+            provider.stop();
+        }
+        // stop() must remove the ensemble too, brokers FIRST (reverse
+        // dependency order) — a surviving thesis-zk* would leak into the
+        // next block on the same VMs.
+        List<String> cmds = ssh.commands();
+        for (int i = 1; i <= 3; i++) {
+            String zkRm = "docker rm -f thesis-zk" + i;
+            assertTrue(cmds.stream().anyMatch(c -> c.endsWith(zkRm)),
+                    "teardown must remove thesis-zk" + i);
+        }
+        assertTrue(cmds.indexOf("10.0.0.11:22$ docker rm -f thesis-k1")
+                        < cmds.indexOf("10.0.0.11:22$ docker rm -f thesis-zk1"),
+                "brokers must be removed before the ensemble they depend on");
+        assertThrows(UnsupportedOperationException.class,
+                () -> new RemoteSshProvider(new RecordingSshExecutor(), IPS,
+                        Duration.ofSeconds(1)).start(SystemUnderTest.KAFKA_ZK, 2),
+                "the D10 thesis shape is 3 colocated pairs — any other size is refused");
     }
 
     // ---- P3.3d: CometBFT remote substrate (shape verified by

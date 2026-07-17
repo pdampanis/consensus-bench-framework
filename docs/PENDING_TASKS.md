@@ -722,8 +722,20 @@ containers (thesis-zk<i> + thesis-k<i>), private-IP ZK connect strings
 and advertised listeners, the printf'd server.properties
 golden-reviewable, gates = ZK up, broker "started (kafka.server.
 KafkaServer)" log grep, api-versions count == N — then the provider
-branch to match verbatim. After that: HotStuff (asonnino image from
-pinned source first), the G2 read-through of ALL goldens, P3.4 canary.
+branch to match verbatim. **STEP 2 ALSO DONE same day (golden-file
+TDD): `kafka_zk-size3-start-stop.txt` written FIRST — per VM TWO
+containers (thesis-zk<i> ensemble + thesis-k<i> broker), private-IP
+ZOO_SERVERS/zookeeper.connect/advertised listeners, ZK env values
+single-quoted (spaces/semicolons), the broker's server.properties
+printf'd INSIDE its start script (byte-for-byte reviewable), gates =
+:7000/metrics curl per ZK (doubles as the scrape-target proof), the
+ZK-MODE started line per broker (a wrong-mode broker cannot pass),
+api-versions count == 3; teardown brokers FIRST then the ensemble (an
+aux-container list in stop(), order pinned by test); size≠3 refused
+(D10). Matched verbatim; 2 new tests; the provider now serves SIX of
+seven systems — only HOTSTUFF fails closed.** After that: HotStuff
+(asonnino image from pinned source first), the G2 read-through of ALL
+goldens, P3.4 canary.
 
 (The section below is the step-1 text, kept for history.)
 

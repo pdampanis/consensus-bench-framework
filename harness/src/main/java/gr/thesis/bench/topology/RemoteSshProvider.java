@@ -61,6 +61,9 @@ public final class RemoteSshProvider implements ClusterProvider {
     private final Duration healthDeadline;
     private final List<NodeHandle> nodes = new ArrayList<>();
     private final List<String> endpoints = new ArrayList<>();
+    /** Auxiliary containers (KAFKA_ZK's ensemble) as (ip, name) — removed
+     *  by stop() AFTER the member containers (reverse dependency order). */
+    private final List<String[]> auxContainers = new ArrayList<>();
 
     public RemoteSshProvider(SshExecutor ssh, List<String> nodePrivateIps,
                              Duration healthDeadline) {
@@ -72,16 +75,18 @@ public final class RemoteSshProvider implements ClusterProvider {
 
     @Override
     public List<NodeHandle> start(SystemUnderTest system, int clusterSize) throws Exception {
-        if (system != SystemUnderTest.ETCD && system != SystemUnderTest.KRAFT
-                && system != SystemUnderTest.TENDERMINT
-                && system != SystemUnderTest.PAXOS && system != SystemUnderTest.EPAXOS) {
+        if (system == SystemUnderTest.HOTSTUFF) {
             throw new UnsupportedOperationException(
-                    "RemoteSshProvider supports ETCD/KRAFT/TENDERMINT/PAXOS/EPAXOS for now; asked for "
-                            + system);
+                    "RemoteSshProvider does not serve HOTSTUFF yet — its block lands with its own golden");
         }
         if (system == SystemUnderTest.TENDERMINT && clusterSize != 4) {
             throw new UnsupportedOperationException(
                     "TENDERMINT runs the thesis shape of 4 (D9: n=3f+1, f=1); asked for " + clusterSize);
+        }
+        if (system == SystemUnderTest.KAFKA_ZK && clusterSize != 3) {
+            throw new UnsupportedOperationException(
+                    "KAFKA_ZK runs the thesis shape of 3 colocated zk+broker pairs (D10); asked for "
+                            + clusterSize);
         }
         if (clusterSize < 1 || clusterSize > nodeIps.size()) {
             throw new IllegalArgumentException("clusterSize must be 1.." + nodeIps.size()
@@ -108,6 +113,8 @@ public final class RemoteSshProvider implements ClusterProvider {
             startEtcd(clusterSize);
         } else if (system == SystemUnderTest.KRAFT) {
             startKraft(clusterSize);
+        } else if (system == SystemUnderTest.KAFKA_ZK) {
+            startKafkaZk(clusterSize);
         } else if (system == SystemUnderTest.TENDERMINT) {
             startTendermint(clusterSize);
         } else {
@@ -234,9 +241,10 @@ public final class RemoteSshProvider implements ClusterProvider {
                             + " " + LocalDockerProvider.KAFKA_IMAGE);
         }
         for (int i = 1; i <= clusterSize; i++) {
-            awaitKraftStarted(nodeIps.get(i - 1), containerName(SystemUnderTest.KRAFT, i));
+            awaitContainerLog(nodeIps.get(i - 1), containerName(SystemUnderTest.KRAFT, i),
+                    "Kafka Server started");
         }
-        awaitKraftQuorum(nodeIps.get(0), containerName(SystemUnderTest.KRAFT, 1), clusterSize);
+        awaitKafkaQuorum(nodeIps.get(0), containerName(SystemUnderTest.KRAFT, 1), clusterSize);
         for (int i = 1; i <= clusterSize; i++) {
             String ip = nodeIps.get(i - 1);
             nodes.add(new NodeHandle(i - 1, containerName(SystemUnderTest.KRAFT, i), ip, ip));
@@ -245,10 +253,13 @@ public final class RemoteSshProvider implements ClusterProvider {
         }
     }
 
-    /** Per-node started gate: the same log line the verified local test's
-     *  wait strategy keyed on. grep -q ⇒ the exit code IS the signal. */
-    private void awaitKraftStarted(String ip, String container) throws Exception {
-        String probe = "docker logs " + container + " 2>&1 | grep -q 'Kafka Server started'";
+    /** Per-node started gate: a mode-specific log line, retried. KRaft
+     *  passes "Kafka Server started" (KafkaRaftServer's line); KAFKA_ZK
+     *  passes "started (kafka.server.KafkaServer)" — the ZK-MODE line, so
+     *  a wrong-mode broker can never pass its gate. grep -q ⇒ the exit
+     *  code IS the signal. */
+    private void awaitContainerLog(String ip, String container, String needle) throws Exception {
+        String probe = "docker logs " + container + " 2>&1 | grep -q '" + needle + "'";
         long deadline = System.nanoTime() + healthDeadline.toNanos();
         SshExecutor.ExecResult last = null;
         while (System.nanoTime() < deadline) {
@@ -257,14 +268,98 @@ public final class RemoteSshProvider implements ClusterProvider {
             Thread.sleep(500);
         }
         throw new IllegalStateException(container + " on " + ip + " never logged"
-                + " 'Kafka Server started' within " + healthDeadline + " — last: "
+                + " '" + needle + "' within " + healthDeadline + " — last: "
                 + (last == null ? "never polled" : "exit " + last.exitCode() + ", " + last.stderr()));
     }
 
-    /** Cluster-formed gate: count api-versions' per-broker "(id:" header
-     *  lines (the oracle KraftMultiBrokerFormationTest verified) and
-     *  require exactly clusterSize joined brokers. */
-    private void awaitKraftQuorum(String ip, String container, int clusterSize) throws Exception {
+    /**
+     * Kafka+ZooKeeper over SSH (P3.3d-kafka_zk step 2) — the D10 colocated
+     * shape VERIFIED BY EXECUTION in KafkaZkColocatedFormationTest
+     * (2026-07-17): VM i hosts thesis-zk<i> AND thesis-k<i>, mirroring
+     * KRaft's combined controller+broker on the same 2 vCPUs (symmetric
+     * contention BY DESIGN — the F6 caption states it). The broker
+     * BYPASSES the image entrypoint (it refuses ZK mode — probed): a
+     * printf'd server.properties + kafka-server-start.sh, on the SAME
+     * image digest as KRaft — identical binaries, only coordination
+     * differs. ZK serves Prometheus on :7000 (ZOO_CFG_EXTRA), which is
+     * both the campaign's scrape target and the per-node readiness gate.
+     */
+    private void startKafkaZk(int clusterSize) throws Exception {
+        String zooServers = IntStream.rangeClosed(1, clusterSize)
+                .mapToObj(i -> "server." + i + "=" + nodeIps.get(i - 1) + ":2888:3888;2181")
+                .collect(Collectors.joining(" "));
+        String zkConnect = IntStream.rangeClosed(1, clusterSize)
+                .mapToObj(i -> nodeIps.get(i - 1) + ":2181")
+                .collect(Collectors.joining(","));
+
+        log.debug("phase: deploy — starting {} zk + {} broker container(s) over SSH",
+                clusterSize, clusterSize);
+        for (int i = 1; i <= clusterSize; i++) {
+            String ip = nodeIps.get(i - 1);
+            ssh.execOrThrow(ip, SSH_PORT,
+                    "docker run -d --name thesis-zk" + i + " --network host"
+                            + " -e ZOO_MY_ID=" + i
+                            + " -e 'ZOO_SERVERS=" + zooServers + "'"
+                            + " -e 'ZOO_CFG_EXTRA=metricsProvider.className="
+                            + "org.apache.zookeeper.metrics.prometheus.PrometheusMetricsProvider"
+                            + " metricsProvider.httpPort=7000'"
+                            + " " + LocalDockerProvider.ZOOKEEPER_IMAGE);
+            auxContainers.add(new String[]{ip, "thesis-zk" + i});
+        }
+        for (int i = 1; i <= clusterSize; i++) {
+            awaitZkMetricsUp(nodeIps.get(i - 1));
+        }
+        for (int i = 1; i <= clusterSize; i++) {
+            String ip = nodeIps.get(i - 1);
+            ssh.execOrThrow(ip, SSH_PORT,
+                    "docker run -d --name " + containerName(SystemUnderTest.KAFKA_ZK, i)
+                            + " --network host --entrypoint sh " + LocalDockerProvider.KAFKA_IMAGE
+                            + " -c \"printf '%s\\n'"
+                            + " 'broker.id=" + i + "'"
+                            + " 'zookeeper.connect=" + zkConnect + "'"
+                            + " 'listeners=PLAINTEXT://:9092'"
+                            + " 'advertised.listeners=PLAINTEXT://" + ip + ":9092'"
+                            + " 'offsets.topic.replication.factor=3'"
+                            + " 'transaction.state.log.replication.factor=3'"
+                            + " 'transaction.state.log.min.isr=2'"
+                            + " 'log.dirs=/tmp/kafka-logs'"
+                            + " > /tmp/server.properties"
+                            + " && /opt/kafka/bin/kafka-server-start.sh /tmp/server.properties\"");
+        }
+        for (int i = 1; i <= clusterSize; i++) {
+            awaitContainerLog(nodeIps.get(i - 1), containerName(SystemUnderTest.KAFKA_ZK, i),
+                    "started (kafka.server.KafkaServer)");
+        }
+        awaitKafkaQuorum(nodeIps.get(0), containerName(SystemUnderTest.KAFKA_ZK, 1), clusterSize);
+        for (int i = 1; i <= clusterSize; i++) {
+            String ip = nodeIps.get(i - 1);
+            // The handle IS the broker: faults kill it while the colocated
+            // ZK survives — the D10 comparison's semantic.
+            nodes.add(new NodeHandle(i - 1, containerName(SystemUnderTest.KAFKA_ZK, i), ip, ip));
+            endpoints.add(ip + ":9092");
+        }
+    }
+
+    /** ZK per-node gate: the :7000 Prometheus endpoint answering doubles
+     *  as the campaign's scrape-target proof (D10/P4.3). */
+    private void awaitZkMetricsUp(String ip) throws Exception {
+        String probe = "curl -sf --max-time 2 http://127.0.0.1:7000/metrics";
+        long deadline = System.nanoTime() + healthDeadline.toNanos();
+        SshExecutor.ExecResult last = null;
+        while (System.nanoTime() < deadline) {
+            last = ssh.exec(ip, SSH_PORT, probe);
+            if (last.exitCode() == 0) return;
+            Thread.sleep(500);
+        }
+        throw new IllegalStateException("zookeeper on " + ip + " never served :7000/metrics within "
+                + healthDeadline + " — last: " + (last == null ? "never polled"
+                : "exit " + last.exitCode() + ", " + last.stderr()));
+    }
+
+    /** Cluster-formed gate for BOTH Kafka modes: count api-versions'
+     *  per-broker "(id:" header lines (the oracle both formation tests
+     *  verified) and require exactly clusterSize joined brokers. */
+    private void awaitKafkaQuorum(String ip, String container, int clusterSize) throws Exception {
         String probe = "docker exec " + container
                 + " /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server " + ip + ":9092";
         long deadline = System.nanoTime() + healthDeadline.toNanos();
@@ -454,8 +549,14 @@ public final class RemoteSshProvider implements ClusterProvider {
         for (NodeHandle n : nodes) {
             removeContainer(n.host(), n.containerName());
         }
+        // Ensemble/auxiliary containers go AFTER the members that depend
+        // on them; a survivor would leak into the next block on these VMs.
+        for (String[] aux : auxContainers) {
+            removeContainer(aux[0], aux[1]);
+        }
         nodes.clear();
         endpoints.clear();
+        auxContainers.clear();
     }
 
     private static String containerName(SystemUnderTest system, int oneBasedIndex) {
