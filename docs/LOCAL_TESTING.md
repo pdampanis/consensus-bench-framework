@@ -32,7 +32,7 @@ mvn21 clean verify
 **Expect** (versions/counts as of 2026-07-17 — counts only grow):
 
 ```
-Tests run: 107, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 108, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -41,10 +41,12 @@ The provider tests need Docker; the first ever run pulls the pinned etcd
 image (~50 MB). If you see `client version 1.32 is too old`, the
 testcontainers pin regressed below 1.21.4 (Docker 29 needs ≥1.21.4).
 
-What the 107 tests pin, so you know what a failure means (headline additions
+What the 108 tests pin, so you know what a failure means (headline additions
 since 101: 3-broker KRaft formation on a user-defined network — verified
 by execution, then encoded as the remote KRaft golden with its quorum-
-oracle gate; the F28 real-sshd backgrounding pin; the F29 pre-clean
+oracle gate; the 4-validator CometBFT formation from DISTRIBUTED files —
+BFT commit through 3-of-4 precommits, all replicas at the committed
+height; the F28 real-sshd backgrounding pin; the F29 pre-clean
 sweep; the F30 no-leader-claim pin):
 - `ArgParserTest` (6) — CLI contract: `--key value` pairs, bare `-v/--verbose`,
   fail-closed on a dangling key, duration>warmup guard.

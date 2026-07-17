@@ -702,19 +702,26 @@ so sessions stop inheriting the unrelated `~/Downloads/CLAUDE.md`.
 
 ## Immediate next increment (proposed)
 
-**P3.3d-cometbft — the 4-validator remote recipe, verify-first.** Same
-two-step pattern that de-risked KRaft (done 2026-07-17): (1) prove the
-multi-validator formation shape BY EXECUTION on a user-defined local
-Docker network first — `cometbft testnet` genesis/keys per node,
-persistent_peers wiring, the kvstore app, `rpc.max_subscription_clients`
-raise (P2.3's measured fact), a committed `broadcast_tx_commit` through
-the quorum; (2) only THEN write the remote golden (private IPs in
-persistent_peers, `--network host`, :26657 RPC / :26656 P2P native, the
-config generated node-side golden-reviewably) and the provider branch to
-match verbatim. After that: KAFKA_ZK (D10 colocated ZK+broker, same
-pattern), HotStuff, the G2 human read-through of ALL goldens, then the
-P3.4 canary. Alternatives if blocked: M3.3 campaign runner or P4.1/P4.2
-(laptop-verifiable).
+**P3.3d-cometbft STEP 2 — the remote golden + provider branch.** Step 1
+is DONE (2026-07-17): `CometBftMultiValidatorFormationTest` proved the
+DISTRIBUTION-shaped recipe BY EXECUTION in 7.9 s — `cometbft testnet` as
+the one-shot keygen; each node assembled from FOUR small JSONs (genesis,
+priv_validator_key, node_key, data/priv_validator_state — init's FilePV
+loader REQUIRES the state file once the key is pre-placed); `cometbft
+init` keeps pre-placed files and fills default config; peers via the CLI
+flag `--p2p.persistent_peers=<id@host:26656>` excluding self (ids from
+`CMTHOME=<dir> cometbft show-node-id` — **the --home flag is IGNORED,
+CMTHOME wins, P2.3's fact reconfirmed**); sed for
+max_subscription_clients 100→2000 AND addr_book_strict=false (RFC1918 on
+both the local net and the campaign's 10.0.0.0/24). Verified: n_peers=3,
+a tx committed through 3-of-4 BFT precommits (both codes 0), every
+replica reached the committed height. Step 2: write the golden encoding
+the remote deltas (private IPs in persistent_peers, `--network host`,
+:26657/:26656 native, the four JSONs written node-side via single-quoted
+printf like paxi's config, keygen + show-node-id as `docker run --rm`
+one-shots) and the provider branch to match verbatim. After that:
+KAFKA_ZK (D10 colocated ZK+broker, same pattern), HotStuff, the G2 human
+read-through of ALL goldens, then the P3.4 canary.
 
 (The section below is the pre-P3.3d text, kept for history.)
 

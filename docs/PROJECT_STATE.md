@@ -25,9 +25,18 @@ listeners, --network host, fixed KAFKA_CLUSTER_ID + no volume so state
 dies with the container, internal topics RF=3/txn-min-ISR-2, readiness =
 per-node "Kafka Server started" log gate then the api-versions quorum
 oracle counting joined brokers == cluster size, BARE host:port
-endpoints); matched verbatim, 3 new tests. Remaining P3.3d: KAFKA_ZK
-(D10), CometBFT, HotStuff — each verify-first.** Suite: **107 tests
-green.**
+endpoints); matched verbatim, 3 new tests.** **P3.3d-cometbft STEP 1
+ALSO DONE same day: the 4-validator formation VERIFIED BY EXECUTION in
+7.9 s (CometBftMultiValidatorFormationTest) — testnet as one-shot
+keygen, each node assembled from FOUR small JSONs (genesis, both keys,
+priv_validator_state — required by init once the key is pre-placed),
+peers via the --p2p.persistent_peers CLI flag excluding self (ids via
+CMTHOME=<dir> show-node-id; --home is IGNORED, P2.3's fact
+reconfirmed), sed for max_subscription_clients AND
+addr_book_strict=false (RFC1918 everywhere); n_peers=3, tx committed
+through 3-of-4 BFT precommits, every replica reached the committed
+height. Remaining P3.3d: the cometbft golden (step 2), KAFKA_ZK (D10),
+HotStuff — each verify-first.** Suite: **108 tests green.**
 Prior update, 2026-07-15 — second hard review (F18–F21 ledgered; F18 jetcd
 5 s deadline fixed TDD; doc drift fixed) **and P2.2 (KafkaDriver) completed
 TDD end-to-end**: KRaft single-node substrate (P2.2a), production
