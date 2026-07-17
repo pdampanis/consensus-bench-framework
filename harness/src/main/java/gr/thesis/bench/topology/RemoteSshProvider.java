@@ -49,6 +49,12 @@ public final class RemoteSshProvider implements ClusterProvider {
      *  Deterministic on purpose: state is container-local (no volume), so
      *  a fixed id can never collide with stale storage. */
     static final String KRAFT_CLUSTER_ID = "5L6g3nShT-eMCtK--X86s0";
+    static final String TM_HOME_DIR = "/root/thesis-tm";
+    static final String TM_KEYGEN_DIR = "/root/thesis-tm-testnet";
+    private static final com.fasterxml.jackson.databind.ObjectMapper TM_JSON =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+    private static final java.util.regex.Pattern TM_HEIGHT =
+            java.util.regex.Pattern.compile("\"latest_block_height\":\"(\\d+)\"");
 
     private final SshExecutor ssh;
     private final List<String> nodeIps; // node order — index IS the node index
@@ -67,9 +73,15 @@ public final class RemoteSshProvider implements ClusterProvider {
     @Override
     public List<NodeHandle> start(SystemUnderTest system, int clusterSize) throws Exception {
         if (system != SystemUnderTest.ETCD && system != SystemUnderTest.KRAFT
+                && system != SystemUnderTest.TENDERMINT
                 && system != SystemUnderTest.PAXOS && system != SystemUnderTest.EPAXOS) {
             throw new UnsupportedOperationException(
-                    "RemoteSshProvider supports ETCD/KRAFT/PAXOS/EPAXOS for now; asked for " + system);
+                    "RemoteSshProvider supports ETCD/KRAFT/TENDERMINT/PAXOS/EPAXOS for now; asked for "
+                            + system);
+        }
+        if (system == SystemUnderTest.TENDERMINT && clusterSize != 4) {
+            throw new UnsupportedOperationException(
+                    "TENDERMINT runs the thesis shape of 4 (D9: n=3f+1, f=1); asked for " + clusterSize);
         }
         if (clusterSize < 1 || clusterSize > nodeIps.size()) {
             throw new IllegalArgumentException("clusterSize must be 1.." + nodeIps.size()
@@ -96,6 +108,8 @@ public final class RemoteSshProvider implements ClusterProvider {
             startEtcd(clusterSize);
         } else if (system == SystemUnderTest.KRAFT) {
             startKraft(clusterSize);
+        } else if (system == SystemUnderTest.TENDERMINT) {
+            startTendermint(clusterSize);
         } else {
             startPaxi(system, clusterSize);
         }
@@ -266,6 +280,155 @@ public final class RemoteSshProvider implements ClusterProvider {
         throw new IllegalStateException("KRaft cluster on " + ip + " never formed within "
                 + healthDeadline + ": saw " + (seen < 0 ? "no broker list" : seen + " broker(s)")
                 + " joined, need " + clusterSize);
+    }
+
+    /**
+     * CometBFT over SSH (P3.3d-cometbft step 2) — the DISTRIBUTION-shaped
+     * recipe VERIFIED BY EXECUTION in CometBftMultiValidatorFormationTest
+     * (2026-07-17): `cometbft testnet` as a one-shot keygen on node1, four
+     * small JSONs distributed per node (genesis, both keys, and
+     * data/priv_validator_state.json — init's FilePV loader REQUIRES it
+     * once the key is pre-placed), `cometbft init` filling default config
+     * around the pre-placed files, peers via the --p2p.persistent_peers
+     * CLI flag EXCLUDING self, node ids via -e CMTHOME one-shots (the
+     * --home flag is IGNORED by this image — probed). Each cat'ed file is
+     * COMPACTED to single-line JSON before the printf: that is both the
+     * single-quote safety proof (JSON contains none) and what keeps every
+     * golden line one line. Readiness: /health per node, then /status on
+     * node1 until latest_block_height >= 1 — a height only >2/3 of the
+     * validators can produce, so it IS the quorum proof.
+     */
+    private void startTendermint(int clusterSize) throws Exception {
+        String img = LocalDockerProvider.COMETBFT_IMAGE;
+        // Fresh state FIRST: a stale data/ dir would resurrect a previous
+        // chain against a fresh genesis. rm -rf is exit-0 when absent.
+        ssh.execOrThrow(nodeIps.get(0), SSH_PORT, "rm -rf " + TM_HOME_DIR + " " + TM_KEYGEN_DIR);
+        for (int i = 2; i <= clusterSize; i++) {
+            ssh.execOrThrow(nodeIps.get(i - 1), SSH_PORT, "rm -rf " + TM_HOME_DIR);
+        }
+        String hostnames = IntStream.range(0, clusterSize)
+                .mapToObj(i -> " --hostname " + nodeIps.get(i))
+                .collect(Collectors.joining());
+        log.debug("phase: keygen — cometbft testnet one-shot on {}", nodeIps.get(0));
+        ssh.execOrThrow(nodeIps.get(0), SSH_PORT,
+                "docker run --rm -v " + TM_KEYGEN_DIR + ":/testnet " + img
+                        + " testnet --v " + clusterSize + " --o /testnet" + hostnames);
+
+        String genesis = compactJson(catOnKeygenNode("node0/config/genesis.json"), "genesis.json");
+        String[] privKey = new String[clusterSize];
+        String[] nodeKey = new String[clusterSize];
+        String[] pvState = new String[clusterSize];
+        String[] ids = new String[clusterSize];
+        for (int i = 0; i < clusterSize; i++) {
+            privKey[i] = compactJson(catOnKeygenNode("node" + i + "/config/priv_validator_key.json"),
+                    "priv_validator_key.json");
+            nodeKey[i] = compactJson(catOnKeygenNode("node" + i + "/config/node_key.json"),
+                    "node_key.json");
+            pvState[i] = compactJson(catOnKeygenNode("node" + i + "/data/priv_validator_state.json"),
+                    "priv_validator_state.json");
+        }
+        for (int i = 0; i < clusterSize; i++) {
+            ids[i] = ssh.execOrThrow(nodeIps.get(0), SSH_PORT,
+                    "docker run --rm -v " + TM_KEYGEN_DIR + ":/testnet -e CMTHOME=/testnet/node" + i
+                            + " " + img + " show-node-id").trim();
+        }
+
+        log.debug("phase: deploy — distributing files + starting {} validators over SSH", clusterSize);
+        for (int i = 0; i < clusterSize; i++) {
+            String ip = nodeIps.get(i);
+            ssh.execOrThrow(ip, SSH_PORT,
+                    "mkdir -p " + TM_HOME_DIR + "/config " + TM_HOME_DIR + "/data");
+            ssh.execOrThrow(ip, SSH_PORT,
+                    "printf '%s' '" + genesis + "' > " + TM_HOME_DIR + "/config/genesis.json");
+            ssh.execOrThrow(ip, SSH_PORT,
+                    "printf '%s' '" + privKey[i] + "' > " + TM_HOME_DIR + "/config/priv_validator_key.json");
+            ssh.execOrThrow(ip, SSH_PORT,
+                    "printf '%s' '" + nodeKey[i] + "' > " + TM_HOME_DIR + "/config/node_key.json");
+            ssh.execOrThrow(ip, SSH_PORT,
+                    "printf '%s' '" + pvState[i] + "' > " + TM_HOME_DIR + "/data/priv_validator_state.json");
+        }
+        for (int i = 0; i < clusterSize; i++) {
+            String ip = nodeIps.get(i);
+            StringBuilder peers = new StringBuilder();
+            for (int j = 0; j < clusterSize; j++) {
+                if (j == i) continue; // a self-entry is refused by the dialer
+                if (peers.length() > 0) peers.append(',');
+                peers.append(ids[j]).append('@').append(nodeIps.get(j)).append(":26656");
+            }
+            ssh.execOrThrow(ip, SSH_PORT,
+                    "docker run -d --name " + containerName(SystemUnderTest.TENDERMINT, i + 1)
+                            + " --network host -v " + TM_HOME_DIR + ":/cometbft --entrypoint sh " + img
+                            + " -c \"cometbft init"
+                            + " && sed -i 's/^max_subscription_clients = .*/max_subscription_clients = 2000/'"
+                            + " /cometbft/config/config.toml"
+                            + " && sed -i 's/^addr_book_strict = .*/addr_book_strict = false/'"
+                            + " /cometbft/config/config.toml"
+                            + " && cometbft start --proxy_app=kvstore"
+                            + " --rpc.laddr=tcp://0.0.0.0:26657"
+                            + " --p2p.laddr=tcp://0.0.0.0:26656"
+                            + " --p2p.persistent_peers=" + peers + "\"");
+        }
+        for (int i = 0; i < clusterSize; i++) {
+            awaitTmHealthy(nodeIps.get(i));
+        }
+        awaitTmCommittedHeight(nodeIps.get(0));
+        for (int i = 0; i < clusterSize; i++) {
+            String ip = nodeIps.get(i);
+            nodes.add(new NodeHandle(i, containerName(SystemUnderTest.TENDERMINT, i + 1), ip, ip));
+            endpoints.add("http://" + ip + ":26657"); // CometBftDriver RPC-base contract
+        }
+    }
+
+    private String catOnKeygenNode(String relPath) throws Exception {
+        return ssh.execOrThrow(nodeIps.get(0), SSH_PORT, "cat " + TM_KEYGEN_DIR + "/" + relPath);
+    }
+
+    /** Single-line re-serialization of a keygen artifact — the printf
+     *  single-quote safety proof (JSON contains none) and the one-golden-
+     *  line guarantee. Unparseable output fails closed naming the file. */
+    private static String compactJson(String raw, String what) {
+        try {
+            return TM_JSON.readTree(raw).toString();
+        } catch (Exception e) {
+            throw new IllegalStateException("unparseable " + what + " from the cometbft keygen: "
+                    + e.getMessage(), e);
+        }
+    }
+
+    private void awaitTmHealthy(String ip) throws Exception {
+        String probe = "curl -sf --max-time 2 http://127.0.0.1:26657/health";
+        long deadline = System.nanoTime() + healthDeadline.toNanos();
+        SshExecutor.ExecResult last = null;
+        while (System.nanoTime() < deadline) {
+            last = ssh.exec(ip, SSH_PORT, probe);
+            if (last.exitCode() == 0) return;
+            Thread.sleep(500);
+        }
+        throw new IllegalStateException("cometbft RPC on " + ip + " never answered /health within "
+                + healthDeadline + " — last: " + (last == null ? "never polled"
+                : "exit " + last.exitCode() + ", " + last.stderr()));
+    }
+
+    /** Quorum gate: latest_block_height >= 1 on node1 — only >2/3 of the
+     *  validators signing can produce a height, so RPC-up alone (health)
+     *  never passes a cluster that cannot commit. */
+    private void awaitTmCommittedHeight(String ip) throws Exception {
+        String probe = "curl -sf --max-time 2 http://127.0.0.1:26657/status";
+        long deadline = System.nanoTime() + healthDeadline.toNanos();
+        String lastSeen = "never polled";
+        while (System.nanoTime() < deadline) {
+            SshExecutor.ExecResult r = ssh.exec(ip, SSH_PORT, probe);
+            if (r.exitCode() == 0) {
+                java.util.regex.Matcher m = TM_HEIGHT.matcher(r.stdout());
+                lastSeen = m.find() ? "height " + m.group(1) : "no height in: " + r.stdout();
+                if (m.reset(r.stdout()).find() && Long.parseLong(m.group(1)) >= 1) return;
+            } else {
+                lastSeen = "exit " + r.exitCode() + ", " + r.stderr();
+            }
+            Thread.sleep(500);
+        }
+        throw new IllegalStateException("cometbft on " + ip + " never committed height >= 1 within "
+                + healthDeadline + " (fewer than 2/3 of validators signing?) — last: " + lastSeen);
     }
 
     private String paxiConfigJson(int clusterSize) {

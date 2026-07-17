@@ -702,6 +702,22 @@ so sessions stop inheriting the unrelated `~/Downloads/CLAUDE.md`.
 
 ## Immediate next increment (proposed)
 
+**P3.3d-kafka_zk — the D10 colocated ZK+broker recipe, verify-first.**
+The last CFT recipe. Same two-step pattern: (1) prove the colocated
+shape BY EXECUTION on a user-defined local Docker network — a 3-node ZK
+ensemble (zk1-3) AND 3 brokers (broker1-3) as separate containers
+pair-wise colocated (mirroring one VM hosting both, D10), ZK quorum
+formed, brokers registered, an acks=all commit under
+min.insync.replicas=2, ZK's :7000 Prometheus endpoint answering (P4.3
+needs the metric names); (2) only THEN the remote golden (both
+containers per VM, private-IP ZK connect strings and advertised
+listeners) and the provider KAFKA_ZK branch to match verbatim. After
+that: HotStuff (needs the asonnino image built from pinned source
+first — the paxi pattern), the G2 human read-through of ALL goldens,
+then the P3.4 canary.
+
+(The section below is the step-1 text, kept for history.)
+
 **P3.3d-cometbft STEP 2 — the remote golden + provider branch.** Step 1
 is DONE (2026-07-17): `CometBftMultiValidatorFormationTest` proved the
 DISTRIBUTION-shaped recipe BY EXECUTION in 7.9 s — `cometbft testnet` as
@@ -715,11 +731,19 @@ CMTHOME wins, P2.3's fact reconfirmed**); sed for
 max_subscription_clients 100→2000 AND addr_book_strict=false (RFC1918 on
 both the local net and the campaign's 10.0.0.0/24). Verified: n_peers=3,
 a tx committed through 3-of-4 BFT precommits (both codes 0), every
-replica reached the committed height. Step 2: write the golden encoding
-the remote deltas (private IPs in persistent_peers, `--network host`,
-:26657/:26656 native, the four JSONs written node-side via single-quoted
-printf like paxi's config, keygen + show-node-id as `docker run --rm`
-one-shots) and the provider branch to match verbatim. After that:
+replica reached the committed height. **STEP 2 ALSO DONE same day
+(golden-file TDD): `tendermint-size4-start-stop.txt` written FIRST —
+keygen + show-node-id as `docker run --rm` one-shots on node1 (with
+`-e CMTHOME`, the probed fact), each cat'ed artifact COMPACTED to
+single-line JSON before its printf (the single-quote-safety proof AND
+the one-golden-line guarantee; fixture placeholders stand in for the
+per-run random material — the golden pins COMMAND STRUCTURE), fresh-
+state `rm -rf` first (a stale data/ dir would resurrect a previous
+chain), peers exclude self on private IPs, both seds in the start
+script, readiness = /health per node then /status on node1 until
+latest_block_height ≥ 1 (a height only >2/3 of validators can produce —
+the quorum gate; pinned by a stuck-at-0 fail-closed test). size≠4
+refused (D9: n=3f+1). Matched verbatim; 3 new tests.** After that:
 KAFKA_ZK (D10 colocated ZK+broker, same pattern), HotStuff, the G2 human
 read-through of ALL goldens, then the P3.4 canary.
 

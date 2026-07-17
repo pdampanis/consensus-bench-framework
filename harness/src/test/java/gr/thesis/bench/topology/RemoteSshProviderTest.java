@@ -223,6 +223,100 @@ class RemoteSshProviderTest {
                 "the observed vs required broker count must be in the message: " + e.getMessage());
     }
 
+    // ---- P3.3d: CometBFT remote substrate (shape verified by
+    //      CometBftMultiValidatorFormationTest, 2026-07-17) ----
+
+    private static final List<String> IPS4 =
+            List.of("10.0.0.11", "10.0.0.12", "10.0.0.13", "10.0.0.14");
+    private static final String TM_KEYGEN = "/root/thesis-tm-testnet";
+    private static final String TM_STATUS_CMD =
+            "curl -sf --max-time 2 http://127.0.0.1:26657/status";
+    /** The fixture material the canned keygen "generated" — the golden's
+     *  printf payloads are exactly these, compacted (they already are). */
+    private static final String TM_GENESIS =
+            "{\"genesis_time\":\"2026-07-17T00:00:00Z\",\"chain_id\":\"chain-thesis\","
+            + "\"initial_height\":\"0\",\"validators\":["
+            + "{\"address\":\"ADDR1\",\"pub_key\":{\"type\":\"tendermint/PubKeyEd25519\",\"value\":\"PUB1\"},\"power\":\"1\",\"name\":\"node0\"},"
+            + "{\"address\":\"ADDR2\",\"pub_key\":{\"type\":\"tendermint/PubKeyEd25519\",\"value\":\"PUB2\"},\"power\":\"1\",\"name\":\"node1\"},"
+            + "{\"address\":\"ADDR3\",\"pub_key\":{\"type\":\"tendermint/PubKeyEd25519\",\"value\":\"PUB3\"},\"power\":\"1\",\"name\":\"node2\"},"
+            + "{\"address\":\"ADDR4\",\"pub_key\":{\"type\":\"tendermint/PubKeyEd25519\",\"value\":\"PUB4\"},\"power\":\"1\",\"name\":\"node3\"}"
+            + "],\"app_hash\":\"\"}";
+
+    private static RecordingSshExecutor tmReadyRecorder() {
+        var ssh = new RecordingSshExecutor();
+        ssh.respondTo("cat " + TM_KEYGEN + "/node0/config/genesis.json",
+                new SshExecutor.ExecResult(0, TM_GENESIS, ""));
+        for (int i = 0; i < 4; i++) {
+            int n = i + 1;
+            ssh.respondTo("cat " + TM_KEYGEN + "/node" + i + "/config/priv_validator_key.json",
+                    new SshExecutor.ExecResult(0,
+                            "{\"address\":\"ADDR" + n + "\",\"pub_key\":{\"type\":\"tendermint/PubKeyEd25519\","
+                            + "\"value\":\"PUB" + n + "\"},\"priv_key\":{\"type\":\"tendermint/PrivKeyEd25519\","
+                            + "\"value\":\"PRIV" + n + "\"}}", ""));
+            ssh.respondTo("cat " + TM_KEYGEN + "/node" + i + "/config/node_key.json",
+                    new SshExecutor.ExecResult(0,
+                            "{\"priv_key\":{\"type\":\"tendermint/PrivKeyEd25519\",\"value\":\"NKEY" + n + "\"}}", ""));
+            ssh.respondTo("cat " + TM_KEYGEN + "/node" + i + "/data/priv_validator_state.json",
+                    new SshExecutor.ExecResult(0, "{\"height\":\"0\",\"round\":0,\"step\":0}", ""));
+            ssh.respondTo("docker run --rm -v " + TM_KEYGEN + ":/testnet -e CMTHOME=/testnet/node" + i
+                            + " " + LocalDockerProvider.COMETBFT_IMAGE + " show-node-id",
+                    new SshExecutor.ExecResult(0, String.valueOf((char) ('1' + i)).repeat(40) + "\n", ""));
+        }
+        // Height "1": a height only >2/3 of the validators can produce.
+        ssh.respondTo(TM_STATUS_CMD, new SshExecutor.ExecResult(0,
+                "{\"jsonrpc\":\"2.0\",\"id\":-1,\"result\":{\"sync_info\":"
+                        + "{\"latest_block_height\":\"1\",\"catching_up\":false}}}", ""));
+        return ssh;
+    }
+
+    @Test
+    void tendermintSize4StartStopMatchesTheGoldenCommandSequence() throws Exception {
+        var ssh = tmReadyRecorder();
+        try (var provider = new RemoteSshProvider(ssh, IPS4, Duration.ofSeconds(5))) {
+            provider.start(SystemUnderTest.TENDERMINT, 4);
+            provider.stop();
+        }
+        Path golden = Path.of("src/test/resources/goldens/tendermint-size4-start-stop.txt");
+        List<String> expected = Files.readAllLines(golden).stream()
+                .filter(l -> !l.startsWith("#") && !l.isBlank())
+                .toList();
+        assertEquals(expected, ssh.commands(),
+                "the recorded CometBFT sequence must match the reviewed golden verbatim");
+    }
+
+    @Test
+    void tendermintEndpointsAndHandlesAndThesisShapeOnly() throws Exception {
+        var ssh = tmReadyRecorder();
+        try (var provider = new RemoteSshProvider(ssh, IPS4, Duration.ofSeconds(5))) {
+            var nodes = provider.start(SystemUnderTest.TENDERMINT, 4);
+            assertEquals(List.of(
+                    "http://10.0.0.11:26657", "http://10.0.0.12:26657",
+                    "http://10.0.0.13:26657", "http://10.0.0.14:26657"),
+                    provider.clientEndpoints(), "CometBftDriver takes RPC base URLs");
+            assertEquals("10.0.0.12", nodes.get(1).privateIp());
+            assertEquals("thesis-tm2", nodes.get(1).containerName());
+        }
+        assertThrows(UnsupportedOperationException.class,
+                () -> new RemoteSshProvider(new RecordingSshExecutor(), IPS4,
+                        Duration.ofSeconds(1)).start(SystemUnderTest.TENDERMINT, 3),
+                "BFT n=3f+1 with f=1 is 4 — any other size is not the thesis shape");
+    }
+
+    @Test
+    void tendermintHeightGateFailsClosedWhenNoQuorumCommits() {
+        // RPC up (health passes by default) but height stuck at 0 — fewer
+        // than 3 of 4 validators signing. The gate must refuse the cluster.
+        var ssh = tmReadyRecorder();
+        ssh.respondTo(TM_STATUS_CMD, new SshExecutor.ExecResult(0,
+                "{\"jsonrpc\":\"2.0\",\"id\":-1,\"result\":{\"sync_info\":"
+                        + "{\"latest_block_height\":\"0\",\"catching_up\":false}}}", ""));
+        var provider = new RemoteSshProvider(ssh, IPS4, Duration.ofSeconds(1));
+        var e = assertThrows(IllegalStateException.class,
+                () -> provider.start(SystemUnderTest.TENDERMINT, 4));
+        assertTrue(e.getMessage().contains("10.0.0.11"),
+                "the gate node must be NAMED: " + e.getMessage());
+    }
+
     @Test
     void healthGateFailsClosedNamingTheUnhealthyNode() {
         var ssh = new RecordingSshExecutor();

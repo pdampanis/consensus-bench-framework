@@ -59,15 +59,20 @@ quorum oracle, BARE host:port endpoints). The 2026-07-17 review fixed
 F28 (slowNode SSH backgrounding held the exec channel open — nohup +
 stream redirect, measured red vs a real sshd), F29 (remote pre-clean
 sweeps thesis-* on ALL provisioned nodes), F30 (EtcdHttpDriver never
-claims a leader). The P3.3d-cometbft STEP 1 is ALSO DONE:
-CometBftMultiValidatorFormationTest proved the DISTRIBUTION-shaped
-4-validator recipe BY EXECUTION (testnet as one-shot keygen; four small
-JSONs per node incl. priv_validator_state; init keeps pre-placed files;
-peers via --p2p.persistent_peers CLI flag excluding self, ids via
-CMTHOME=<dir> show-node-id — the --home flag is IGNORED; sed for
+claims a leader). P3.3d-cometbft is ALSO DONE, both steps: step 1
+verified the DISTRIBUTION-shaped 4-validator recipe BY EXECUTION
+(testnet as one-shot keygen; four small JSONs per node incl.
+priv_validator_state; init keeps pre-placed files; peers via
+--p2p.persistent_peers excluding self; ids via CMTHOME=<dir>
+show-node-id — the --home flag is IGNORED; seds for
 max_subscription_clients AND addr_book_strict=false; n_peers=3, tx
-committed through 3-of-4 precommits, all replicas reached the height).
-Suite: 108 tests green via `mvn21 clean verify`
+committed through 3-of-4 precommits, all replicas reached the height);
+step 2 encoded it as `tendermint-size4-start-stop.txt` (keygen/
+show-node-id as docker run --rm one-shots, artifacts compacted to
+single-line JSON before printf, fresh-state rm -rf first, private-IP
+peers, /health + latest_block_height>=1 quorum gate, size≠4 refused)
+matched verbatim by the RemoteSshProvider TENDERMINT branch.
+Suite: 111 tests green via `mvn21 clean verify`
 (integration tests need the local Docker daemon + the once-per-machine
 `docker build -t paxi:6823d0b infra/paxi`).** The measurement instrument
 is complete. Do NOT redo any of it — PENDING_TASKS.md is the ledger
@@ -75,17 +80,18 @@ is complete. Do NOT redo any of it — PENDING_TASKS.md is the ledger
 architecture reference.
 
 Proposed next increment (confirm with me before coding, then do only this):
-**P3.3d-cometbft STEP 2 — the remote golden + provider branch.** Encode
-the verified shape's remote deltas in the golden FIRST: private IPs in
-persistent_peers, --network host with :26657/:26656 native, the four
-JSONs written node-side via single-quoted printf (the paxi config
-pattern), keygen + show-node-id as `docker run --rm` one-shots, the two
-seds, readiness = /health then a committed-tx or height gate. Then the
-RemoteSshProvider TENDERMINT branch to match verbatim. After that:
-KAFKA_ZK (D10 colocated ZK+broker, same pattern), HotStuff, the G2
-human read-through of ALL goldens, and the P3.4 canary. Also pending:
-P2.6 (safety-oracle scope, before M5.5), P2.0 (scheduler scaling — only
-if triggered).
+**P3.3d-kafka_zk — the D10 colocated ZK+broker recipe, verify-first.**
+The last CFT recipe. (1) Prove the colocated shape BY EXECUTION on a
+user-defined local Docker network: 3-node ZK ensemble + 3 brokers as
+separate containers pairwise colocated (one VM hosts zkN+brokerN, D10),
+ZK quorum formed, an acks=all commit under min.insync.replicas=2, ZK's
+:7000 Prometheus endpoint answering (P4.3 needs those metric names);
+(2) only THEN the remote golden (both containers per VM, private-IP ZK
+connect strings and advertised listeners) and the provider KAFKA_ZK
+branch to match verbatim. After that: HotStuff (asonnino image from
+pinned source first — the paxi pattern), the G2 human read-through of
+ALL goldens, and the P3.4 canary. Also pending: P2.6 (safety-oracle
+scope, before M5.5), P2.0 (scheduler scaling — only if triggered).
 
 ## What "done" looks like for this whole effort
 
@@ -121,8 +127,8 @@ Don't let this become an afterthought bolted on at analysis time.
 - the consensus papers already in the project
 
 Start by reading PROJECT_STATE.md, confirming `mvn21 clean verify` is still
-green (108 tests, Docker required), then propose the P3.3d-cometbft
-STEP-2 golden increment, and wait for my go-ahead.
+green (111 tests, Docker required), then propose the P3.3d-kafka_zk
+verify-first increment, and wait for my go-ahead.
 
 ────────────────────────────────────────────────────────────────────────────
 Note on the model switch: this project involves consensus/BFT and distributed-

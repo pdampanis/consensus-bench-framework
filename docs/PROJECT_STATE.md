@@ -35,8 +35,16 @@ CMTHOME=<dir> show-node-id; --home is IGNORED, P2.3's fact
 reconfirmed), sed for max_subscription_clients AND
 addr_book_strict=false (RFC1918 everywhere); n_peers=3, tx committed
 through 3-of-4 BFT precommits, every replica reached the committed
-height. Remaining P3.3d: the cometbft golden (step 2), KAFKA_ZK (D10),
-HotStuff — each verify-first.** Suite: **108 tests green.**
+height. STEP 2 ALSO DONE (golden-file TDD): the golden
+`tendermint-size4-start-stop.txt` written FIRST — keygen/show-node-id
+as docker run --rm one-shots on node1 (-e CMTHOME, the probed fact),
+artifacts COMPACTED to single-line JSON before printf, fresh-state
+rm -rf first, private-IP peers excluding self, both seds, readiness =
+/health per node then latest_block_height>=1 on node1 (the quorum
+gate, stuck-at-0 pinned fail-closed), size≠4 refused (D9) — matched
+verbatim by the RemoteSshProvider TENDERMINT branch, 3 new tests.
+Remaining P3.3d: KAFKA_ZK (D10), HotStuff — each verify-first.**
+Suite: **111 tests green.**
 Prior update, 2026-07-15 — second hard review (F18–F21 ledgered; F18 jetcd
 5 s deadline fixed TDD; doc drift fixed) **and P2.2 (KafkaDriver) completed
 TDD end-to-end**: KRaft single-node substrate (P2.2a), production

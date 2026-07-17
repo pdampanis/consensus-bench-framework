@@ -76,7 +76,7 @@ consensus-bench-thesis/
 │   │   ├── topology/               ClusterProvider SPI + LocalDockerProvider
 │   │   └── Main.java               CLI: endpoint-run + local-run (one command,
 │   │                               clean→deploy→run→teardown)
-│   ├── src/test/java/              108 tests (TDD; integration tests need Docker)
+│   ├── src/test/java/              111 tests (TDD; integration tests need Docker)
 │   └── results/                    M0 EVIDENCE — real etcd run outputs
 ├── infra/
 │   ├── main.tf                     cluster as Terraform, phase-parameterized
@@ -113,9 +113,10 @@ consensus-bench-thesis/
 
 - **P0, P1, and the whole P2 driver phase closed; GATE G1 SIGNED OFF.
   P3.3a-d (SSH seam + etcd/KRaft/paxi remote providers + fault injector,
-  golden-verified — the KRaft recipe de-risked by a real 3-broker
-  formation run first; the CometBFT 4-validator formation likewise
-  verified by execution, golden pending). Suite: 108 tests green** (`mvn21 clean
+  golden-verified — the KRaft and CometBFT recipes each de-risked by a
+  real multi-node formation run BEFORE their goldens were written).
+  Remote providers now serve etcd/KRaft/CometBFT/Paxos/EPaxos; only
+  Kafka+ZK (D10) and HotStuff remain. Suite: 111 tests green** (`mvn21 clean
   verify`; the integration tests need the local Docker daemon + the
   once-per-machine `docker build -t paxi:6823d0b infra/paxi`). Details
   and evidence: `docs/PROJECT_STATE.md` §3, ledger in
@@ -162,7 +163,7 @@ consensus-bench-thesis/
 
 ```bash
 # 1. build + full suite (needs Docker; ~1.5 min)
-cd harness && mvn21 clean verify          # expect: Tests run: 108, BUILD SUCCESS
+cd harness && mvn21 clean verify          # expect: Tests run: 111, BUILD SUCCESS
 
 # 2. the one-command local loop (the P0 deliverable)
 java -jar target/consensus-bench-0.1.0-SNAPSHOT.jar \
@@ -172,7 +173,6 @@ java -jar target/consensus-bench-0.1.0-SNAPSHOT.jar \
 #    → docs/LOCAL_TESTING.md (9-point green checklist)
 ```
 
-Then continue from `docs/PENDING_TASKS.md` (next: **P3.3d-cometbft STEP 2 —
-the remote golden + provider branch**; the 4-validator formation shape is
-verified fact as of 2026-07-17), one
+Then continue from `docs/PENDING_TASKS.md` (next: **P3.3d-kafka_zk — the
+D10 colocated ZK+broker recipe, verify-first**; the last CFT recipe), one
 increment per session, per the working agreement in `docs/PROJECT_STATE.md` §9.

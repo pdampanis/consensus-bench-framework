@@ -1,0 +1,100 @@
+# GOLDEN (G2): every remote command RemoteSshProvider runs for a CometBFT
+# size-4 start + stop, verbatim, in order, as host:port$ command.
+#
+# The wiring shape is VERIFIED FACT (CometBftMultiValidatorFormationTest,
+# 2026-07-17, 7.9 s): 4 validators assembled from DISTRIBUTED files formed
+# a quorum and committed a tx through 3-of-4 precommits. Human read-through
+# checklist — how this golden encodes that shape remotely:
+#  * `cometbft testnet` runs ONCE on node1 as a `docker run --rm` one-shot
+#    KEYGEN (shared genesis with all 4 validator pubkeys + per-node keys);
+#    hostnames are the REAL private IPs (F20). Its generated config.toml
+#    is deliberately NOT distributed (60 KB of comments no review can
+#    audit) — only FOUR small JSONs travel per node.
+#  * Node ids come from `show-node-id` one-shots with -e CMTHOME=<node dir>
+#    — the --home flag is IGNORED by this image (probed red 2026-07-17;
+#    P2.3's CMTHOME fact), so the env var is load-bearing.
+#  * The JSON payloads below are FIXTURE PLACEHOLDERS (ADDRn/PUBn/PRIVn/
+#    NKEYn and 40-char ids): the real material is generated fresh by the
+#    keygen every run. The golden pins the COMMAND STRUCTURE; the harness
+#    compacts each cat'ed file to single-line JSON before the printf
+#    (single-quote-safe — JSON contains none — and one golden line each).
+#  * data/priv_validator_state.json MUST travel too: init's FilePV loader
+#    requires it once priv_validator_key.json is pre-placed (probed).
+#  * `rm -rf` of the state dirs comes FIRST: a stale data/ dir would
+#    resurrect a previous chain against a fresh genesis — fail closed by
+#    removal, and `rm -rf` is exit-0 when nothing exists (no `|| true`).
+#  * --network host: RPC :26657 and P2P :26656 bind natively; peers ride
+#    the CLI flag --p2p.persistent_peers with REAL private IPs, EXCLUDING
+#    self (a self-entry is refused by the dialer).
+#  * The two seds are the ONLY config edits (no CLI flag exists for
+#    either): rpc.max_subscription_clients 100->2000 (P2.3 measured: each
+#    concurrent broadcast_tx_commit holds one subscription) and
+#    p2p.addr_book_strict=false (10.0.0.0/24 is RFC1918; strict mode
+#    refuses non-routable addresses).
+#  * Readiness is TWO gates, retried, fail-closed NAMING the node:
+#    /health per node (RPC up), then /status on node1 until
+#    latest_block_height >= 1 — a height only >2/3 of validators can
+#    produce, so it IS the quorum-formed proof.
+#  * Pre-clean SWEEPS thesis-* on EVERY provisioned node (F29);
+#    deterministic thesis-tm<i> names; teardown removes every container
+#    this cluster started. clientEndpoints: http://<ip>:26657 (the
+#    CometBftDriver RPC-base contract).
+10.0.0.11:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
+10.0.0.12:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
+10.0.0.13:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
+10.0.0.14:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
+10.0.0.11:22$ rm -rf /root/thesis-tm /root/thesis-tm-testnet
+10.0.0.12:22$ rm -rf /root/thesis-tm
+10.0.0.13:22$ rm -rf /root/thesis-tm
+10.0.0.14:22$ rm -rf /root/thesis-tm
+10.0.0.11:22$ docker run --rm -v /root/thesis-tm-testnet:/testnet cometbft/cometbft@sha256:22c2ac018f40665e5c113e485d81531d8421f4fc76f9c8b013fbb6c0c16e150d testnet --v 4 --o /testnet --hostname 10.0.0.11 --hostname 10.0.0.12 --hostname 10.0.0.13 --hostname 10.0.0.14
+10.0.0.11:22$ cat /root/thesis-tm-testnet/node0/config/genesis.json
+10.0.0.11:22$ cat /root/thesis-tm-testnet/node0/config/priv_validator_key.json
+10.0.0.11:22$ cat /root/thesis-tm-testnet/node0/config/node_key.json
+10.0.0.11:22$ cat /root/thesis-tm-testnet/node0/data/priv_validator_state.json
+10.0.0.11:22$ cat /root/thesis-tm-testnet/node1/config/priv_validator_key.json
+10.0.0.11:22$ cat /root/thesis-tm-testnet/node1/config/node_key.json
+10.0.0.11:22$ cat /root/thesis-tm-testnet/node1/data/priv_validator_state.json
+10.0.0.11:22$ cat /root/thesis-tm-testnet/node2/config/priv_validator_key.json
+10.0.0.11:22$ cat /root/thesis-tm-testnet/node2/config/node_key.json
+10.0.0.11:22$ cat /root/thesis-tm-testnet/node2/data/priv_validator_state.json
+10.0.0.11:22$ cat /root/thesis-tm-testnet/node3/config/priv_validator_key.json
+10.0.0.11:22$ cat /root/thesis-tm-testnet/node3/config/node_key.json
+10.0.0.11:22$ cat /root/thesis-tm-testnet/node3/data/priv_validator_state.json
+10.0.0.11:22$ docker run --rm -v /root/thesis-tm-testnet:/testnet -e CMTHOME=/testnet/node0 cometbft/cometbft@sha256:22c2ac018f40665e5c113e485d81531d8421f4fc76f9c8b013fbb6c0c16e150d show-node-id
+10.0.0.11:22$ docker run --rm -v /root/thesis-tm-testnet:/testnet -e CMTHOME=/testnet/node1 cometbft/cometbft@sha256:22c2ac018f40665e5c113e485d81531d8421f4fc76f9c8b013fbb6c0c16e150d show-node-id
+10.0.0.11:22$ docker run --rm -v /root/thesis-tm-testnet:/testnet -e CMTHOME=/testnet/node2 cometbft/cometbft@sha256:22c2ac018f40665e5c113e485d81531d8421f4fc76f9c8b013fbb6c0c16e150d show-node-id
+10.0.0.11:22$ docker run --rm -v /root/thesis-tm-testnet:/testnet -e CMTHOME=/testnet/node3 cometbft/cometbft@sha256:22c2ac018f40665e5c113e485d81531d8421f4fc76f9c8b013fbb6c0c16e150d show-node-id
+10.0.0.11:22$ mkdir -p /root/thesis-tm/config /root/thesis-tm/data
+10.0.0.11:22$ printf '%s' '{"genesis_time":"2026-07-17T00:00:00Z","chain_id":"chain-thesis","initial_height":"0","validators":[{"address":"ADDR1","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB1"},"power":"1","name":"node0"},{"address":"ADDR2","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB2"},"power":"1","name":"node1"},{"address":"ADDR3","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB3"},"power":"1","name":"node2"},{"address":"ADDR4","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB4"},"power":"1","name":"node3"}],"app_hash":""}' > /root/thesis-tm/config/genesis.json
+10.0.0.11:22$ printf '%s' '{"address":"ADDR1","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB1"},"priv_key":{"type":"tendermint/PrivKeyEd25519","value":"PRIV1"}}' > /root/thesis-tm/config/priv_validator_key.json
+10.0.0.11:22$ printf '%s' '{"priv_key":{"type":"tendermint/PrivKeyEd25519","value":"NKEY1"}}' > /root/thesis-tm/config/node_key.json
+10.0.0.11:22$ printf '%s' '{"height":"0","round":0,"step":0}' > /root/thesis-tm/data/priv_validator_state.json
+10.0.0.12:22$ mkdir -p /root/thesis-tm/config /root/thesis-tm/data
+10.0.0.12:22$ printf '%s' '{"genesis_time":"2026-07-17T00:00:00Z","chain_id":"chain-thesis","initial_height":"0","validators":[{"address":"ADDR1","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB1"},"power":"1","name":"node0"},{"address":"ADDR2","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB2"},"power":"1","name":"node1"},{"address":"ADDR3","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB3"},"power":"1","name":"node2"},{"address":"ADDR4","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB4"},"power":"1","name":"node3"}],"app_hash":""}' > /root/thesis-tm/config/genesis.json
+10.0.0.12:22$ printf '%s' '{"address":"ADDR2","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB2"},"priv_key":{"type":"tendermint/PrivKeyEd25519","value":"PRIV2"}}' > /root/thesis-tm/config/priv_validator_key.json
+10.0.0.12:22$ printf '%s' '{"priv_key":{"type":"tendermint/PrivKeyEd25519","value":"NKEY2"}}' > /root/thesis-tm/config/node_key.json
+10.0.0.12:22$ printf '%s' '{"height":"0","round":0,"step":0}' > /root/thesis-tm/data/priv_validator_state.json
+10.0.0.13:22$ mkdir -p /root/thesis-tm/config /root/thesis-tm/data
+10.0.0.13:22$ printf '%s' '{"genesis_time":"2026-07-17T00:00:00Z","chain_id":"chain-thesis","initial_height":"0","validators":[{"address":"ADDR1","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB1"},"power":"1","name":"node0"},{"address":"ADDR2","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB2"},"power":"1","name":"node1"},{"address":"ADDR3","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB3"},"power":"1","name":"node2"},{"address":"ADDR4","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB4"},"power":"1","name":"node3"}],"app_hash":""}' > /root/thesis-tm/config/genesis.json
+10.0.0.13:22$ printf '%s' '{"address":"ADDR3","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB3"},"priv_key":{"type":"tendermint/PrivKeyEd25519","value":"PRIV3"}}' > /root/thesis-tm/config/priv_validator_key.json
+10.0.0.13:22$ printf '%s' '{"priv_key":{"type":"tendermint/PrivKeyEd25519","value":"NKEY3"}}' > /root/thesis-tm/config/node_key.json
+10.0.0.13:22$ printf '%s' '{"height":"0","round":0,"step":0}' > /root/thesis-tm/data/priv_validator_state.json
+10.0.0.14:22$ mkdir -p /root/thesis-tm/config /root/thesis-tm/data
+10.0.0.14:22$ printf '%s' '{"genesis_time":"2026-07-17T00:00:00Z","chain_id":"chain-thesis","initial_height":"0","validators":[{"address":"ADDR1","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB1"},"power":"1","name":"node0"},{"address":"ADDR2","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB2"},"power":"1","name":"node1"},{"address":"ADDR3","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB3"},"power":"1","name":"node2"},{"address":"ADDR4","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB4"},"power":"1","name":"node3"}],"app_hash":""}' > /root/thesis-tm/config/genesis.json
+10.0.0.14:22$ printf '%s' '{"address":"ADDR4","pub_key":{"type":"tendermint/PubKeyEd25519","value":"PUB4"},"priv_key":{"type":"tendermint/PrivKeyEd25519","value":"PRIV4"}}' > /root/thesis-tm/config/priv_validator_key.json
+10.0.0.14:22$ printf '%s' '{"priv_key":{"type":"tendermint/PrivKeyEd25519","value":"NKEY4"}}' > /root/thesis-tm/config/node_key.json
+10.0.0.14:22$ printf '%s' '{"height":"0","round":0,"step":0}' > /root/thesis-tm/data/priv_validator_state.json
+10.0.0.11:22$ docker run -d --name thesis-tm1 --network host -v /root/thesis-tm:/cometbft --entrypoint sh cometbft/cometbft@sha256:22c2ac018f40665e5c113e485d81531d8421f4fc76f9c8b013fbb6c0c16e150d -c "cometbft init && sed -i 's/^max_subscription_clients = .*/max_subscription_clients = 2000/' /cometbft/config/config.toml && sed -i 's/^addr_book_strict = .*/addr_book_strict = false/' /cometbft/config/config.toml && cometbft start --proxy_app=kvstore --rpc.laddr=tcp://0.0.0.0:26657 --p2p.laddr=tcp://0.0.0.0:26656 --p2p.persistent_peers=2222222222222222222222222222222222222222@10.0.0.12:26656,3333333333333333333333333333333333333333@10.0.0.13:26656,4444444444444444444444444444444444444444@10.0.0.14:26656"
+10.0.0.12:22$ docker run -d --name thesis-tm2 --network host -v /root/thesis-tm:/cometbft --entrypoint sh cometbft/cometbft@sha256:22c2ac018f40665e5c113e485d81531d8421f4fc76f9c8b013fbb6c0c16e150d -c "cometbft init && sed -i 's/^max_subscription_clients = .*/max_subscription_clients = 2000/' /cometbft/config/config.toml && sed -i 's/^addr_book_strict = .*/addr_book_strict = false/' /cometbft/config/config.toml && cometbft start --proxy_app=kvstore --rpc.laddr=tcp://0.0.0.0:26657 --p2p.laddr=tcp://0.0.0.0:26656 --p2p.persistent_peers=1111111111111111111111111111111111111111@10.0.0.11:26656,3333333333333333333333333333333333333333@10.0.0.13:26656,4444444444444444444444444444444444444444@10.0.0.14:26656"
+10.0.0.13:22$ docker run -d --name thesis-tm3 --network host -v /root/thesis-tm:/cometbft --entrypoint sh cometbft/cometbft@sha256:22c2ac018f40665e5c113e485d81531d8421f4fc76f9c8b013fbb6c0c16e150d -c "cometbft init && sed -i 's/^max_subscription_clients = .*/max_subscription_clients = 2000/' /cometbft/config/config.toml && sed -i 's/^addr_book_strict = .*/addr_book_strict = false/' /cometbft/config/config.toml && cometbft start --proxy_app=kvstore --rpc.laddr=tcp://0.0.0.0:26657 --p2p.laddr=tcp://0.0.0.0:26656 --p2p.persistent_peers=1111111111111111111111111111111111111111@10.0.0.11:26656,2222222222222222222222222222222222222222@10.0.0.12:26656,4444444444444444444444444444444444444444@10.0.0.14:26656"
+10.0.0.14:22$ docker run -d --name thesis-tm4 --network host -v /root/thesis-tm:/cometbft --entrypoint sh cometbft/cometbft@sha256:22c2ac018f40665e5c113e485d81531d8421f4fc76f9c8b013fbb6c0c16e150d -c "cometbft init && sed -i 's/^max_subscription_clients = .*/max_subscription_clients = 2000/' /cometbft/config/config.toml && sed -i 's/^addr_book_strict = .*/addr_book_strict = false/' /cometbft/config/config.toml && cometbft start --proxy_app=kvstore --rpc.laddr=tcp://0.0.0.0:26657 --p2p.laddr=tcp://0.0.0.0:26656 --p2p.persistent_peers=1111111111111111111111111111111111111111@10.0.0.11:26656,2222222222222222222222222222222222222222@10.0.0.12:26656,3333333333333333333333333333333333333333@10.0.0.13:26656"
+10.0.0.11:22$ curl -sf --max-time 2 http://127.0.0.1:26657/health
+10.0.0.12:22$ curl -sf --max-time 2 http://127.0.0.1:26657/health
+10.0.0.13:22$ curl -sf --max-time 2 http://127.0.0.1:26657/health
+10.0.0.14:22$ curl -sf --max-time 2 http://127.0.0.1:26657/health
+10.0.0.11:22$ curl -sf --max-time 2 http://127.0.0.1:26657/status
+10.0.0.11:22$ docker rm -f thesis-tm1
+10.0.0.12:22$ docker rm -f thesis-tm2
+10.0.0.13:22$ docker rm -f thesis-tm3
+10.0.0.14:22$ docker rm -f thesis-tm4
