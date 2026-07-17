@@ -733,9 +733,34 @@ ZK-MODE started line per broker (a wrong-mode broker cannot pass),
 api-versions count == 3; teardown brokers FIRST then the ensemble (an
 aux-container list in stop(), order pinned by test); size≠3 refused
 (D10). Matched verbatim; 2 new tests; the provider now serves SIX of
-seven systems — only HOTSTUFF fails closed.** After that: HotStuff
-(asonnino image from pinned source first), the G2 read-through of ALL
-goldens, P3.4 canary.
+seven systems — only HOTSTUFF fails closed.**
+**P3.3d-hotstuff INCREMENT 1 (image + real CLI contract) DONE
+2026-07-17:** `infra/hotstuff/Dockerfile` — asonnino/hotstuff pinned at
+source commit dc01ac8626a64342f6a76ae6f8914535dd090bdd; **upstream ships
+NO Cargo.lock**, so deps float within semver — the recorded image id
+(`hotstuff:dc01ac8` = 8501e107d4bf, 93.5 MB) is the real reproducibility
+anchor. Two build facts measured red first and baked into the
+Dockerfile: rust ≥ 1.85 (the floating tree resolves zeroize_derive 1.5.0
+→ edition2024) and clang/libclang+g++/make (the store crate compiles
+RocksDB via bindgen). CLI contract SOURCE-VERIFIED + probed live:
+`node keys --filename F` → single-line-able {name, secret} base64 JSON
+(printf-distributable — the CometBFT file pattern); `node run --keys F
+--committee F [--parameters F] --store PATH` with `-vv` (the log level
+whose benchmark-feature lines feed logs.py's SUMMARY → HotStuffSummary);
+`client <ADDR> --timeout INT --size INT --rate INT --nodes [ADDR…]`
+(waits for every --nodes address before starting; the SUT's OWN load
+generator — the documented boundary). Committee JSON =
+{consensus:{authorities:{<pubkey>:{stake,address}},epoch},
+mempool:{authorities:{<pubkey>:{stake,transactions_address,
+mempool_address}},epoch}} — THREE ports per node (consensus,
+transactions=client target, mempool; fab's LocalCommittee uses
+port+i/+size/+2*size). Parameters JSON fields: consensus.timeout_delay/
+sync_retry_delay; mempool.gc_depth/sync_retry_delay/sync_retry_nodes/
+batch_size/max_batch_delay (all ints). Next hotstuff increment: 4-node
+formation verified by execution (committee from generated keys, one
+container per node, a client burst visible in the SUMMARY-feeding
+logs), THEN the remote golden + provider branch. After that: the G2
+read-through of ALL goldens, P3.4 canary.
 
 (The section below is the step-1 text, kept for history.)
 

@@ -94,17 +94,20 @@ is complete. Do NOT redo any of it — PENDING_TASKS.md is the ledger
 architecture reference.
 
 Proposed next increment (confirm with me before coding, then do only this):
-**P3.3d-hotstuff — the last system, verify-first, starting with the
-image.** The asonnino/hotstuff build is research code (Rust node +
-Python/fab orchestration): (1) pin a source commit and write
-infra/hotstuff/Dockerfile (the paxi pattern — multi-stage cargo build,
-record the image id); (2) probe the node binary's ACTUAL CLI contract
-(keys/committee file generation, ports, mempool/consensus params) — do
-NOT assume fab's localnet semantics transfer; (3) verify a 4-node
-formation locally (committee file with all keys, one container per
-node, a committed client burst visible in the SUMMARY-feeding logs);
-(4) only then the remote golden + provider HOTSTUFF branch. Expect
-this to span multiple increments — the image+CLI probe alone is one.
+**P3.3d-hotstuff formation — verify a 4-node cluster by execution.**
+The image + CLI increment is DONE (2026-07-17): `docker build -t
+hotstuff:dc01ac8 infra/hotstuff` (source-pinned; NO upstream Cargo.lock
+— image id 8501e107d4bf is the reproducibility anchor; rust≥1.85 +
+libclang/g++ are measured build requirements). The contract is
+source-verified AND probed live: node keys/run CLI, -vv logging (feeds
+the SUMMARY), client <ADDR> --timeout --size --rate --nodes, committee
+JSON with THREE ports per node (consensus, transactions=client target,
+mempool), parameters JSON fields enumerated in PENDING_TASKS. Now the
+KRaft/CometBFT pattern: a formation test on a user-defined Docker
+network — generate 4 keypairs, build committee.json from them,
+one node container per alias, run a bounded client burst, assert the
+benchmark log lines that logs.py aggregates (commits visible on
+multiple nodes). THEN the remote golden + provider HOTSTUFF branch.
 After that: the G2 human read-through of ALL goldens, and the P3.4
 canary. Also pending: P2.6 (safety-oracle scope, before M5.5), P2.0
 (scheduler scaling — only if triggered).

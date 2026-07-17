@@ -62,9 +62,16 @@ start script, gates = ZK :7000/metrics per node + the ZK-MODE started
 line + api-versions==3, teardown brokers-then-ensemble (aux list in
 stop(), pinned) — matched verbatim by the provider KAFKA_ZK branch.
 The RemoteSshProvider now serves SIX of seven systems; only HOTSTUFF
-fails closed. Remaining P3.3d: HotStuff (asonnino image from pinned
-source first). Then the G2 human read-through of ALL goldens, P3.4
-canary.** Suite: **114 tests green.**
+fails closed. **P3.3d-hotstuff increment 1 ALSO DONE: the pinned-source
+image (infra/hotstuff/Dockerfile, commit dc01ac8, image id 8501e107d4bf
+— upstream has NO Cargo.lock, the image id IS the reproducibility
+anchor; rust≥1.85 and libclang/g++ measured as build requirements) +
+the node/client CLI contract source-verified and probed live (keys →
+{name,secret} b64 JSON; committee JSON with three ports per node;
+parameters fields; -vv feeds the SUMMARY). Remaining: the hotstuff
+formation test, its golden + provider branch. Then the G2 human
+read-through of ALL goldens, P3.4 canary.**
+Suite: **114 tests green.**
 Prior update, 2026-07-15 — second hard review (F18–F21 ledgered; F18 jetcd
 5 s deadline fixed TDD; doc drift fixed) **and P2.2 (KafkaDriver) completed
 TDD end-to-end**: KRaft single-node substrate (P2.2a), production
