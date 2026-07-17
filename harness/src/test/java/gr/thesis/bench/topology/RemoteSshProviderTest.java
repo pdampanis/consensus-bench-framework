@@ -71,6 +71,24 @@ class RemoteSshProviderTest {
     }
 
     @Test
+    void preCleanSweepsEveryProvisionedNodeForAnyThesisContainer() throws Exception {
+        // F29: a size-1 cluster on 3 provisioned nodes must still pre-clean
+        // ALL three — a D8 size-down run (7→5/3) leaves stale members on
+        // nodes outside the new cluster, and a crashed earlier block may
+        // have left a DIFFERENT system's containers behind. Per-name
+        // removal of the new cluster's own containers covers neither.
+        var ssh = healthyRecorder();
+        try (var provider = new RemoteSshProvider(ssh, IPS, Duration.ofSeconds(5))) {
+            provider.start(SystemUnderTest.ETCD, 1);
+        }
+        for (String ip : IPS) {
+            assertTrue(ssh.commands().contains(
+                    ip + ":22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f"),
+                    "pre-clean must sweep thesis-* on " + ip);
+        }
+    }
+
+    @Test
     void unsupportedSystemsAndOversizedClustersFailClosed() {
         var provider = new RemoteSshProvider(new RecordingSshExecutor(), IPS, Duration.ofSeconds(5));
         assertThrows(UnsupportedOperationException.class,

@@ -42,6 +42,8 @@ public final class RemoteSshProvider implements ClusterProvider {
     private static final int SSH_PORT = 22;
     static final String HEALTH_CMD = "curl -sf --max-time 2 http://127.0.0.1:2379/health";
     static final String PAXI_CONFIG_PATH = "/root/thesis-paxi-config.json";
+    static final String PRECLEAN_CMD =
+            "docker ps -aq --filter name=thesis- | xargs -r docker rm -f";
 
     private final SshExecutor ssh;
     private final List<String> nodeIps; // node order — index IS the node index
@@ -72,11 +74,17 @@ public final class RemoteSshProvider implements ClusterProvider {
             throw new IllegalStateException("provider already started — one cluster per instance");
         }
 
-        // Idempotent pre-clean: a crashed earlier block must not wedge this
-        // one. Removal of a nonexistent container is fine; anything else is
-        // not (fail closed, never `|| true`).
-        for (int i = 1; i <= clusterSize; i++) {
-            removeContainer(nodeIps.get(i - 1), containerName(system, i));
+        // Idempotent pre-clean, on EVERY provisioned node and for ANY
+        // thesis-* container (F29): a crashed earlier block may have left a
+        // DIFFERENT system's containers behind, and a D8 size-down run
+        // (7→5/3) leaves stale members on nodes outside the new cluster —
+        // either way a stale SUT eats CPU on a measurement box and sprays
+        // peer traffic at the new cluster. Same semantics as
+        // LocalDockerProvider.removeLeftovers(). Empty match ⇒ xargs -r
+        // runs nothing ⇒ exit 0; a real removal failure surfaces as a
+        // non-zero exit (fail closed, never `|| true`).
+        for (String ip : nodeIps) {
+            ssh.execOrThrow(ip, SSH_PORT, PRECLEAN_CMD);
         }
 
         if (system == SystemUnderTest.ETCD) {
