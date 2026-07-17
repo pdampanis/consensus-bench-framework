@@ -1,0 +1,42 @@
+# GOLDEN (G2): every remote command RemoteSshProvider runs for a KRaft
+# size-3 start + stop, verbatim, in order, as host:port$ command.
+#
+# The wiring shape is VERIFIED FACT, not assertion: KraftMultiBrokerFormationTest
+# (2026-07-17) proved this exact env-var contract forms a real 3-broker
+# quorum and commits acks=all under min.insync.replicas=2 with Isr=3.
+# Human read-through checklist — the remote deltas from that local test:
+#  * --network host, no mapped ports (D2): listeners bind :9092 (client/
+#    inter-broker) and :9093 (controller) on the VM itself;
+#    ADVERTISED_LISTENERS and CONTROLLER_QUORUM_VOTERS carry each node's
+#    REAL private IP (F20) — never a Docker alias.
+#  * KAFKA_CLUSTER_ID is a fixed constant: the image auto-formats storage
+#    from it (verified). NO volume is mounted, so cluster state dies with
+#    the container — every start() hands out a byte-fresh cluster
+#    (mutating cells truly recycle; durability claims stay within-run).
+#  * Internal topics ride RF=3 / txn min-ISR=2 (the F6 campaign topology).
+#    The bench topic itself is NOT created here: KafkaDriver.connect()
+#    owns it (RF=min(3,N), min.insync.replicas=2 — pinned by its tests).
+#  * Readiness is TWO gates, both retried until the deadline and both
+#    fail-closed NAMING the node: (1) per node, "Kafka Server started" in
+#    docker logs — the exact line the local test's wait strategy used;
+#    (2) on node1, the quorum oracle the local test verified:
+#    kafka-broker-api-versions prints one "(id: N)" header line per
+#    JOINED broker — the provider counts them and requires cluster size.
+#  * Pre-clean SWEEPS every thesis-* container on EVERY provisioned node
+#    (F29); deterministic thesis-k<i> names; teardown removes every
+#    container this cluster started.
+#  * clientEndpoints are BARE host:port (the Kafka bootstrap contract —
+#    KafkaDriver takes no scheme), unlike etcd/paxi's http:// URLs.
+10.0.0.11:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
+10.0.0.12:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
+10.0.0.13:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
+10.0.0.11:22$ docker run -d --name thesis-k1 --network host -e KAFKA_NODE_ID=1 -e KAFKA_PROCESS_ROLES=broker,controller -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@10.0.0.11:9093,2@10.0.0.12:9093,3@10.0.0.13:9093 -e KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093 -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://10.0.0.11:9092 -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER -e KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT -e KAFKA_CLUSTER_ID=5L6g3nShT-eMCtK--X86s0 -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3 -e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3 -e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2 apache/kafka@sha256:4ceccc577f03f51f6af8dbfda55194d0d892f4fa7913ffbded567ce3895622ed
+10.0.0.12:22$ docker run -d --name thesis-k2 --network host -e KAFKA_NODE_ID=2 -e KAFKA_PROCESS_ROLES=broker,controller -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@10.0.0.11:9093,2@10.0.0.12:9093,3@10.0.0.13:9093 -e KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093 -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://10.0.0.12:9092 -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER -e KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT -e KAFKA_CLUSTER_ID=5L6g3nShT-eMCtK--X86s0 -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3 -e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3 -e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2 apache/kafka@sha256:4ceccc577f03f51f6af8dbfda55194d0d892f4fa7913ffbded567ce3895622ed
+10.0.0.13:22$ docker run -d --name thesis-k3 --network host -e KAFKA_NODE_ID=3 -e KAFKA_PROCESS_ROLES=broker,controller -e KAFKA_CONTROLLER_QUORUM_VOTERS=1@10.0.0.11:9093,2@10.0.0.12:9093,3@10.0.0.13:9093 -e KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093 -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://10.0.0.13:9092 -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER -e KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT -e KAFKA_CLUSTER_ID=5L6g3nShT-eMCtK--X86s0 -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3 -e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3 -e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2 apache/kafka@sha256:4ceccc577f03f51f6af8dbfda55194d0d892f4fa7913ffbded567ce3895622ed
+10.0.0.11:22$ docker logs thesis-k1 2>&1 | grep -q 'Kafka Server started'
+10.0.0.12:22$ docker logs thesis-k2 2>&1 | grep -q 'Kafka Server started'
+10.0.0.13:22$ docker logs thesis-k3 2>&1 | grep -q 'Kafka Server started'
+10.0.0.11:22$ docker exec thesis-k1 /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server 10.0.0.11:9092
+10.0.0.11:22$ docker rm -f thesis-k1
+10.0.0.12:22$ docker rm -f thesis-k2
+10.0.0.13:22$ docker rm -f thesis-k3

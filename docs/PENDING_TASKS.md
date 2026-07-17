@@ -524,9 +524,26 @@ Kafka+ZK per D10 — zk1-3 + broker1-3 colocated, CometBFT testnet, Paxi trio).*
   `paxos-size3-start-stop.txt` matched verbatim; epaxos swaps only the
   algorithm token; **the F26 wedge is pinned** — paxi leader_kill records
   exactly one `docker kill thesis-paxi<leader>` and nothing to heal.
-  7 provider tests. Remaining P3.3d: Kafka/KRaft (multi-broker
-  private-listener wiring — the highest-risk remote recipe), CometBFT
-  (4-validator testnet genesis), HotStuff; then the G2 human read-through.
+  7 provider tests.
+  **P3.3d-kraft (RemoteSshProvider KRAFT) DONE 2026-07-17, golden-file
+  TDD:** the highest-risk remote recipe, de-risked in two verified steps —
+  first `KraftMultiBrokerFormationTest` proved the env-var contract BY
+  EXECUTION (3 combined-mode brokers on a user-defined network, quorum,
+  acks=all under min.insync.replicas=2, Isr=3), THEN the golden
+  `kraft-size3-start-stop.txt` was written as the spec encoding the
+  remote deltas: voters + advertised listeners on REAL private IPs (F20),
+  `--network host` binding :9092/:9093 natively (D2), fixed
+  KAFKA_CLUSTER_ID (auto-formats storage; NO volume — state dies with
+  the container, clusters byte-fresh), internal topics RF=3/txn-min-ISR-2
+  (bench topic stays KafkaDriver.connect()'s), readiness = per-node
+  "Kafka Server started" log gate THEN the api-versions quorum oracle on
+  node1 counting "(id:" headers == cluster size (2-of-3 would serve
+  acks=all silently degraded — refused, fail-loud with observed vs
+  required). clientEndpoints are BARE host:port (Kafka bootstrap
+  contract). 3 new tests; golden matched verbatim. Remaining P3.3d:
+  KAFKA_ZK (D10 colocated ZK+broker — needs its own verified local shape
+  first, same pattern), CometBFT (4-validator testnet genesis), HotStuff;
+  then the G2 human read-through of ALL goldens.
   **Remote-deltas preregistration (2026-07-16 — the topology/network/
   traffic changes between the local Docker substrate and the servers;
   every golden must reflect these):**
@@ -685,17 +702,18 @@ so sessions stop inheriting the unrelated `~/Downloads/CLAUDE.md`.
 
 ## Immediate next increment (proposed)
 
-**P3.3d-kafka — the remote KRaft golden, now unblocked.** The prerequisite
-is verified fact (2026-07-17): `KraftMultiBrokerFormationTest` proved the
-exact env-var / quorum-voter / internal-topic-RF contract forms a real
-3-node KRaft cluster and commits acks=all under min.insync.replicas=2.
-Write the golden FIRST as the spec (per-node deltas from the test: swap
-alias-advertised for `--network host` + private-IP-advertised listeners,
-`KAFKA_CONTROLLER_QUORUM_VOTERS` on private IPs, deterministic
-thesis-k<i> names, readiness gate), then the RemoteSshProvider KRAFT
-branch to match verbatim. Then CometBFT (4-validator testnet genesis) and
-HotStuff, then the G2 human read-through of ALL goldens, then the P3.4
-canary. Alternatives if blocked: M3.3 campaign runner or P4.1/P4.2
+**P3.3d-cometbft — the 4-validator remote recipe, verify-first.** Same
+two-step pattern that de-risked KRaft (done 2026-07-17): (1) prove the
+multi-validator formation shape BY EXECUTION on a user-defined local
+Docker network first — `cometbft testnet` genesis/keys per node,
+persistent_peers wiring, the kvstore app, `rpc.max_subscription_clients`
+raise (P2.3's measured fact), a committed `broadcast_tx_commit` through
+the quorum; (2) only THEN write the remote golden (private IPs in
+persistent_peers, `--network host`, :26657 RPC / :26656 P2P native, the
+config generated node-side golden-reviewably) and the provider branch to
+match verbatim. After that: KAFKA_ZK (D10 colocated ZK+broker, same
+pattern), HotStuff, the G2 human read-through of ALL goldens, then the
+P3.4 canary. Alternatives if blocked: M3.3 campaign runner or P4.1/P4.2
 (laptop-verifiable).
 
 (The section below is the pre-P3.3d text, kept for history.)

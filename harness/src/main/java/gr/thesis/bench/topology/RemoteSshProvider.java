@@ -32,9 +32,9 @@ import java.util.stream.IntStream;
  *    §1), pre-clean covers crashed predecessors, and determinism is what
  *    makes the goldens exact.
  *
- * ETCD and PAXOS/EPAXOS for now — every other system fails closed until
- * its block lands with its own golden (claiming them unverified would be
- * v6's sin).
+ * ETCD, KRAFT and PAXOS/EPAXOS for now — every other system fails closed
+ * until its block lands with its own golden (claiming them unverified
+ * would be v6's sin).
  */
 public final class RemoteSshProvider implements ClusterProvider {
 
@@ -44,6 +44,11 @@ public final class RemoteSshProvider implements ClusterProvider {
     static final String PAXI_CONFIG_PATH = "/root/thesis-paxi-config.json";
     static final String PRECLEAN_CMD =
             "docker ps -aq --filter name=thesis- | xargs -r docker rm -f";
+    /** Fixed KRaft cluster id (the image auto-formats storage from it) —
+     *  the SAME verified constant KraftMultiBrokerFormationTest used.
+     *  Deterministic on purpose: state is container-local (no volume), so
+     *  a fixed id can never collide with stale storage. */
+    static final String KRAFT_CLUSTER_ID = "5L6g3nShT-eMCtK--X86s0";
 
     private final SshExecutor ssh;
     private final List<String> nodeIps; // node order — index IS the node index
@@ -61,10 +66,10 @@ public final class RemoteSshProvider implements ClusterProvider {
 
     @Override
     public List<NodeHandle> start(SystemUnderTest system, int clusterSize) throws Exception {
-        if (system != SystemUnderTest.ETCD
+        if (system != SystemUnderTest.ETCD && system != SystemUnderTest.KRAFT
                 && system != SystemUnderTest.PAXOS && system != SystemUnderTest.EPAXOS) {
             throw new UnsupportedOperationException(
-                    "RemoteSshProvider supports ETCD/PAXOS/EPAXOS for now; asked for " + system);
+                    "RemoteSshProvider supports ETCD/KRAFT/PAXOS/EPAXOS for now; asked for " + system);
         }
         if (clusterSize < 1 || clusterSize > nodeIps.size()) {
             throw new IllegalArgumentException("clusterSize must be 1.." + nodeIps.size()
@@ -89,6 +94,8 @@ public final class RemoteSshProvider implements ClusterProvider {
 
         if (system == SystemUnderTest.ETCD) {
             startEtcd(clusterSize);
+        } else if (system == SystemUnderTest.KRAFT) {
+            startKraft(clusterSize);
         } else {
             startPaxi(system, clusterSize);
         }
@@ -167,6 +174,98 @@ public final class RemoteSshProvider implements ClusterProvider {
             nodes.add(new NodeHandle(i - 1, containerName(system, i), ip, ip));
             endpoints.add("http://" + ip + ":8080");
         }
+    }
+
+    /**
+     * KRaft over SSH (P3.3d-kraft) — the env-var contract VERIFIED BY
+     * EXECUTION in KraftMultiBrokerFormationTest (2026-07-17: 3-broker
+     * quorum, acks=all under min.insync.replicas=2, Isr=3), with the
+     * remote deltas: voters and advertised listeners carry REAL private
+     * IPs (F20), --network host binds :9092/:9093 natively (D2), and no
+     * volume — the image auto-formats storage from KAFKA_CLUSTER_ID, so
+     * cluster state dies with the container (byte-fresh clusters).
+     * Readiness: per-node "Kafka Server started" in docker logs (the
+     * local test's wait strategy), then the quorum oracle on node1 —
+     * kafka-broker-api-versions prints one "(id: N)" header per JOINED
+     * broker; the gate requires exactly clusterSize of them (2 of 3
+     * would serve acks=all silently degraded — refuse it). The bench
+     * topic is KafkaDriver.connect()'s job, not the provider's.
+     */
+    private void startKraft(int clusterSize) throws Exception {
+        String voters = IntStream.rangeClosed(1, clusterSize)
+                .mapToObj(i -> i + "@" + nodeIps.get(i - 1) + ":9093")
+                .collect(Collectors.joining(","));
+        // Internal-topic RF follows the cluster size, like KafkaDriver's
+        // bench topic (RF=min(3,N)); min-ISR 2 only makes sense at RF 3.
+        int rf = Math.min(3, clusterSize);
+        int txnMinIsr = rf >= 3 ? 2 : 1;
+
+        log.debug("phase: deploy — starting {} KRaft container(s) over SSH", clusterSize);
+        for (int i = 1; i <= clusterSize; i++) {
+            String ip = nodeIps.get(i - 1);
+            ssh.execOrThrow(ip, SSH_PORT,
+                    "docker run -d --name " + containerName(SystemUnderTest.KRAFT, i) + " --network host"
+                            + " -e KAFKA_NODE_ID=" + i
+                            + " -e KAFKA_PROCESS_ROLES=broker,controller"
+                            + " -e KAFKA_CONTROLLER_QUORUM_VOTERS=" + voters
+                            + " -e KAFKA_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093"
+                            + " -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://" + ip + ":9092"
+                            + " -e KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER"
+                            + " -e KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT"
+                            + " -e KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+                            + " -e KAFKA_CLUSTER_ID=" + KRAFT_CLUSTER_ID
+                            + " -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=" + rf
+                            + " -e KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=" + rf
+                            + " -e KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=" + txnMinIsr
+                            + " " + LocalDockerProvider.KAFKA_IMAGE);
+        }
+        for (int i = 1; i <= clusterSize; i++) {
+            awaitKraftStarted(nodeIps.get(i - 1), containerName(SystemUnderTest.KRAFT, i));
+        }
+        awaitKraftQuorum(nodeIps.get(0), containerName(SystemUnderTest.KRAFT, 1), clusterSize);
+        for (int i = 1; i <= clusterSize; i++) {
+            String ip = nodeIps.get(i - 1);
+            nodes.add(new NodeHandle(i - 1, containerName(SystemUnderTest.KRAFT, i), ip, ip));
+            // BARE host:port — the Kafka bootstrap contract (no scheme).
+            endpoints.add(ip + ":9092");
+        }
+    }
+
+    /** Per-node started gate: the same log line the verified local test's
+     *  wait strategy keyed on. grep -q ⇒ the exit code IS the signal. */
+    private void awaitKraftStarted(String ip, String container) throws Exception {
+        String probe = "docker logs " + container + " 2>&1 | grep -q 'Kafka Server started'";
+        long deadline = System.nanoTime() + healthDeadline.toNanos();
+        SshExecutor.ExecResult last = null;
+        while (System.nanoTime() < deadline) {
+            last = ssh.exec(ip, SSH_PORT, probe);
+            if (last.exitCode() == 0) return;
+            Thread.sleep(500);
+        }
+        throw new IllegalStateException(container + " on " + ip + " never logged"
+                + " 'Kafka Server started' within " + healthDeadline + " — last: "
+                + (last == null ? "never polled" : "exit " + last.exitCode() + ", " + last.stderr()));
+    }
+
+    /** Cluster-formed gate: count api-versions' per-broker "(id:" header
+     *  lines (the oracle KraftMultiBrokerFormationTest verified) and
+     *  require exactly clusterSize joined brokers. */
+    private void awaitKraftQuorum(String ip, String container, int clusterSize) throws Exception {
+        String probe = "docker exec " + container
+                + " /opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server " + ip + ":9092";
+        long deadline = System.nanoTime() + healthDeadline.toNanos();
+        long seen = -1;
+        while (System.nanoTime() < deadline) {
+            SshExecutor.ExecResult r = ssh.exec(ip, SSH_PORT, probe);
+            if (r.exitCode() == 0) {
+                seen = r.stdout().lines().filter(l -> l.contains("(id:")).count();
+                if (seen == clusterSize) return;
+            }
+            Thread.sleep(500);
+        }
+        throw new IllegalStateException("KRaft cluster on " + ip + " never formed within "
+                + healthDeadline + ": saw " + (seen < 0 ? "no broker list" : seen + " broker(s)")
+                + " joined, need " + clusterSize);
     }
 
     private String paxiConfigJson(int clusterSize) {

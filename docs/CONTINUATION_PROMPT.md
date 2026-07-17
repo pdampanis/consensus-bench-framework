@@ -44,34 +44,41 @@ PROJECT_STATE.md, ask me; don't silently pick one.
 
 ## Where to start
 
-**P0, P1, the WHOLE P2 driver phase, and P3.3a-d for etcd+Paxi are closed
-(2026-07-17): SshExecutor seam (acceptance vs a real sshd),
-RemoteSshProvider (etcd + PAXOS/EPAXOS, goldens written FIRST as the
-spec, matched verbatim), SshFaultInjector (kill/netem-on-resolved-iface/
-pairwise-partition/slow_node, heal LIFO loud), F26 locked (paxi
-leader_kill = adaptive-mode wedge), and the P3.3d-kafka prerequisite:
-3-broker KRaft formation on a user-defined Docker network VERIFIED BY
-EXECUTION (quorum, acks=all under min.insync.replicas=2, Isr=3). The
-2026-07-17 review fixed F28 (slowNode SSH backgrounding held the exec
-channel open — nohup + stream redirect, measured red vs a real sshd),
-F29 (remote pre-clean sweeps thesis-* on ALL provisioned nodes), F30
-(EtcdHttpDriver never claims a leader). Suite: 104 tests green via
-`mvn21 clean verify` (integration tests need the local Docker daemon +
-the once-per-machine `docker build -t paxi:6823d0b infra/paxi`).** The
-measurement instrument is complete. Do NOT redo any of it —
-PENDING_TASKS.md is the ledger (F1–F30), PROJECT_STATE.md §3 the
-evidence, MEASUREMENT_DIAGRAMS.md the architecture reference.
+**P0, P1, the WHOLE P2 driver phase, and P3.3a-d for etcd+KRaft+Paxi are
+closed (2026-07-17): SshExecutor seam (acceptance vs a real sshd),
+RemoteSshProvider (etcd + KRAFT + PAXOS/EPAXOS, goldens written FIRST as
+the spec, matched verbatim), SshFaultInjector (kill/netem-on-resolved-
+iface/pairwise-partition/slow_node, heal LIFO loud), F26 locked (paxi
+leader_kill = adaptive-mode wedge). The KRaft remote recipe — the
+highest-risk one — was de-risked in two verified steps:
+KraftMultiBrokerFormationTest proved the env-var contract BY EXECUTION
+(3-broker quorum, acks=all under min.insync.replicas=2, Isr=3), then the
+golden encoded the remote deltas (private-IP voters/advertised, host
+networking, fixed cluster id + no volume = byte-fresh state, api-versions
+quorum oracle, BARE host:port endpoints). The 2026-07-17 review fixed
+F28 (slowNode SSH backgrounding held the exec channel open — nohup +
+stream redirect, measured red vs a real sshd), F29 (remote pre-clean
+sweeps thesis-* on ALL provisioned nodes), F30 (EtcdHttpDriver never
+claims a leader). Suite: 107 tests green via `mvn21 clean verify`
+(integration tests need the local Docker daemon + the once-per-machine
+`docker build -t paxi:6823d0b infra/paxi`).** The measurement instrument
+is complete. Do NOT redo any of it — PENDING_TASKS.md is the ledger
+(F1–F30), PROJECT_STATE.md §3 the evidence, MEASUREMENT_DIAGRAMS.md the
+architecture reference.
 
 Proposed next increment (confirm with me before coding, then do only this):
-**P3.3d-kafka — the remote KRaft golden, now unblocked.** The wiring
-shape is verified fact (KraftMultiBrokerFormationTest): write the golden
-FIRST as the spec — swap alias-advertised listeners for `--network host`
-+ private-IP-advertised, KAFKA_CONTROLLER_QUORUM_VOTERS on private IPs,
-deterministic thesis-k<i> names, a readiness gate — then the
-RemoteSshProvider KRAFT branch to match verbatim. Then CometBFT
-(4-validator testnet genesis), HotStuff, the G2 human read-through of
-ALL goldens, and the P3.4 canary. Also pending: P2.6 (safety-oracle
-scope, before M5.5), P2.0 (scheduler scaling — only if triggered).
+**P3.3d-cometbft — the 4-validator remote recipe, verify-first.** Same
+two-step pattern that de-risked KRaft: (1) prove the multi-validator
+formation shape BY EXECUTION on a user-defined local Docker network —
+`cometbft testnet` genesis/keys per node, persistent_peers wiring, the
+kvstore app, the rpc.max_subscription_clients raise (P2.3's measured
+fact), a committed broadcast_tx_commit through the quorum; (2) only THEN
+the remote golden (private IPs in persistent_peers, --network host,
+:26657/:26656 native) and the provider branch to match verbatim. After
+that: KAFKA_ZK (D10 colocated ZK+broker, same pattern), HotStuff, the G2
+human read-through of ALL goldens, and the P3.4 canary. Also pending:
+P2.6 (safety-oracle scope, before M5.5), P2.0 (scheduler scaling — only
+if triggered).
 
 ## What "done" looks like for this whole effort
 
@@ -107,8 +114,8 @@ Don't let this become an afterthought bolted on at analysis time.
 - the consensus papers already in the project
 
 Start by reading PROJECT_STATE.md, confirming `mvn21 clean verify` is still
-green (104 tests, Docker required), then propose the P3.3d-kafka golden
-increment, and wait for my go-ahead.
+green (107 tests, Docker required), then propose the P3.3d-cometbft
+verify-first increment, and wait for my go-ahead.
 
 ────────────────────────────────────────────────────────────────────────────
 Note on the model switch: this project involves consensus/BFT and distributed-

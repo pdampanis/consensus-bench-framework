@@ -18,7 +18,16 @@ updated, shape pinned by a real-sshd assertion. F29: remote pre-clean now
 sweeps thesis-* on EVERY provisioned node (D8 size-down and cross-system
 leftovers silently violated stationarity); goldens updated FIRST as the
 spec. F30: EtcdHttpDriver no longer claims leader index 0 (the M0 stub was
-the v6 kill-node-1 trap); honest absence. Suite: **104 tests green.**
+the v6 kill-node-1 trap); honest absence. **P3.3d-kraft ALSO DONE same
+day (golden-file TDD): RemoteSshProvider serves KRAFT — golden written
+from the EXECUTION-VERIFIED formation shape (private-IP voters/advertised
+listeners, --network host, fixed KAFKA_CLUSTER_ID + no volume so state
+dies with the container, internal topics RF=3/txn-min-ISR-2, readiness =
+per-node "Kafka Server started" log gate then the api-versions quorum
+oracle counting joined brokers == cluster size, BARE host:port
+endpoints); matched verbatim, 3 new tests. Remaining P3.3d: KAFKA_ZK
+(D10), CometBFT, HotStuff — each verify-first.** Suite: **107 tests
+green.**
 Prior update, 2026-07-15 — second hard review (F18–F21 ledgered; F18 jetcd
 5 s deadline fixed TDD; doc drift fixed) **and P2.2 (KafkaDriver) completed
 TDD end-to-end**: KRaft single-node substrate (P2.2a), production

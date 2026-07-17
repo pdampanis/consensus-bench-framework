@@ -157,6 +157,72 @@ class RemoteSshProviderTest {
         }
     }
 
+    // ---- P3.3d: KRaft remote substrate (wiring shape verified by
+    //      KraftMultiBrokerFormationTest, 2026-07-17) ----
+
+    private static final String KRAFT_QUORUM_CMD =
+            "docker exec thesis-k1 /opt/kafka/bin/kafka-broker-api-versions.sh"
+                    + " --bootstrap-server 10.0.0.11:9092";
+
+    /** Started-gates (docker logs grep) succeed by default (canned exit 0);
+     *  the quorum oracle answers with one "(id: N)" header per broker —
+     *  the exact output shape the local formation test counted. */
+    private static RecordingSshExecutor kraftReadyRecorder() {
+        var ssh = new RecordingSshExecutor();
+        ssh.respondTo(KRAFT_QUORUM_CMD, new SshExecutor.ExecResult(0,
+                "10.0.0.11:9092 (id: 1 rack: null) -> (\n"
+                        + "10.0.0.12:9092 (id: 2 rack: null) -> (\n"
+                        + "10.0.0.13:9092 (id: 3 rack: null) -> (\n", ""));
+        return ssh;
+    }
+
+    @Test
+    void kraftSize3StartStopMatchesTheGoldenCommandSequence() throws Exception {
+        var ssh = kraftReadyRecorder();
+        try (var provider = new RemoteSshProvider(ssh, IPS, Duration.ofSeconds(5))) {
+            provider.start(SystemUnderTest.KRAFT, 3);
+            provider.stop();
+        }
+        Path golden = Path.of("src/test/resources/goldens/kraft-size3-start-stop.txt");
+        List<String> expected = Files.readAllLines(golden).stream()
+                .filter(l -> !l.startsWith("#") && !l.isBlank())
+                .toList();
+        assertEquals(expected, ssh.commands(),
+                "the recorded KRaft sequence must match the reviewed golden verbatim");
+    }
+
+    @Test
+    void kraftEndpointsAreBareHostPortAndHandlesCarryRealIps() throws Exception {
+        var ssh = kraftReadyRecorder();
+        try (var provider = new RemoteSshProvider(ssh, IPS, Duration.ofSeconds(5))) {
+            var nodes = provider.start(SystemUnderTest.KRAFT, 3);
+            // The Kafka bootstrap contract is BARE host:port — KafkaDriver
+            // takes no scheme (the local provider strips PLAINTEXT:// for
+            // the same reason).
+            assertEquals(List.of("10.0.0.11:9092", "10.0.0.12:9092", "10.0.0.13:9092"),
+                    provider.clientEndpoints());
+            assertEquals("10.0.0.12", nodes.get(1).privateIp());
+            assertEquals("thesis-k2", nodes.get(1).containerName());
+        }
+    }
+
+    @Test
+    void kraftQuorumGateFailsClosedNamingTheNodeAndTheObservedCount() {
+        // Two brokers joined, one missing: acks=all would still work under
+        // min-ISR 2, silently degraded — the gate must refuse the cluster.
+        var ssh = new RecordingSshExecutor();
+        ssh.respondTo(KRAFT_QUORUM_CMD, new SshExecutor.ExecResult(0,
+                "10.0.0.11:9092 (id: 1 rack: null) -> (\n"
+                        + "10.0.0.12:9092 (id: 2 rack: null) -> (\n", ""));
+        var provider = new RemoteSshProvider(ssh, IPS, Duration.ofSeconds(1));
+        var e = assertThrows(IllegalStateException.class,
+                () -> provider.start(SystemUnderTest.KRAFT, 3));
+        assertTrue(e.getMessage().contains("10.0.0.11"),
+                "the gate node must be NAMED: " + e.getMessage());
+        assertTrue(e.getMessage().contains("2") && e.getMessage().contains("3"),
+                "the observed vs required broker count must be in the message: " + e.getMessage());
+    }
+
     @Test
     void healthGateFailsClosedNamingTheUnhealthyNode() {
         var ssh = new RecordingSshExecutor();
