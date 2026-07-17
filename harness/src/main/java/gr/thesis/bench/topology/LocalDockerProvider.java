@@ -52,6 +52,12 @@ public final class LocalDockerProvider implements ClusterProvider {
     public static final String COMETBFT_IMAGE =
             "cometbft/cometbft@sha256:22c2ac018f40665e5c113e485d81531d8421f4fc76f9c8b013fbb6c0c16e150d";
 
+    /** zookeeper 3.9 pinned by REGISTRY DIGEST (D2) — the KAFKA_ZK (D10)
+     *  ensemble; ZK 3.6+ ships the PrometheusMetricsProvider the :7000
+     *  scrape job expects (enabled via ZOO_CFG_EXTRA, probed 2026-07-17). */
+    public static final String ZOOKEEPER_IMAGE =
+            "zookeeper@sha256:4c6f15fbd5491a3e01b0108c046891125553329a4956848ba3014cedff5386ee";
+
     /** Paxi (Paxos/EPaxos, SIGMOD'19) — built from PINNED SOURCE because the
      *  project publishes no image. A local build has no registry digest, so
      *  the D2 pin is the source commit baked into infra/paxi/Dockerfile

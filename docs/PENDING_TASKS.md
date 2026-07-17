@@ -702,19 +702,28 @@ so sessions stop inheriting the unrelated `~/Downloads/CLAUDE.md`.
 
 ## Immediate next increment (proposed)
 
-**P3.3d-kafka_zk — the D10 colocated ZK+broker recipe, verify-first.**
-The last CFT recipe. Same two-step pattern: (1) prove the colocated
-shape BY EXECUTION on a user-defined local Docker network — a 3-node ZK
-ensemble (zk1-3) AND 3 brokers (broker1-3) as separate containers
-pair-wise colocated (mirroring one VM hosting both, D10), ZK quorum
-formed, brokers registered, an acks=all commit under
-min.insync.replicas=2, ZK's :7000 Prometheus endpoint answering (P4.3
-needs the metric names); (2) only THEN the remote golden (both
-containers per VM, private-IP ZK connect strings and advertised
-listeners) and the provider KAFKA_ZK branch to match verbatim. After
-that: HotStuff (needs the asonnino image built from pinned source
-first — the paxi pattern), the G2 human read-through of ALL goldens,
-then the P3.4 canary.
+**P3.3d-kafka_zk STEP 2 — the remote golden + provider KAFKA_ZK branch.**
+STEP 1 IS DONE (2026-07-17, 18.7 s green): `KafkaZkColocatedFormationTest`
+proved the D10 colocated shape BY EXECUTION, built on two PROBED facts —
+(a) **the apache/kafka image's entrypoint REFUSES ZK mode** ("Formatting
+is only supported for clusters in KRaft mode"), but the SAME digest-
+pinned image carries full ZK-mode binaries, so the recipe bypasses the
+entrypoint: printf a server.properties, run `kafka-server-start.sh` —
+which is exactly what keeps F6 an identical-binaries comparison; ZK mode
+logs "[KafkaServer id=N] started (kafka.server.KafkaServer)" (NOT
+KafkaRaftServer — the wait/gate line differs from KRaft); (b) the
+zookeeper:3.9 image (digest-pinned, new `ZOOKEEPER_IMAGE` constant)
+forms the ensemble from ZOO_MY_ID + ZOO_SERVERS and enables the
+PrometheusMetricsProvider on :7000 via ZOO_CFG_EXTRA — verified serving
+`znode_count` (P4.3's metric-name source). Verified end-to-end: 3
+brokers registered via the ensemble, acks=all committed under
+min.insync.replicas=2, Isr=3. Step 2: the golden — per VM TWO
+containers (thesis-zk<i> + thesis-k<i>), private-IP ZK connect strings
+and advertised listeners, the printf'd server.properties
+golden-reviewable, gates = ZK up, broker "started (kafka.server.
+KafkaServer)" log grep, api-versions count == N — then the provider
+branch to match verbatim. After that: HotStuff (asonnino image from
+pinned source first), the G2 read-through of ALL goldens, P3.4 canary.
 
 (The section below is the step-1 text, kept for history.)
 

@@ -43,8 +43,21 @@ rm -rf first, private-IP peers excluding self, both seds, readiness =
 /health per node then latest_block_height>=1 on node1 (the quorum
 gate, stuck-at-0 pinned fail-closed), size≠4 refused (D9) — matched
 verbatim by the RemoteSshProvider TENDERMINT branch, 3 new tests.
-Remaining P3.3d: KAFKA_ZK (D10), HotStuff — each verify-first.**
-Suite: **111 tests green.**
+**P3.3d-kafka_zk STEP 1 ALSO DONE same day: the D10 colocated shape
+VERIFIED BY EXECUTION in 18.7 s (KafkaZkColocatedFormationTest), built
+on two probed facts — the apache/kafka image's entrypoint REFUSES ZK
+mode ("Formatting is only supported for clusters in KRaft mode") but
+the SAME digest-pinned image carries full ZK-mode binaries, so the
+recipe bypasses the entrypoint (printf server.properties +
+kafka-server-start.sh) — F6 stays an identical-binaries comparison; ZK
+mode logs "started (kafka.server.KafkaServer)", NOT KafkaRaftServer.
+The zookeeper:3.9 image (digest-pinned, new ZOOKEEPER_IMAGE constant)
+forms the ensemble from ZOO_MY_ID+ZOO_SERVERS and serves Prometheus on
+:7000 via ZOO_CFG_EXTRA (verified: znode_count — P4.3's source).
+End-to-end: 3 brokers registered via the ensemble, acks=all committed
+under min.insync.replicas=2, Isr=3. Remaining P3.3d: the kafka_zk
+golden (step 2), HotStuff — verify-first.**
+Suite: **112 tests green.**
 Prior update, 2026-07-15 — second hard review (F18–F21 ledgered; F18 jetcd
 5 s deadline fixed TDD; doc drift fixed) **and P2.2 (KafkaDriver) completed
 TDD end-to-end**: KRaft single-node substrate (P2.2a), production

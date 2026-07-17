@@ -71,8 +71,16 @@ step 2 encoded it as `tendermint-size4-start-stop.txt` (keygen/
 show-node-id as docker run --rm one-shots, artifacts compacted to
 single-line JSON before printf, fresh-state rm -rf first, private-IP
 peers, /health + latest_block_height>=1 quorum gate, size≠4 refused)
-matched verbatim by the RemoteSshProvider TENDERMINT branch.
-Suite: 111 tests green via `mvn21 clean verify`
+matched verbatim by the RemoteSshProvider TENDERMINT branch. The
+P3.3d-kafka_zk STEP 1 is ALSO DONE: KafkaZkColocatedFormationTest
+verified the D10 colocated shape BY EXECUTION — the apache/kafka
+entrypoint REFUSES ZK mode, so brokers bypass it (printf
+server.properties + kafka-server-start.sh; SAME image digest as KRaft —
+F6 stays identical-binaries; ZK mode logs "started
+(kafka.server.KafkaServer)"), and the digest-pinned zookeeper:3.9
+ensemble serves Prometheus :7000 via ZOO_CFG_EXTRA (znode_count —
+P4.3's source); acks=all committed under min-ISR 2, Isr=3.
+Suite: 112 tests green via `mvn21 clean verify`
 (integration tests need the local Docker daemon + the once-per-machine
 `docker build -t paxi:6823d0b infra/paxi`).** The measurement instrument
 is complete. Do NOT redo any of it — PENDING_TASKS.md is the ledger
@@ -80,18 +88,18 @@ is complete. Do NOT redo any of it — PENDING_TASKS.md is the ledger
 architecture reference.
 
 Proposed next increment (confirm with me before coding, then do only this):
-**P3.3d-kafka_zk — the D10 colocated ZK+broker recipe, verify-first.**
-The last CFT recipe. (1) Prove the colocated shape BY EXECUTION on a
-user-defined local Docker network: 3-node ZK ensemble + 3 brokers as
-separate containers pairwise colocated (one VM hosts zkN+brokerN, D10),
-ZK quorum formed, an acks=all commit under min.insync.replicas=2, ZK's
-:7000 Prometheus endpoint answering (P4.3 needs those metric names);
-(2) only THEN the remote golden (both containers per VM, private-IP ZK
-connect strings and advertised listeners) and the provider KAFKA_ZK
-branch to match verbatim. After that: HotStuff (asonnino image from
-pinned source first — the paxi pattern), the G2 human read-through of
-ALL goldens, and the P3.4 canary. Also pending: P2.6 (safety-oracle
-scope, before M5.5), P2.0 (scheduler scaling — only if triggered).
+**P3.3d-kafka_zk STEP 2 — the remote golden + provider KAFKA_ZK branch.**
+Encode the verified colocated shape: per VM TWO containers (thesis-zk<i>
++ thesis-k<i>), private-IP ZOO_SERVERS/zookeeper.connect/advertised
+listeners, the printf'd server.properties golden-reviewable inside the
+broker's start script, gates = ZK :7000/metrics curl per node, broker
+"started (kafka.server.KafkaServer)" log grep (the ZK-MODE line — a
+wrong-mode broker cannot pass), api-versions count == 3 on node1;
+teardown brokers FIRST then the ensemble. Then the provider branch to
+match verbatim. After that: HotStuff (asonnino image from pinned source
+first — the paxi pattern), the G2 human read-through of ALL goldens,
+and the P3.4 canary. Also pending: P2.6 (safety-oracle scope, before
+M5.5), P2.0 (scheduler scaling — only if triggered).
 
 ## What "done" looks like for this whole effort
 
@@ -127,8 +135,8 @@ Don't let this become an afterthought bolted on at analysis time.
 - the consensus papers already in the project
 
 Start by reading PROJECT_STATE.md, confirming `mvn21 clean verify` is still
-green (111 tests, Docker required), then propose the P3.3d-kafka_zk
-verify-first increment, and wait for my go-ahead.
+green (112 tests, Docker required), then propose the P3.3d-kafka_zk
+STEP-2 golden increment, and wait for my go-ahead.
 
 ────────────────────────────────────────────────────────────────────────────
 Note on the model switch: this project involves consensus/BFT and distributed-
