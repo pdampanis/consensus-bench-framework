@@ -69,9 +69,12 @@ public final class EtcdHttpDriver implements ConsensusDriver {
     }
 
     @Override public Optional<Integer> currentLeaderIndex() {
-        // M2.1: query /v3/maintenance/status per endpoint and match leader
-        // member id to the node index. Single-node M0 slice: index 0.
-        return Optional.of(0);
+        // This driver is constructed with ONE endpoint — it structurally
+        // cannot know which member leads, so it never claims one (F30).
+        // Claiming index 0 was the M0 stub and the exact v6 "kill node1
+        // and hope" trap, armed for whoever wired fault targeting through
+        // the fallback path. Leader detection is EtcdDriver's (jetcd).
+        return Optional.empty();
     }
 
     @Override public void close() {
