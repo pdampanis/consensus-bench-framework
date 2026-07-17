@@ -1,6 +1,6 @@
 # Pending Tasks — Prioritized Backlog + Status Ledger
 
-**Last updated: 2026-07-15.** Companion to `IMPLEMENTATION_PLAN.md`
+**Last updated: 2026-07-17.** Companion to `IMPLEMENTATION_PLAN.md`
 (milestone-ordered M0→M6). This file is **priority-ordered for the current
 push** and doubles as the handoff ledger: a fresh session should be able to
 read this file plus `PROJECT_STATE.md` and know exactly what is done (with
@@ -662,9 +662,43 @@ request carries a 5 s timeout). Remaining F17 residuals: tag-pins, JMX names
 | F26-DECISION (2026-07-16, author) | **Paxi leader_kill = ADAPTIVE-MODE WEDGE (honest).** Keep paxi's default `-adaptive=true`; a hard `docker kill` of the detected leader produces a measured LIVENESS WEDGE (forwarded writes fail at the 5 s driver bound, no re-election) — reported as the honest "paxi ships no failure detector" result, an IMPLEMENTATION property, contrasted with etcd/Raft's sub-second failover. No ephemeral_leader, no /crash?t=. Consequence: paxi leader_kill has NO failover-ECDF (F4) — a documented absence, never a fabricated number; the recovery-profile figure (F5) shows the wedge. leader_kill needs NO special injector code — `FaultInjector.apply` already emits `kill(leader)`, and the wedge is emergent. | preregistered expectation | **LOCKED** — bakes into the paxi remote golden (P3.3d) and methodology §7. |
 | F26 | **Stock paxi cannot recover from a hard leader kill** (source-verified @ 6823d0b): a follower that knows a ballot always FORWARDS client requests to that leader (paxos/replica.go handleRequest) — there is no failure detector and no re-election trigger. Refined by deeper source read: on an ESTABLISHED-but-broken connection the transport writer just logs and drops (transport.go Dial goroutine), so a hard leader kill produces a silent WEDGE — forwarded writes get no reply and fail only at our F18 5 s bound, indefinitely; the **panic** path (socket.go:98-100, dial retry 100×50 ms) fires only when no prior connection existed. Consequently the LEADER survives follower death (its P2a to the dead peer is logged-and-dropped; 2/3 quorum commits — empirically confirmed by PaxiDriverTest's follower-kill). Paxi's designed fault primitive is `/crash?t=` (socket pause, process alive). `-ephemeral_leader=true` enables follower self-election but changes baseline semantics. | P3.3 | open — **preregister the paxi leader_kill design** before the goldens: adaptive-mode + documented wedge as the honest "no failure detector" result, vs ephemeral_leader mode, vs paxi's own Crash(t); verify empirically whichever is chosen. Expected-vs-observed material for the thesis (implementation property, not protocol property). |
 
+**2026-07-17 fourth hard review — findings F28–F30** (full code+docs pass;
+HEAD re-verified by execution FIRST in a throwaway worktree: 101/101 green;
+all three findings fixed same day, TDD red→green; plus the P3.3d-kafka
+prerequisite — the 3-broker KRaft formation test the 2026-07-16 classifier
+outage had blocked — compile-fixed, executed green in 14.6 s, committed):
+
+| # | Finding | Task | Status |
+|---|---------|------|--------|
+| F28 | `SshFaultInjector.slowNode` backgrounded stress-ng WITHOUT redirecting streams (`cmd & echo started`): the process inherits the exec channel's stdout/stderr, sshd holds the channel open until IT exits, and the 30 s command bound trips — the injection itself stalls 30 s and aborts on a real VM. The RecordingSshExecutor cannot see channel semantics, so the golden was green while the behavior was broken (the documented "goldens can't catch semantic SSH errors" class — caught pre-canary). Measured red vs a real sshd: ConnectionException after 36.6 s. | injector | **DONE 2026-07-17** — `nohup <cmd> >/dev/null 2>&1 & echo started`; golden SLOW_NODE updated with the load-bearing rationale; shape pinned by a real-sshd assertion (<5 s); heal's pkill still matches (nohup execs, cmdline unchanged) |
+| F29 | Remote pre-clean removed only the NEW cluster's own container names on member nodes: a D8 size-down run (7→5/3) left stale members running on non-member nodes (spraying peer traffic at the new cluster), and a crashed cross-system block left a different system's containers eating CPU on measurement boxes — both silent stationarity violations | provider | **DONE 2026-07-17** — golden-first: pre-clean = `docker ps -aq --filter name=thesis- \| xargs -r docker rm -f` on ALL provisioned nodes (removeLeftovers semantics); new test pins the sweep at clusterSize < provisioned |
+| F30 | `EtcdHttpDriver.currentLeaderIndex()` hardcoded `Optional.of(0)` (M0 stub) — the v6 "kill node1 and hope" trap, armed for whoever wires fault targeting through the fallback path; the single-endpoint driver structurally cannot know the leader | driver | **DONE 2026-07-17** — honest absence (`Optional.empty()`), red→green; no caller depended on the stub (EtcdDriverTest's cross-check uses its own raw HTTP-gateway ground truth) |
+
+Suite after the four increments: **104 tests green** (`mvn21 clean verify`).
+Doc drift fixed same session: README quick-start pointer (was "next: P2.4"),
+CONTINUATION_PROMPT next increment (was P3.3c), stale "Last updated"
+headers, LOCAL_TESTING count; `harness/dependency-reduced-pom.xml`
+(shade-plugin artifact) untracked + gitignored; repo-local CLAUDE.md added
+so sessions stop inheriting the unrelated `~/Downloads/CLAUDE.md`.
+
 ---
 
 ## Immediate next increment (proposed)
+
+**P3.3d-kafka — the remote KRaft golden, now unblocked.** The prerequisite
+is verified fact (2026-07-17): `KraftMultiBrokerFormationTest` proved the
+exact env-var / quorum-voter / internal-topic-RF contract forms a real
+3-node KRaft cluster and commits acks=all under min.insync.replicas=2.
+Write the golden FIRST as the spec (per-node deltas from the test: swap
+alias-advertised for `--network host` + private-IP-advertised listeners,
+`KAFKA_CONTROLLER_QUORUM_VOTERS` on private IPs, deterministic
+thesis-k<i> names, readiness gate), then the RemoteSshProvider KRAFT
+branch to match verbatim. Then CometBFT (4-validator testnet genesis) and
+HotStuff, then the G2 human read-through of ALL goldens, then the P3.4
+canary. Alternatives if blocked: M3.3 campaign runner or P4.1/P4.2
+(laptop-verifiable).
+
+(The section below is the pre-P3.3d text, kept for history.)
 
 **P2.5 — HotStuff SUMMARY parser (fixture-tested).** The exact format is
 captured from asonnino/hotstuff `benchmark/benchmark/logs.py` (result()

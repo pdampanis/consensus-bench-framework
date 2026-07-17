@@ -5,7 +5,21 @@ It is written for a fresh Claude session with no memory of prior turns.
 When something here conflicts with an older file, this document wins; update
 it at the end of every working session.
 
-Last updated: 2026-07-15 — second hard review (F18–F21 ledgered; F18 jetcd
+Last updated: 2026-07-17 — fourth hard review + fixes (F28–F30, ledger in
+PENDING_TASKS; all fixed same day, TDD red→green) and the **P3.3d-kafka
+prerequisite verified by execution**: 3-broker KRaft formation on a
+user-defined Docker network (the increment the 2026-07-16 classifier
+outage had blocked mid-verification) — quorum formed, acks=all committed
+under min.insync.replicas=2, Isr=3; the remote Kafka golden can now encode
+a VERIFIED wiring shape. F28: slowNode's SSH backgrounding held the exec
+channel open (measured 30 s join timeout vs a real sshd — the injection
+itself would stall and abort); fixed with nohup + stream redirect, golden
+updated, shape pinned by a real-sshd assertion. F29: remote pre-clean now
+sweeps thesis-* on EVERY provisioned node (D8 size-down and cross-system
+leftovers silently violated stationarity); goldens updated FIRST as the
+spec. F30: EtcdHttpDriver no longer claims leader index 0 (the M0 stub was
+the v6 kill-node-1 trap); honest absence. Suite: **104 tests green.**
+Prior update, 2026-07-15 — second hard review (F18–F21 ledgered; F18 jetcd
 5 s deadline fixed TDD; doc drift fixed) **and P2.2 (KafkaDriver) completed
 TDD end-to-end**: KRaft single-node substrate (P2.2a), production
 KafkaDriver (P2.2b), G1 flaw-B regression vs kafka-producer-perf-test

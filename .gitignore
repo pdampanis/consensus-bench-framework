@@ -4,6 +4,8 @@ out/
 *.class
 *.jar
 !.mvn/wrapper/maven-wrapper.jar
+# shade-plugin build artifact, regenerated on every package
+dependency-reduced-pom.xml
 
 # Terraform
 .terraform/

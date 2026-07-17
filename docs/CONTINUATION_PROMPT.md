@@ -44,37 +44,34 @@ PROJECT_STATE.md, ask me; don't silently pick one.
 
 ## Where to start
 
-**P0, P1, and THE WHOLE P2 DRIVER PHASE are closed (2026-07-16): P2.1
-etcd/jetcd, P2.2 Kafka (+G1 flaw-B parity), P2.3 CometBFT (602 tx/s
-acceptance), P2.4 Paxi a/b/c (pinned-source image, probe-write quorum
-gate, Ballot-header leader detection, EPaxos exercised, D7 sweep e2e),
-P2.5 HotStuff SUMMARY parser. Suite: 101 tests green via `mvn21 clean
-verify` (integration tests need the local Docker daemon + the once-per-
-machine `docker build -t paxi:6823d0b infra/paxi`).** The measurement
-instrument is complete: open-loop engine with CO correction, real
-HdrHistogram + latency.hlog, EventLog failover, manifest v2, first-error
-capture, `local-run` one-command loop, five production driver surfaces
-with bounded (5 s) completion. Do NOT redo any of it — PENDING_TASKS.md
-is the ledger (F1–F27), PROJECT_STATE.md §3 the evidence,
-MEASUREMENT_DIAGRAMS.md the architecture reference.
+**P0, P1, the WHOLE P2 driver phase, and P3.3a-d for etcd+Paxi are closed
+(2026-07-17): SshExecutor seam (acceptance vs a real sshd),
+RemoteSshProvider (etcd + PAXOS/EPAXOS, goldens written FIRST as the
+spec, matched verbatim), SshFaultInjector (kill/netem-on-resolved-iface/
+pairwise-partition/slow_node, heal LIFO loud), F26 locked (paxi
+leader_kill = adaptive-mode wedge), and the P3.3d-kafka prerequisite:
+3-broker KRaft formation on a user-defined Docker network VERIFIED BY
+EXECUTION (quorum, acks=all under min.insync.replicas=2, Isr=3). The
+2026-07-17 review fixed F28 (slowNode SSH backgrounding held the exec
+channel open — nohup + stream redirect, measured red vs a real sshd),
+F29 (remote pre-clean sweeps thesis-* on ALL provisioned nodes), F30
+(EtcdHttpDriver never claims a leader). Suite: 104 tests green via
+`mvn21 clean verify` (integration tests need the local Docker daemon +
+the once-per-machine `docker build -t paxi:6823d0b infra/paxi`).** The
+measurement instrument is complete. Do NOT redo any of it —
+PENDING_TASKS.md is the ledger (F1–F30), PROJECT_STATE.md §3 the
+evidence, MEASUREMENT_DIAGRAMS.md the architecture reference.
 
 Proposed next increment (confirm with me before coding, then do only this):
-**P3.3c — the remote FaultInjector, golden-file TDD.** G1 is SIGNED OFF;
-P3.3a (SshExecutor seam + sshj, acceptance vs a real sshd) and P3.3b
-(RemoteSshProvider, etcd first — golden written FIRST as the spec,
-recorded sequence matches verbatim, F20 resolved) are DONE. Build the
-SSH FaultInjector on the same seam: docker kill by NodeHandle; netem
-packet-loss/delay with the interface resolved per node via
-`ip -o route get <peer_private_ip>` and PARSED from the recorded output
-(never an assumed eth0); iptables partition as pairwise node-IP rules
-that PRESERVE the loadgen→leader path (observing the partitioned leader
-IS the measurement); stress-ng slow_node; **heal in finally, provably
-always emitted** (a golden must show the heal even when injection
-throws). F13/F19 targeting is already pinned by FaultInjectorApplyTest;
-F26 (paxi leader_kill semantics) must be DECIDED before any paxi golden.
-Then P3.3d extends goldens per (system, scenario, size) for the G2 human
-read-through. Also pending: P2.6 (safety-oracle scope, before M5.5),
-P2.0 (scheduler scaling — only if triggered).
+**P3.3d-kafka — the remote KRaft golden, now unblocked.** The wiring
+shape is verified fact (KraftMultiBrokerFormationTest): write the golden
+FIRST as the spec — swap alias-advertised listeners for `--network host`
++ private-IP-advertised, KAFKA_CONTROLLER_QUORUM_VOTERS on private IPs,
+deterministic thesis-k<i> names, a readiness gate — then the
+RemoteSshProvider KRAFT branch to match verbatim. Then CometBFT
+(4-validator testnet genesis), HotStuff, the G2 human read-through of
+ALL goldens, and the P3.4 canary. Also pending: P2.6 (safety-oracle
+scope, before M5.5), P2.0 (scheduler scaling — only if triggered).
 
 ## What "done" looks like for this whole effort
 
@@ -110,8 +107,8 @@ Don't let this become an afterthought bolted on at analysis time.
 - the consensus papers already in the project
 
 Start by reading PROJECT_STATE.md, confirming `mvn21 clean verify` is still
-green (101 tests, Docker required), then confirm G1 sign-off and propose
-the P3.3 increment, and wait for my go-ahead.
+green (104 tests, Docker required), then propose the P3.3d-kafka golden
+increment, and wait for my go-ahead.
 
 ────────────────────────────────────────────────────────────────────────────
 Note on the model switch: this project involves consensus/BFT and distributed-
