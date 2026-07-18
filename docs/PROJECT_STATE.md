@@ -29,11 +29,23 @@ client on the loadgen + chunked whole-log retrieval (`RemoteLogs`, the
 sshj 2 MB window) + analyzer → summary.txt; HotStuff faults preregistered,
 BASELINE only); new docs `HOW_TO_CONTINUE.md` (the map) and
 `PER_ALGORITHM_TEST_GUIDE.md` (per-algorithm test/debug/benchmark
-checklists). Next: G2 golden read-through (HUMAN) → P3.5 price check →
-P3.4 canary → per-system smoke → M3.3-full (LLM-ready spec in
-PENDING_TASKS). **Suite after this session: 137 tests green** — the one
-batched `mvn21 clean verify` (BUILD SUCCESS, ~4 min; every new golden
-matched verbatim on the first run).
+checklists). **Same session, batches 2–3: M3.3-full matrix runner**
+(`campaign.MatrixRunner` + `campaign-run` — one system block, seeded
+reproducible shuffle, manifest-resume, failure-continues, `--dry-run`);
+**per-algorithm Grafana dashboards** (campaign overview + etcd/kafka/
+cometbft/paxi+hotstuff, each with an embedded baseline-vs-observed +
+false-positive reading guide); **collection + offline replay**
+(`scripts/collect_block.sh` → one dated dir + count-verify pre-destroy;
+`observability/offline/` replays the Prometheus snapshot on the SAME
+dashboards); **`analysis/analyse.py`** (F15 successor: per-cell bootstrap
+CIs, percentile SPREADS never averages, honest exclusion, `--selftest`);
+and the novice layer `OBSERVABILITY_AND_EXPECTATIONS.md` (preregistered
+per-algorithm baselines with corpus anchors + cleanup) + `docs/examples/`
+(one real tiny run + two labelled synthetic shapes). Next: G2 golden
+read-through (HUMAN) → P3.5 price check → P3.4 canary → per-system smoke.
+**Suite after all three batches: 143 tests green** (one batched
+`mvn21 clean verify`, BUILD SUCCESS; MatrixRunner + the `--dry-run`
+parser pin added the last 6).
 Prior update, 2026-07-17 — fourth hard review + fixes (F28–F30, ledger in
 PENDING_TASKS; all fixed same day, TDD red→green) and the **P3.3d-kafka
 prerequisite verified by execution**: 3-broker KRaft formation on a
@@ -510,19 +522,28 @@ harness archives per run into `metrics/*.csv`).
    previously listed here except the items below IS built and tested; see
    §3 and the PENDING_TASKS ledger)
 
-- **M3.3-full matrix runner** (loops the existing `remote-run` cells:
-  randomized order within system blocks, n=5, resume; LLM-ready spec in
-  PENDING_TASKS NEXT-3) and the picocli CLI (M1.3).
 - **HotStuff fault scenarios** (preregistration required first —
-  PENDING_TASKS NEXT-4; remote-run serves HotStuff BASELINE today).
-- `ValidityChecker` (M5.5), `PrometheusExporter` (M5.4), docker-events
-  audit (the open half of P4.5), ZK/JMX metric-name fixtures (P4.3),
-  Grafana dashboards as code (M5.6).
+  PENDING_TASKS NEXT-4; remote-run serves HotStuff BASELINE today) and the
+  picocli CLI (M1.3 — the hand-rolled parser is now fail-closed, F32).
+- `ValidityChecker` (M5.5), `PrometheusExporter` (M5.4 — per-run
+  metrics/*.csv) + harness self-metrics on :9400 (M5.3), docker-events
+  audit (the open half of P4.5), ZK/JMX metric-name fixtures (P4.3 — the
+  Kafka dashboard panels stay untrusted until then).
 - The **canary** (P3.4) and everything gate-blocked behind G2's HUMAN
   golden read-through (all seven goldens now exist and are test-matched).
-- `analyse.py` v2 (pooled histograms, Holm correction, ECDFs, validity
-  filtering) and the 8 planned figures (F15: vendor the old analyse.py
-  first).
+- `analysis/analyse.py`'s growth to pooled histograms, Holm correction,
+  ECDFs, and the 8 figures (M6.4 — the foundation now exists in-repo:
+  per-cell CIs, percentile spreads, honest exclusion, `--selftest`).
+
+**Built this session's batches 2–3 (previously listed here):** the
+**M3.3-full matrix runner** (`campaign.MatrixRunner` + `campaign-run` CLI:
+one system block = scenarios×rates×conflicts×reps, seeded reproducible
+shuffle, manifest-resume, failure-continues, `--dry-run`); **Grafana
+dashboards as code** (campaign overview + per-algorithm, each with an
+embedded reading guide); **collection + offline replay**
+(`scripts/collect_block.sh`, `observability/offline/`); the **analyse.py
+foundation**; and the novice-facing `OBSERVABILITY_AND_EXPECTATIONS.md` +
+`docs/examples/` sample data.
 
 ## 5. The plan and its gates
 

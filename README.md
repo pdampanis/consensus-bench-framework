@@ -88,7 +88,13 @@ consensus-bench-thesis/
 │   ├── prometheus.yml              scrape config, role labels (promtool-verified)
 │   ├── docker-compose.yml          obs VM: Prometheus + Grafana
 │   ├── export_queries.txt          per-run PromQL archive set (22 queries)
-│   └── grafana/provisioning/       datasource-as-code
+│   ├── offline/                    replay a collected campaign snapshot on the laptop
+│   └── grafana/provisioning/       datasource + dashboards as code (campaign overview
+│                                   + per-algorithm, each with an embedded reading guide)
+├── analysis/
+│   └── analyse.py                  collected tree → per-cell CIs + spreads (stdlib; --selftest)
+├── scripts/
+│   └── collect_block.sh            one command: results + Prometheus snapshot → one dated dir
 └── docs/
     ├── PROJECT_STATE.md            ← READ FIRST; single source of truth
     ├── PENDING_TASKS.md            prioritized backlog + status ledger + F-findings
@@ -99,6 +105,9 @@ consensus-bench-thesis/
     ├── EXECUTION_AND_COST_MODEL.md one-system-at-a-time model, per-system cost
     ├── HOW_TO_CONTINUE.md          ← the one-page map: ladder + numbered next steps
     ├── PER_ALGORITHM_TEST_GUIDE.md per-algorithm tests/debug/benchmark checklists
+    ├── OBSERVABILITY_AND_EXPECTATIONS.md  preregistered per-algo baselines + corpus anchors
+    │                               + dashboard reading guide + false-positives + cleanup
+    ├── examples/                   tiny sample data (1 real laptop run + 2 labelled synthetic)
     ├── LOCAL_TESTING.md            manual verification: exact commands + outputs
     ├── MONITORING_GUIDE.md         novice guide: watch/debug runs, Grafana+Prometheus demo
     ├── MEASUREMENT_DIAGRAMS.md     engine core + per-system commit-path diagrams

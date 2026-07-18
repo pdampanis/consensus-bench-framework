@@ -32,7 +32,7 @@ mvn21 clean verify
 **Expect** (versions/counts as of 2026-07-18 — counts only grow):
 
 ```
-Tests run: 137, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 143, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -45,14 +45,14 @@ old`, the testcontainers pin regressed below 1.21.4 (Docker 29 needs
 ≥1.21.4). Per-algorithm selections and debugging:
 `docs/PER_ALGORITHM_TEST_GUIDE.md`.
 
-What the 137 tests pin, so you know what a failure means (headline
+What the 143 tests pin, so you know what a failure means (headline
 additions since 114: the 4-node HotStuff formation — real client traffic
 committed through BFT consensus, logs.py's own parse targets asserted on
 every replica — then its remote golden + provider branch; the F33
 image-presence gates; the logs.py-port analyzer with hand-computed
 fixtures; the campaign layer — typed inventory, fault targeting, chunked
-log transfer, upstream-client command pin; the F31 pkill self-match fix
-and the F32 fail-closed CLI keys):
+log transfer, upstream-client command pin, the MatrixRunner block/resume/
+shuffle; the F31 pkill self-match fix and the F32 fail-closed CLI keys):
 - `ArgParserTest` (6) — CLI contract: `--key value` pairs, bare `-v/--verbose`,
   fail-closed on a dangling key, duration>warmup guard.
 - `EventLogTest` (3) + engine event tests — failover instrumentation:

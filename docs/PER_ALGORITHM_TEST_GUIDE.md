@@ -43,6 +43,15 @@ $MVN clean verify
    loaded laptop, check `uptime`/thermals and re-run the single class
    before suspecting a regression. Cluster numbers are the thesis data,
    laptop numbers never are.
+7. **Expected vs observed, per algorithm** — before judging ANY number,
+   read `OBSERVABILITY_AND_EXPECTATIONS.md`: the preregistered baseline
+   per system with its corpus anchor, the dashboard reading guide, the
+   false-positive catalogue, and the cleanup checklist (§7 there: what to
+   remove after Docker runs, what the VMs clean themselves).
+8. **Sample data** — `docs/examples/` holds a real (tiny, laptop) run and
+   two labeled synthetic shapes, field-by-field explained; run
+   `python3 analysis/analyse.py --selftest` and then point it at the
+   sample to see the whole analysis path before any campaign.
 
 ## 1. etcd (Raft)
 
@@ -257,12 +266,17 @@ addresses) — regenerate, never hand-edit. Committee addresses are IPs ONLY
 
 ```bash
 $MVN -Dtest='SshjExecutorTest,SshExecutorContractTest,SshFaultInjectorTest,FaultInjectorApplyTest' test
-$MVN -Dtest='InventoryTest,RemoteLogsTest,RemoteRunnerTest' test
+$MVN -Dtest='InventoryTest,RemoteLogsTest,RemoteRunnerTest,MatrixRunnerTest' test
 ```
 Pins: real-sshd exec semantics (incl. the F28 backgrounding shape and its
 <5 s bound), fault targeting (detected leader; replica 0 only for
 EPaxos/CometBFT — documented, not guessed), golden verbatim-match for every
-system, inventory fail-closed parsing, chunked log transfer (2 MB window).
+system, inventory fail-closed parsing, chunked log transfer (2 MB window),
+and the matrix executor (seeded shuffle, manifest-resume,
+failure-continues, dry-run). Block preflight on the loadgen:
+`java -jar consensus-bench.jar campaign-run --system etcd --scenarios
+baseline,leader_kill --rates 300,600 --reps 5 --dry-run` prints the
+ordered cell list without executing anything.
 
 ## 8. Canary first-contact checklist (P3.4 — before any full phase)
 

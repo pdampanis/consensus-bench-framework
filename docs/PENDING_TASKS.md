@@ -764,7 +764,11 @@ own commit regex).
 **Result of the batched verification: 137/137 tests green, BUILD SUCCESS
 (~4 min)** — 22 new tests (hotstuff provider ×3, analyzer ×5, campaign
 ×13, F32 CLI ×1) plus the committed formation test; every new golden
-matched verbatim on the first run.
+matched verbatim on the first run. **Batches 2–3 (MatrixRunner +
+`campaign-run` CLI + observability/analysis) re-verified in a second
+batched run: 143/143 green** — MatrixRunner ×5 + the `--dry-run` parser
+pin; the observability/analysis work is non-Java (dashboards, analyse.py
+`--selftest` green separately, shell/compose syntax-checked).
 
 ---
 
@@ -781,24 +785,21 @@ budget for wording drift in tc/iptables/docker stderr on ubuntu-24.04 —
 each surfaces as a named fail-closed error; fix = adjust the one probe
 string + its golden, TDD.
 
-**NEXT-3 — M3.3-full matrix runner.** Plan for an implementing LLM:
-- New `campaign.MatrixRunner`: builds a `List<RemoteRunner.Spec>` from a
-  campaign phase (systems × scenarios × sizes × rates × n=5 repetitions ×
-  D7 conflicts for the paxi pair), shuffles WITHIN each system block
-  (methodology §1 randomization; seed logged), and loops
-  `RemoteRunner.run` serially (one system at a time —
-  EXECUTION_AND_COST_MODEL).
-- Resume = skip specs whose `manifest.json` already exists with
-  `status: complete` (path identity is the run identity — the v6
-  collision fix already guarantees uniqueness).
-- Per-spec failure: log + record into a `campaign-log.jsonl` on the
-  loadgen, continue (an invalid cell is rerun by hand; the runner never
-  hides one).
-- TDD: spec-matrix generation (counts per phase vs the runbook §3 tables),
-  shuffle-within-block pinning, resume-skips-complete, failure-continues.
-  No SSH in these tests — MatrixRunner takes a `Consumer<Spec>` seam.
-- CLI: `campaign-run --phase A|B|C --inventory … [--dry-run]` (dry-run
-  prints the ordered spec list — the operator's preflight).
+**NEXT-3 — M3.3-full matrix runner. DONE same session (batch 2, TDD).**
+Design refinement over the original plan, per EXECUTION_AND_COST_MODEL:
+the execution unit is ONE SYSTEM BLOCK, not a whole phase — a phase is
+the operator running blocks in sequence, and sweep RATES are operator
+INPUTS (25/50/75% of a prior sat block's measured saturation; a static
+generator cannot know them). `campaign.MatrixRunner`: cells = scenarios
+× rates × conflicts × reps with the M0-tree runId convention
+(`rate<R>r<NN>` / `satr<NN>` — rate is not a path segment, so it lives
+in the runId, collision-free); seeded shuffle within the block (order
+itself reproducible); resume = manifest `"status": "complete"` skip;
+failure → `campaign-log.jsonl` line + CONTINUE; `--dry-run` preflight.
+CLI: `campaign-run --system … --scenarios … --rates … [--conflicts …]
+[--reps 5] [--seed …] [--dry-run]`; failover distributions = their own
+block (`--scenarios leader_kill --reps 30`). 5 tests + a `--dry-run`
+parser pin.
 
 **NEXT-4 — HotStuff fault scenarios (preregister BEFORE implementing).**
 Decisions an implementing LLM must put to the author first: (a) target =
@@ -811,11 +812,32 @@ connections — probe first, locally, with the formation test's harness).
 Then: golden block for the fault sequence + analyzer handling + runner
 unlock, TDD.
 
-**NEXT-5 — P4 remainder.** ValidityChecker (six gates + empty-series-fails
-+ loadgen-steal), PrometheusExporter (runbook §5 protocol), docker-events
-audit (the P4.5 half still open), ZK/JMX metric-name fixture tests (P4.3),
-dashboards (P4.4). Each is already specified in its P4 entry above; no new
-decisions needed.
+**NEXT-5 — P4 remainder.** PARTLY DONE (batch 3, this session): dashboards
+(P4.4) shipped — campaign-overview + per-algorithm (etcd, kafka [both
+modes], cometbft, paxi+hotstuff), each carrying an embedded reading guide
+(baseline expectation, fault signature, false-positive catalogue); the
+Kafka JMX panels are honestly labelled "pending P4.3" until the exporter
+names are pinned. Collection + offline replay shipped
+(`scripts/collect_block.sh` → one dated dir with results + Prometheus
+snapshot, count-verified pre-destroy; `observability/offline/` compose
+replays the snapshot against the SAME provisioned dashboards). analyse.py
+foundation shipped (`analysis/`, F15 successor: per-cell median/IQR + mean
+bootstrap CI, per-run percentile SPREADS not averages, environment/status
+exclusion listed not silent, `--selftest` green). STILL OPEN:
+**ValidityChecker** (M5.5 — six gates + empty-series-fails + loadgen-steal,
+writing validity.json), **PrometheusExporter** (M5.4 — runbook §5
+query_range → per-run metrics/*.csv; the harness self-metrics on :9400
+via micrometer, M5.3), **P4.3** (ZK :7000 + Kafka JMX name fixture tests —
+the dashboards' Kafka panels stay untrusted until then), **docker-events
+audit** (the open half of P4.5), and analyse.py's growth to pooled
+histograms + Holm + the 8 figures (M6.4). No new decisions needed on any.
+
+**NEXT-6 — observability/analysis polish (batch 3, DONE).** See
+`OBSERVABILITY_AND_EXPECTATIONS.md` (per-algorithm preregistered baselines
+with corpus anchors, dashboard reading guide, false-positive catalogue,
+cleanup checklist) and `docs/examples/` (one real tiny laptop run + two
+labelled synthetic shapes, field-by-field). These are the novice-facing
+"what am I looking at / is this right" layer the author asked for.
 
 (The section below is the previous session's text, kept for history.)
 

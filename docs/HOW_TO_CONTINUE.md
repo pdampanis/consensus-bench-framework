@@ -40,12 +40,20 @@ debug commands live in `PER_ALGORITHM_TEST_GUIDE.md`. This page is the map.
    Run P3.5 first: `hcloud server-type list` → sync prices in main.tf.
 4. **remote-run smoke per system** — OPEN. One short cell each on Phase-A
    infra; the numbered per-system checklists are in the guide.
-5. **Full-matrix runner** — OPEN, deliberately thin: loop remote-run specs
-   (randomized order, n=5, resume-on-manifest-present). LLM-ready plan in
-   PENDING_TASKS "M3.3-full".
-6. **P4** — OPEN: ValidityChecker (six gates), PrometheusExporter,
-   ZK/JMX metric-name pinning, dashboards. P4.5 log capture: DONE for fault
-   runs + HotStuff (RemoteLogs), docker-events audit still open.
+5. **Full-matrix runner** — DONE (same session, batch 2): `campaign-run`
+   executes one system block (scenarios×rates×conflicts×reps, seeded
+   shuffle, manifest-resume, failure-continues, `--dry-run` preflight).
+   Rates are operator inputs from the prior sat block (runbook §3).
+6. **P4** — PARTLY DONE: dashboards-as-code shipped (P4.4 — campaign
+   overview + per-algorithm, each with an embedded reading guide; Kafka
+   JMX panels honestly labeled "pending P4.3"); collection + offline
+   replay shipped (`scripts/collect_block.sh` → one dated dir →
+   `observability/offline/` compose replays the snapshot on the SAME
+   dashboards); analyse.py foundation in `analysis/` (F15). STILL OPEN:
+   ValidityChecker (six gates), PrometheusExporter (per-run metrics/*.csv),
+   ZK/JMX name pinning (P4.3), docker-events audit. Reading guide:
+   `OBSERVABILITY_AND_EXPECTATIONS.md` (expectations + corpus anchors +
+   false positives + cleanup).
 7. **G3** — OPEN: harness vs native tools on the real cluster (≤15% or
    explained; the parity test's pressure-diagnosis rule applies).
 8. **Campaign + analysis** — OPEN: phases A→B→C per CAMPAIGN_RUNBOOK,
