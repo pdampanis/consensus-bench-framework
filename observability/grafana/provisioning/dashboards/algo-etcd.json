@@ -1,0 +1,64 @@
+{
+  "uid": "cb-etcd",
+  "title": "etcd / Raft — protocol internals",
+  "description": "Explanation layer for etcd cells (metrics listener :2381, standard etcd 3.4 names — live-verified at M5.2). The harness CSVs are the result; this explains WHY.",
+  "tags": ["consensus-bench", "etcd"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-15m", "to": "now"},
+  "timezone": "utc",
+  "editable": true,
+  "panels": [
+    {
+      "id": 1, "type": "text", "title": "How to read an etcd run",
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 0},
+      "options": {"mode": "markdown", "content": "**Baseline expectation (corpus anchors: Raft paper / 'Raft Refloated' / Paxi's etcd runs):** exactly one member with `has_leader`=1 view across all members and ZERO leader changes for the whole window; proposals-committed rate ≈ the offered rate; proposals FAILED ≈ 0; WAL fsync p99 in the low-ms band on ccx13 NVMe — fsync IS etcd's per-commit durability cost, the structural difference vs in-memory Paxi (D6).\n\n**leader_kill:** leader-change counter steps +1 within seconds of `fault_injected_at_ms`; committed-rate gap of well under a second (compare `failover_ms` in the manifest — Raft's sub-second re-election is the contrast anchor for the Paxi wedge). **A leader_kill with NO counter step = you killed a follower** (gate 3 reclassifies).\n\n**Suspect signs:** proposals_pending climbing while committed-rate falls = quorum stress (check which member is gone); fsync p99 jumping ×10 = disk contention on that VM (environment, not protocol — note and rerun); has_leader flapping with no fault = real instability, stop and investigate."}
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "has_leader per member (1 = this member sees a leader)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 7},
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0, "max": 1}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "etcd_server_has_leader", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Leader changes seen (gate-3 corroboration for leader_kill)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 7},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "etcd_server_leader_changes_seen_total", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Proposals committed /s (should track the offered rate)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 15},
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "rate(etcd_server_proposals_committed_total[30s])", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Proposals pending & failed (pending climbs = quorum stress; failed > 0 = investigate)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 15},
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "targets": [
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "etcd_server_proposals_pending", "legendFormat": "pending {{instance}}", "refId": "A"},
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "rate(etcd_server_proposals_failed_total[30s])", "legendFormat": "failed/s {{instance}}", "refId": "B"}
+      ]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "WAL fsync p99 (the durability cost Paxi does not pay — D6)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 23},
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "histogram_quantile(0.99, rate(etcd_disk_wal_fsync_duration_seconds_bucket[30s]))", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Member CPU busy (single-leader protocols: expect the leader's line on top — F8)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 23},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\",role=\"consensus\"}[30s]))", "legendFormat": "{{instance}}", "refId": "A"}]
+    }
+  ]
+}

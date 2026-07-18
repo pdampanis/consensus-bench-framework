@@ -1,0 +1,5 @@
+# Offline replay config: no scrape targets on purpose — this Prometheus
+# only serves the snapshot's historical blocks to Grafana.
+global:
+  scrape_interval: 1m
+scrape_configs: []

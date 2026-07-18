@@ -1,0 +1,64 @@
+{
+  "uid": "cb-cometbft",
+  "title": "CometBFT / Tendermint — protocol internals",
+  "description": "Explanation layer for CometBFT cells (instrumentation.prometheus on :26660; standard cometbft_* names — live-verified at M5.2). Remember: client latency STRUCTURALLY includes block-interval wait — every figure says so.",
+  "tags": ["consensus-bench", "tendermint"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-15m", "to": "now"},
+  "timezone": "utc",
+  "editable": true,
+  "panels": [
+    {
+      "id": 1, "type": "text", "title": "How to read a CometBFT run",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+      "options": {"mode": "markdown", "content": "**Baseline expectation (corpus anchors: Buchman '18, Cason et al. — Tendermint commits in whole blocks on a ~1 s cadence; PaxiBFT measured ~1.7k tx/s class with enough clients):** height climbs ~1/s steadily on EVERY validator; rounds ≈ height (round >1 per height means a proposer needed retries — occasional is normal, persistent is stress); txs-per-block ≈ offered rate x block interval; harness p50 ≈ block interval (that is the protocol's latency SEMANTICS, not a bug — the 602 tx/s G1 run had p50 1.09 s).\n\n**Fault runs:** kill a validator (n=4, f=1) → height keeps climbing with 3 signers, rounds may tick up briefly. DOUBLE_KILL (2 > f) is the intentional LIVENESS-LOSS demo: height FLATLINES — that flatline is the correct result, never 'fix' it. Proposer rotates every height, so faults target replica 0 by documented convention.\n\n**Suspect signs:** height climbing but the harness reports errors → check tx validity (nonce/'=' rules — see CometBftDriver javadoc); one validator's height lagging → it is syncing, not signing (check its peers); block interval jumping around at fixed load → look at CPU steal before blaming consensus. If in-flight window / latency ≈ your measured TPS, you are WINDOW-bound (Little's Law) — raise --window, that ceiling is the client's, not the chain's."}
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Consensus height (every validator; the slope IS commit progress)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "cometbft_consensus_height", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Rounds (jumps at proposer trouble — gate-3 corroboration for kills)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "cometbft_consensus_rounds", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Txs per block (≈ rate x interval at steady state)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "cometbft_consensus_num_txs", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Block interval (the structural latency floor for client p50)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "cometbft_consensus_block_interval_seconds", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Validator CPU busy (O(n²) message work shows here as n grows — vs HotStuff's O(n))",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\",role=\"consensus\"}[30s]))", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Private-NIC traffic (gossip + votes; a partitioned validator collapses here)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "fieldConfig": {"defaults": {"unit": "Bps", "min": 0}, "overrides": []},
+      "targets": [
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "rate(node_network_receive_bytes_total{role=\"consensus\",device!~\"lo|docker.*\"}[30s])", "legendFormat": "rx {{instance}}", "refId": "A"},
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "rate(node_network_transmit_bytes_total{role=\"consensus\",device!~\"lo|docker.*\"}[30s])", "legendFormat": "tx {{instance}}", "refId": "B"}
+      ]
+    }
+  ]
+}

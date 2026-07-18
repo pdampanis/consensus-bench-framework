@@ -1,0 +1,35 @@
+# Offline replay of a collected campaign block (laptop): the Prometheus
+# snapshot collect_block.sh downloaded + the SAME provisioned dashboards
+# you watched live. Nothing scrapes; you are reading history.
+#
+#   SNAPSHOT_DIR=/path/to/<ts>/prometheus-snapshot docker compose up
+#   -> Grafana http://localhost:3000 (anonymous viewer), Prometheus :9090
+#
+# Set the Grafana time range to the campaign dates (the snapshot's data is
+# in the past — "now-15m" shows nothing, and that is correct, not broken).
+# Prometheus writes a fresh WAL next to the snapshot blocks; the collected
+# directory stays your working copy, the rsync'd original on the laptop is
+# untouched only if you point SNAPSHOT_DIR at a copy — copy first if you
+# care about byte-pristine archives.
+services:
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ${SNAPSHOT_DIR:?set SNAPSHOT_DIR to the collected prometheus-snapshot dir}:/prometheus
+      - ./prometheus-offline.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=10y
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+    volumes:
+      - ../grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./datasource-offline.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro

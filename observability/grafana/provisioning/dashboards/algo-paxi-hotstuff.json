@@ -1,0 +1,47 @@
+{
+  "uid": "cb-paxi-hs",
+  "title": "Paxi (Paxos/EPaxos) & HotStuff — node-level view (no native metrics)",
+  "description": "HONESTY FIRST: neither Paxi nor asonnino/HotStuff exposes server metrics — for these systems the server-side account is node_exporter plus parsed logs (methodology §2 says so in every figure). This dashboard is therefore RESOURCES + the harness timeline, and the per-run logs/ directory is the protocol evidence.",
+  "tags": ["consensus-bench", "paxos", "epaxos", "hotstuff"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-15m", "to": "now"},
+  "timezone": "utc",
+  "editable": true,
+  "panels": [
+    {
+      "id": 1, "type": "text", "title": "How to read Paxi and HotStuff runs (logs are the metrics)",
+      "gridPos": {"h": 10, "w": 24, "x": 0, "y": 0},
+      "options": {"mode": "markdown", "content": "**Paxi baseline (corpus anchor: Ailijiang et al. SIGMOD'19 — in-memory commits, so NO disk-write signal is EXPECTED; that asymmetry vs etcd/Kafka is D6, documented not equalized):** PAXOS = single leader, so node1's CPU and NIC-tx sit visibly above the followers (it fans out Phase-2a to both); EPAXOS = leaderless round-robin, so all three lines should be roughly SYMMETRIC — visible asymmetry in an EPaxos run means the round-robin is not reaching all replicas (check endpoints). The D7 conflict sweep (c=2/10%) should show CPU rising with c on EPaxos (dependency tracking) — the fast-path effect the thesis measures.\n\n**Paxi leader_kill = THE WEDGE (F26, preregistered):** commits STOP and never recover; the dead node's line drops, the survivors idle. That flatline is the honest result (no failure detector in stock paxi) — contrast with etcd's sub-second recovery. `failover_ms: null` is CORRECT.\n\n**HotStuff baseline (corpus anchor: Yin et al. '19 — linear message complexity; published runs used 16-vCPU nodes, ours are larger-class ccx per D9 but still below that: absolute numbers are OURS, only direction/order compares):** all four nodes' CPU/NIC roughly symmetric (rotating leadership); the client's target node slightly busier (it batches the client's txs). Result = summary.txt + logs/ in the run dir; if `rate too high` appears in client.log, the offered rate exceeded the client — lower it, the cell is not evidence of a system ceiling.\n\n**Suspect signs (both):** any disk-write surge on a Paxi node = something else is writing on that VM (stationarity violation, gate 4); one HotStuff node at zero CPU while others commit = it never joined (committee mismatch — regenerate, check `docker logs thesis-hs<i>` for 'panic')."}
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Node CPU busy (PAXOS: leader on top; EPAXOS/HotStuff: symmetric)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 10},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\",role=\"consensus\"}[30s]))", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Private-NIC tx (fan-out shape: PAXOS leader ≈ 2x; EPaxos symmetric)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 10},
+      "fieldConfig": {"defaults": {"unit": "Bps", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "rate(node_network_transmit_bytes_total{role=\"consensus\",device!~\"lo|docker.*\"}[30s])", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Disk writes — Paxi should be ~FLAT (in-memory, D6); a surge = stationarity violation",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 18},
+      "fieldConfig": {"defaults": {"unit": "Bps", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "rate(node_disk_written_bytes_total{role=\"consensus\"}[30s])", "legendFormat": "{{instance}} {{device}}", "refId": "A"}]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Targets up (the F26 wedge: the killed node drops, commits flatline in the HARNESS csv)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 18},
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0, "max": 1}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "up{job=\"node\",role=\"consensus\"}", "legendFormat": "{{instance}}", "refId": "A"}]
+    }
+  ]
+}

@@ -1,0 +1,70 @@
+{
+  "uid": "cb-campaign",
+  "title": "Campaign Overview (all systems — health, validity, faults)",
+  "description": "The first screen during ANY run. Primary results come from the HARNESS CSVs, never from here — this layer explains and validates. If this dashboard looks wrong, the run's validity is in question no matter how good the numbers look.",
+  "tags": ["consensus-bench", "overview"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-15m", "to": "now"},
+  "timezone": "utc",
+  "editable": true,
+  "panels": [
+    {
+      "id": 1, "type": "text", "title": "How to read this during a run",
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 0},
+      "options": {"mode": "markdown", "content": "**Healthy baseline looks like:** every `up` series = 1 for the whole window; loadgen CPU well under 0.70 (validity gate 1) and loadgen steal ~0 (D11); consensus-node steal < 0.01 (gate 4); network rx/tx roughly flat after warmup.\n\n**Fault run looks like:** exactly ONE node's `up` drops (kill) at the injection time stamped in the run's `manifest.json` (`fault_injected_at_ms`), and the matching protocol counter moves (etcd leader change / CometBFT round jump) within ±60 s. A 'leader_kill' where no leader-change counter moved is RECLASSIFIED, not averaged in (gate 3).\n\n**False-positive checklist — before blaming the protocol:** (1) loadgen CPU pinned → the INSTRUMENT was the bottleneck, the cell is invalid, not slow; (2) steal > 1% on any consensus node → platform noise, rerun; (3) `up` flapping on a node nobody killed → infrastructure problem; (4) NO change during a packet_loss/partition fault → the fault may have shaped the wrong interface (the silent no-op fault class — check `tc qdisc show` on the target); (5) everything flat-zero → Prometheus lost its targets, and by the empty-series rule that FAILS validity, it never passes it."}
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Targets up (by role) — any dip is an event",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 7},
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0, "max": 1}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "up{job=\"node\"}", "legendFormat": "{{instance}} {{role}}", "refId": "A"}]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Loadgen CPU + steal (validity gate 1 / D11: busy < 0.70, steal ~ 0)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 7},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}, "overrides": []},
+      "targets": [
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\",role=\"loadgen\"}[30s]))", "legendFormat": "busy {{instance}}", "refId": "A"},
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "avg by (instance) (rate(node_cpu_seconds_total{mode=\"steal\",role=\"loadgen\"}[30s]))", "legendFormat": "steal {{instance}}", "refId": "B"}
+      ]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Consensus-node CPU busy (leader ceiling shows here — F8)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 15},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\",role=\"consensus\"}[30s]))", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Consensus-node CPU steal (validity gate 4: < 0.01 or the run is suspect)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 15},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "avg by (instance) (rate(node_cpu_seconds_total{mode=\"steal\",role=\"consensus\"}[30s]))", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Private-NIC traffic (consensus + client load; a partitioned node's line collapses)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 23},
+      "fieldConfig": {"defaults": {"unit": "Bps", "min": 0}, "overrides": []},
+      "targets": [
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "rate(node_network_receive_bytes_total{device!~\"lo|docker.*\"}[30s])", "legendFormat": "rx {{instance}} {{device}}", "refId": "A"},
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "rate(node_network_transmit_bytes_total{device!~\"lo|docker.*\"}[30s])", "legendFormat": "tx {{instance}} {{device}}", "refId": "B"}
+      ]
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Fault ground truth: etcd leader changes / CometBFT rounds (gate 3 corroboration)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 23},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "targets": [
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "etcd_server_leader_changes_seen_total", "legendFormat": "etcd leader changes {{instance}}", "refId": "A"},
+        {"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "cometbft_consensus_rounds", "legendFormat": "cmt rounds {{instance}}", "refId": "B"}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+# Same uid as the live datasource, so every provisioned dashboard works
+# unchanged against the replayed snapshot.
+apiVersion: 1
+datasources:
+  - name: Prometheus
+    uid: prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true

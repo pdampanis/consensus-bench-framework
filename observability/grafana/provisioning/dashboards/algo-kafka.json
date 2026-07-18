@@ -1,0 +1,61 @@
+{
+  "uid": "cb-kafka",
+  "title": "Kafka — KRaft & Kafka+ZK (F6 panels)",
+  "description": "Explanation layer for both Kafka modes. HONESTY NOTE: the kafka_* JMX metric names below are PENDING P4.3 verification (they depend on the JMX-exporter rules file, which is not live-pinned yet) — those panels are titled accordingly and must not be trusted until P4.3 closes. The ZK :7000 names are verified (znode_count probed 2026-07-17).",
+  "tags": ["consensus-bench", "kraft", "kafka_zk"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-15m", "to": "now"},
+  "timezone": "utc",
+  "editable": true,
+  "panels": [
+    {
+      "id": 1, "type": "text", "title": "How to read a Kafka run (both modes — the F6 comparison)",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 0},
+      "options": {"mode": "markdown", "content": "**The F6 story (the thesis's signature figure):** SAME image digest, SAME hardware, SAME colocation — only the coordination machinery differs (KRaft controller quorum vs ZooKeeper ensemble). Compare panels BETWEEN two runs, one per mode, at the same rate.\n\n**Baseline expectation (Kafka literature + our G1 parity evidence):** acks=all with min.insync.replicas=2 commits at a majority; throughput should track the offered rate up to the NIC/disk knee; under-replicated partitions ZERO for the whole window; no ISR shrink events. On the D10 shape, ZK ensemble activity is tiny at steady state (Kafka only touches ZK for metadata/ISR changes — a QUIET zk panel during baseline is CORRECT, not broken; KRaft's controller traffic replaces it on :9093).\n\n**leader_kill (broker):** ISR shrinks step up, URP goes >0 for the failover window, then recovers as leadership moves — the harness's per-second CSV shows the commit gap; both must agree on timing (gate 3).\n\n**Suspect signs:** URP > 0 during BASELINE = the cluster never fully formed (the api-versions gate should have refused it — investigate before trusting anything); steadily climbing ZK znode_count = something is leaking metadata; one broker's CPU flat at zero = it is not actually serving (check `docker logs thesis-k<i>`)."}
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "(pending P4.3) Under-replicated partitions — must be 0 at baseline",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "kafka_server_replicamanager_underreplicatedpartitions", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "(pending P4.3) ISR shrinks/s — steps at broker death",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "rate(kafka_server_replicamanager_isrshrinks_total[60s])", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "ZooKeeper znode count (KAFKA_ZK only; verified name — quiet & flat at baseline is CORRECT)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "znode_count", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Broker-node CPU busy (D10: broker and its coordination service SHARE these 2 vCPUs by design)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\",role=\"consensus\"}[30s]))", "legendFormat": "{{instance}}", "refId": "A"}]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Disk write throughput (acks=all fsync path; compare modes at equal rate)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "fieldConfig": {"defaults": {"unit": "Bps", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "rate(node_disk_written_bytes_total{role=\"consensus\"}[30s])", "legendFormat": "{{instance}} {{device}}", "refId": "A"}]
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Private-NIC tx (replication fan-out: leader ≈ 2x follower at RF=3)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "fieldConfig": {"defaults": {"unit": "Bps", "min": 0}, "overrides": []},
+      "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "rate(node_network_transmit_bytes_total{role=\"consensus\",device!~\"lo|docker.*\"}[30s])", "legendFormat": "{{instance}} {{device}}", "refId": "A"}]
+    }
+  ]
+}
