@@ -22,10 +22,14 @@ import java.util.Map;
 /**
  * Minimal CLI for smoke runs. M1.3 replaces this with picocli.
  *
- * Two commands:
+ * Three commands:
  *   (default)   run against an ALREADY-RUNNING etcd endpoint (M0 behavior)
  *   local-run   clean -> deploy fresh Dockerized etcd -> run -> teardown,
  *               one command, teardown guaranteed (P0.3)
+ *   remote-run  ONE campaign cell against the real VMs (M3.3 session mode):
+ *               inventory-typed topology, golden-tested provider/injector,
+ *               per-system driver, environment=hetzner results. Runs ON the
+ *               loadgen VM. See docs/PER_ALGORITHM_TEST_GUIDE.md.
  */
 public final class Main {
 
@@ -35,7 +39,9 @@ public final class Main {
 
     public static void main(String[] args) throws Exception {
         boolean local = args.length > 0 && "local-run".equals(args[0]);
-        Map<String, String> a = parse(local ? Arrays.copyOfRange(args, 1, args.length) : args);
+        boolean remote = args.length > 0 && "remote-run".equals(args[0]);
+        Map<String, String> a = parse(local || remote
+                ? Arrays.copyOfRange(args, 1, args.length) : args);
 
         // -v/--verbose raises the level to DEBUG: every phase boundary and
         // the per-second reporter become visible. Default INFO stays quiet —
@@ -55,15 +61,63 @@ public final class Main {
         System.setProperty("org.slf4j.simpleLogger.dateTimeFormat", "HH:mm:ss.SSS");
         Logger log = LoggerFactory.getLogger(Main.class);
 
-        if (local) {
+        if (remote) {
+            remoteRun(a);
+        } else if (local) {
             localRun(a, log);
         } else {
             endpointRun(a, log);
         }
     }
 
+    /** M3.3 session mode: one campaign cell on the real VMs. Everything
+     *  here is arg plumbing — the orchestration (and its tests) live in
+     *  campaign.RemoteRunner. Campaign defaults: valsize 1024 (the
+     *  cross-system contract, F21), duration 480 = 180 warmup + 300
+     *  measurement (runbook §3), fault at warmup+60. */
+    private static void remoteRun(Map<String, String> a) throws Exception {
+        requireKnownKeys(a, java.util.Set.of("inventory", "system", "scenario", "size",
+                "rate", "duration", "warmup", "window", "valsize", "out", "run",
+                "conflict", "fault-at", "loss", "ssh-user", "verbose"));
+        String systemArg = a.get("system");
+        if (systemArg == null) {
+            throw new IllegalArgumentException("--system is required (one of: "
+                    + Arrays.toString(gr.thesis.bench.core.SystemUnderTest.values()) + ")");
+        }
+        var system = SystemUnderTest.valueOf(systemArg.toUpperCase(java.util.Locale.ROOT));
+        var scenario = Scenario.valueOf(
+                a.getOrDefault("scenario", "baseline").toUpperCase(java.util.Locale.ROOT));
+        int duration = Integer.parseInt(a.getOrDefault("duration", "480"));
+        int warmup   = Integer.parseInt(a.getOrDefault("warmup", "180"));
+        String runId = a.getOrDefault("run", "r001");
+        if (!runId.matches("[a-z0-9]+")) {
+            // F21: the manifest JSON does not escape runId — constrain it
+            // here rather than emit broken JSON.
+            throw new IllegalArgumentException("--run must be [a-z0-9]+, got: " + runId);
+        }
+        requireDurationExceedsWarmup(duration, warmup);
+        var spec = new gr.thesis.bench.campaign.RemoteRunner.Spec(
+                system, scenario,
+                Integer.parseInt(a.getOrDefault("size",
+                        String.valueOf(system.defaultClusterSize()))),
+                Long.parseLong(a.getOrDefault("rate", "0")),
+                duration, warmup,
+                Integer.parseInt(a.getOrDefault("window", "200")),
+                Integer.parseInt(a.getOrDefault("valsize", "1024")),
+                Double.parseDouble(a.getOrDefault("conflict", "0")),
+                Integer.parseInt(a.getOrDefault("fault-at", String.valueOf(warmup + 60))),
+                Integer.parseInt(a.getOrDefault("loss", "30")),
+                Path.of(a.getOrDefault("out", "results")),
+                runId,
+                Path.of(a.getOrDefault("inventory", "deploy/inventory.env")),
+                a.getOrDefault("ssh-user", "root"));
+        gr.thesis.bench.campaign.RemoteRunner.run(spec);
+    }
+
     /** M0 behavior: measure an etcd that someone else already runs. */
     private static void endpointRun(Map<String, String> a, Logger log) throws Exception {
+        requireKnownKeys(a, java.util.Set.of("endpoint", "duration", "warmup", "rate",
+                "window", "valsize", "out", "run", "conflict", "verbose"));
         String endpoint = a.getOrDefault("endpoint", "http://127.0.0.1:2379");
         int duration    = Integer.parseInt(a.getOrDefault("duration", "20"));
         int warmup      = Integer.parseInt(a.getOrDefault("warmup", "5"));
@@ -89,6 +143,8 @@ public final class Main {
 
     /** P0.3: clean -> deploy fresh Dockerized etcd -> run -> teardown. */
     private static void localRun(Map<String, String> a, Logger log) throws Exception {
+        requireKnownKeys(a, java.util.Set.of("size", "duration", "warmup", "rate",
+                "window", "valsize", "out", "run", "conflict", "verbose"));
         int size     = Integer.parseInt(a.getOrDefault("size", "1"));
         int duration = Integer.parseInt(a.getOrDefault("duration", "10"));
         int warmup   = Integer.parseInt(a.getOrDefault("warmup", "2"));
@@ -151,6 +207,19 @@ public final class Main {
                 r.latencies().percentileMicros(99), r.latencies().percentileMicros(99.9),
                 r.latencies().percentileMicros(100));
         log.info("results -> {}", id.dir(out));
+    }
+
+    /** Fail closed on a typo'd argument name (F32): `--ratee 300` parsing
+     *  fine and the run proceeding at the DEFAULT rate is a fail-open in an
+     *  otherwise fail-closed CLI — the manifest would record the truth, but
+     *  only after a wasted (or worse, trusted) run. */
+    static void requireKnownKeys(Map<String, String> args, java.util.Set<String> known) {
+        for (String k : args.keySet()) {
+            if (!known.contains(k)) {
+                throw new IllegalArgumentException(
+                        "unknown argument --" + k + " (valid: " + new java.util.TreeSet<>(known) + ")");
+            }
+        }
     }
 
     /** Fail closed before any work: an empty measurement window would make

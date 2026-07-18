@@ -51,6 +51,18 @@ class ArgParserTest {
     }
 
     @Test
+    void unknownArgumentKeyFailsClosed() {
+        // F32: a typo'd key (--ratee) must throw, not silently run at the
+        // default — the same fail-closed rule the value-less key already has.
+        var known = java.util.Set.of("rate", "duration");
+        var e = assertThrows(IllegalArgumentException.class,
+                () -> Main.requireKnownKeys(Map.of("ratee", "300"), known));
+        assertEquals(true, e.getMessage().contains("--ratee"),
+                "the unknown key must be NAMED: " + e.getMessage());
+        Main.requireKnownKeys(Map.of("rate", "300"), known); // valid: must not throw
+    }
+
+    @Test
     void durationMustExceedWarmup() {
         // duration == warmup would make the measurement window empty and the
         // throughput division by (duration - warmup) blow up (review F17).
