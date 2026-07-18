@@ -35,3 +35,14 @@ runcmd:
     docker run -d --name node_exporter --restart unless-stopped
     --net host --pid host -v /:/host:ro,rslave
     quay.io/prometheus/node-exporter:v1.8.2 --path.rootfs=/host
+  # Pre-pull every REGISTRY-pinned SUT image at first boot (F33 companion):
+  # the harness's SSH commands are bounded at 30 s, and a first `docker run`
+  # that must pull ~350 MB could trip that bound mid-orchestration. Pulled
+  # here, unbounded, once — the harness then always runs from cache. The two
+  # LOCAL-BUILT images (paxi:6823d0b, hotstuff:dc01ac8) cannot be pulled:
+  # ship them from the laptop (docker save | ssh docker load, see
+  # docs/HOW_TO_CONTINUE.md); the provider gates on their presence per node.
+  - docker pull quay.io/coreos/etcd@sha256:5a65b4c67dea6e835c2812cf2fdea064f494c68b509fab939b12c0fa1fa423bb
+  - docker pull apache/kafka@sha256:4ceccc577f03f51f6af8dbfda55194d0d892f4fa7913ffbded567ce3895622ed
+  - docker pull cometbft/cometbft@sha256:22c2ac018f40665e5c113e485d81531d8421f4fc76f9c8b013fbb6c0c16e150d
+  - docker pull zookeeper@sha256:4c6f15fbd5491a3e01b0108c046891125553329a4956848ba3014cedff5386ee

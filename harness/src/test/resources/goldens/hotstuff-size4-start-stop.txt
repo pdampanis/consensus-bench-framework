@@ -1,0 +1,89 @@
+# GOLDEN (G2): every remote command RemoteSshProvider runs for a HotStuff
+# size-4 start + stop, verbatim, in order, host:port$ cmd.
+#
+# The wiring shape is VERIFIED FACT (HotStuffMultiNodeFormationTest,
+# 2026-07-18, 21.5 s green: 4 nodes, upstream-client traffic committed
+# through BFT consensus, every replica logging logs.py's own commit-parse
+# target "Committed B<n> -> <digest>=", the sample-tx end-to-end path seen).
+#
+# Human read-through checklist (what differs from the other systems, why):
+#  * IMAGE-PRESENCE GATE (F33): hotstuff:dc01ac8 is built from PINNED
+#    SOURCE (infra/hotstuff/Dockerfile, commit dc01ac8; upstream has NO
+#    Cargo.lock so the image id 8501e107d4bf is the reproducibility
+#    anchor) and exists in NO registry. The inspect per member node fails
+#    closed with the shipping command (docker save | ssh docker load).
+#  * keygen = `node keys` one-shots on node1; each key file is COMPACTED
+#    to single-line JSON before its printf ({"name": pubkey, "secret":
+#    ...} — base64 material, contains no single quotes: the quote-safety
+#    proof AND the one-golden-line guarantee). Fixture placeholders
+#    (PUB<i>/SEC<i>) stand in for per-run random material — the golden
+#    pins COMMAND STRUCTURE, exactly like the CometBFT golden.
+#  * committee.json = fab config.py's EXACT shape (source-verified at the
+#    pin): three ports per node on REAL private IPs — consensus :26000,
+#    transactions :26001 (the client's target), mempool :26002; authority
+#    entries carry name/stake(1)/address(es); epoch 1. Committee addresses
+#    are Rust SocketAddrs — IPs ONLY, a hostname would not parse (probed);
+#    the campaign's private IPs satisfy this natively.
+#  * fresh config dirs rm -rf FIRST (stale keys + fresh committee = an
+#    unbootable mismatch); the --store is CONTAINER-local (/store, no
+#    volume) so chain state dies with the container — byte-fresh clusters,
+#    same rule as KRaft/Kafka+ZK.
+#  * `node -vv run`: -vv is the log level whose benchmark-feature lines
+#    feed the SUMMARY analysis (HotStuff's logs ARE its metrics — P2.5,
+#    P4.5); a quieter level would silently produce an unanalyzable run.
+#  * READINESS IS BOOT-LEVEL ONLY ("successfully booted" per node), NOT
+#    commit-level — stated honestly: HotStuff commits only under traffic,
+#    and its only traffic source is the upstream client (the SUT's own
+#    load generator, the documented measurement boundary). The client
+#    refuses to start until every --nodes address accepts connections,
+#    and the SUMMARY analysis fails closed on a run that committed
+#    nothing — the quorum proof rides the measured run itself.
+#  * deterministic thesis-hs<i> names; pre-clean SWEEPS thesis-* on EVERY
+#    provisioned node (F29); size != 4 is refused (D9: n=3f+1, f=1).
+#  * clientEndpoints are BARE ip:26001 (transactions addresses) — consumed
+#    by the campaign runner's upstream-client invocation, never by a
+#    ConsensusDriver.
+10.0.0.11:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
+10.0.0.12:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
+10.0.0.13:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
+10.0.0.14:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
+10.0.0.11:22$ docker image inspect -f {{.Id}} hotstuff:dc01ac8
+10.0.0.12:22$ docker image inspect -f {{.Id}} hotstuff:dc01ac8
+10.0.0.13:22$ docker image inspect -f {{.Id}} hotstuff:dc01ac8
+10.0.0.14:22$ docker image inspect -f {{.Id}} hotstuff:dc01ac8
+10.0.0.11:22$ rm -rf /root/thesis-hs /root/thesis-hs-keys
+10.0.0.12:22$ rm -rf /root/thesis-hs
+10.0.0.13:22$ rm -rf /root/thesis-hs
+10.0.0.14:22$ rm -rf /root/thesis-hs
+10.0.0.11:22$ docker run --rm -v /root/thesis-hs-keys:/keys hotstuff:dc01ac8 node keys --filename /keys/node1.json
+10.0.0.11:22$ docker run --rm -v /root/thesis-hs-keys:/keys hotstuff:dc01ac8 node keys --filename /keys/node2.json
+10.0.0.11:22$ docker run --rm -v /root/thesis-hs-keys:/keys hotstuff:dc01ac8 node keys --filename /keys/node3.json
+10.0.0.11:22$ docker run --rm -v /root/thesis-hs-keys:/keys hotstuff:dc01ac8 node keys --filename /keys/node4.json
+10.0.0.11:22$ cat /root/thesis-hs-keys/node1.json
+10.0.0.11:22$ cat /root/thesis-hs-keys/node2.json
+10.0.0.11:22$ cat /root/thesis-hs-keys/node3.json
+10.0.0.11:22$ cat /root/thesis-hs-keys/node4.json
+10.0.0.11:22$ mkdir -p /root/thesis-hs
+10.0.0.11:22$ printf '%s' '{"name":"PUB1","secret":"SEC1"}' > /root/thesis-hs/node.json
+10.0.0.11:22$ printf '%s' '{"consensus":{"authorities":{"PUB1":{"name":"PUB1","stake":1,"address":"10.0.0.11:26000"},"PUB2":{"name":"PUB2","stake":1,"address":"10.0.0.12:26000"},"PUB3":{"name":"PUB3","stake":1,"address":"10.0.0.13:26000"},"PUB4":{"name":"PUB4","stake":1,"address":"10.0.0.14:26000"}},"epoch":1},"mempool":{"authorities":{"PUB1":{"name":"PUB1","stake":1,"transactions_address":"10.0.0.11:26001","mempool_address":"10.0.0.11:26002"},"PUB2":{"name":"PUB2","stake":1,"transactions_address":"10.0.0.12:26001","mempool_address":"10.0.0.12:26002"},"PUB3":{"name":"PUB3","stake":1,"transactions_address":"10.0.0.13:26001","mempool_address":"10.0.0.13:26002"},"PUB4":{"name":"PUB4","stake":1,"transactions_address":"10.0.0.14:26001","mempool_address":"10.0.0.14:26002"}},"epoch":1}}' > /root/thesis-hs/committee.json
+10.0.0.12:22$ mkdir -p /root/thesis-hs
+10.0.0.12:22$ printf '%s' '{"name":"PUB2","secret":"SEC2"}' > /root/thesis-hs/node.json
+10.0.0.12:22$ printf '%s' '{"consensus":{"authorities":{"PUB1":{"name":"PUB1","stake":1,"address":"10.0.0.11:26000"},"PUB2":{"name":"PUB2","stake":1,"address":"10.0.0.12:26000"},"PUB3":{"name":"PUB3","stake":1,"address":"10.0.0.13:26000"},"PUB4":{"name":"PUB4","stake":1,"address":"10.0.0.14:26000"}},"epoch":1},"mempool":{"authorities":{"PUB1":{"name":"PUB1","stake":1,"transactions_address":"10.0.0.11:26001","mempool_address":"10.0.0.11:26002"},"PUB2":{"name":"PUB2","stake":1,"transactions_address":"10.0.0.12:26001","mempool_address":"10.0.0.12:26002"},"PUB3":{"name":"PUB3","stake":1,"transactions_address":"10.0.0.13:26001","mempool_address":"10.0.0.13:26002"},"PUB4":{"name":"PUB4","stake":1,"transactions_address":"10.0.0.14:26001","mempool_address":"10.0.0.14:26002"}},"epoch":1}}' > /root/thesis-hs/committee.json
+10.0.0.13:22$ mkdir -p /root/thesis-hs
+10.0.0.13:22$ printf '%s' '{"name":"PUB3","secret":"SEC3"}' > /root/thesis-hs/node.json
+10.0.0.13:22$ printf '%s' '{"consensus":{"authorities":{"PUB1":{"name":"PUB1","stake":1,"address":"10.0.0.11:26000"},"PUB2":{"name":"PUB2","stake":1,"address":"10.0.0.12:26000"},"PUB3":{"name":"PUB3","stake":1,"address":"10.0.0.13:26000"},"PUB4":{"name":"PUB4","stake":1,"address":"10.0.0.14:26000"}},"epoch":1},"mempool":{"authorities":{"PUB1":{"name":"PUB1","stake":1,"transactions_address":"10.0.0.11:26001","mempool_address":"10.0.0.11:26002"},"PUB2":{"name":"PUB2","stake":1,"transactions_address":"10.0.0.12:26001","mempool_address":"10.0.0.12:26002"},"PUB3":{"name":"PUB3","stake":1,"transactions_address":"10.0.0.13:26001","mempool_address":"10.0.0.13:26002"},"PUB4":{"name":"PUB4","stake":1,"transactions_address":"10.0.0.14:26001","mempool_address":"10.0.0.14:26002"}},"epoch":1}}' > /root/thesis-hs/committee.json
+10.0.0.14:22$ mkdir -p /root/thesis-hs
+10.0.0.14:22$ printf '%s' '{"name":"PUB4","secret":"SEC4"}' > /root/thesis-hs/node.json
+10.0.0.14:22$ printf '%s' '{"consensus":{"authorities":{"PUB1":{"name":"PUB1","stake":1,"address":"10.0.0.11:26000"},"PUB2":{"name":"PUB2","stake":1,"address":"10.0.0.12:26000"},"PUB3":{"name":"PUB3","stake":1,"address":"10.0.0.13:26000"},"PUB4":{"name":"PUB4","stake":1,"address":"10.0.0.14:26000"}},"epoch":1},"mempool":{"authorities":{"PUB1":{"name":"PUB1","stake":1,"transactions_address":"10.0.0.11:26001","mempool_address":"10.0.0.11:26002"},"PUB2":{"name":"PUB2","stake":1,"transactions_address":"10.0.0.12:26001","mempool_address":"10.0.0.12:26002"},"PUB3":{"name":"PUB3","stake":1,"transactions_address":"10.0.0.13:26001","mempool_address":"10.0.0.13:26002"},"PUB4":{"name":"PUB4","stake":1,"transactions_address":"10.0.0.14:26001","mempool_address":"10.0.0.14:26002"}},"epoch":1}}' > /root/thesis-hs/committee.json
+10.0.0.11:22$ docker run -d --name thesis-hs1 --network host -v /root/thesis-hs:/hs hotstuff:dc01ac8 node -vv run --keys /hs/node.json --committee /hs/committee.json --store /store
+10.0.0.12:22$ docker run -d --name thesis-hs2 --network host -v /root/thesis-hs:/hs hotstuff:dc01ac8 node -vv run --keys /hs/node.json --committee /hs/committee.json --store /store
+10.0.0.13:22$ docker run -d --name thesis-hs3 --network host -v /root/thesis-hs:/hs hotstuff:dc01ac8 node -vv run --keys /hs/node.json --committee /hs/committee.json --store /store
+10.0.0.14:22$ docker run -d --name thesis-hs4 --network host -v /root/thesis-hs:/hs hotstuff:dc01ac8 node -vv run --keys /hs/node.json --committee /hs/committee.json --store /store
+10.0.0.11:22$ docker logs thesis-hs1 2>&1 | grep -q 'successfully booted'
+10.0.0.12:22$ docker logs thesis-hs2 2>&1 | grep -q 'successfully booted'
+10.0.0.13:22$ docker logs thesis-hs3 2>&1 | grep -q 'successfully booted'
+10.0.0.14:22$ docker logs thesis-hs4 2>&1 | grep -q 'successfully booted'
+10.0.0.11:22$ docker rm -f thesis-hs1
+10.0.0.12:22$ docker rm -f thesis-hs2
+10.0.0.13:22$ docker rm -f thesis-hs3
+10.0.0.14:22$ docker rm -f thesis-hs4

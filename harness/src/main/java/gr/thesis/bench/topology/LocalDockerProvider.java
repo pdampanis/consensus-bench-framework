@@ -66,6 +66,13 @@ public final class LocalDockerProvider implements ClusterProvider {
      *  closed with that instruction when the image is absent. */
     public static final String PAXI_IMAGE = "paxi:6823d0b";
 
+    /** HotStuff (asonnino/hotstuff, PODC'19 research implementation) — built
+     *  from PINNED SOURCE (infra/hotstuff/Dockerfile, commit dc01ac8);
+     *  upstream ships no Cargo.lock, so the recorded image id (8501e107d4bf)
+     *  is the reproducibility anchor. Not pullable: build once with
+     *  {@code docker build -t hotstuff:dc01ac8 infra/hotstuff}. */
+    public static final String HOTSTUFF_IMAGE = "hotstuff:dc01ac8";
+
     private final List<GenericContainer<?>> containers = new ArrayList<>();
     private final List<String> endpoints = new ArrayList<>();
     private Network network;

@@ -89,10 +89,13 @@ class RemoteSshProviderTest {
     }
 
     @Test
-    void unsupportedSystemsAndOversizedClustersFailClosed() {
+    void wrongShapesAndOversizedClustersFailClosed() {
+        // Every system is served now (P3.3d complete) — but only in its
+        // thesis shape, and never beyond the provisioned node count.
         var provider = new RemoteSshProvider(new RecordingSshExecutor(), IPS, Duration.ofSeconds(5));
         assertThrows(UnsupportedOperationException.class,
-                () -> provider.start(SystemUnderTest.HOTSTUFF, 4));
+                () -> provider.start(SystemUnderTest.HOTSTUFF, 3),
+                "HOTSTUFF runs the D9 shape of 4 only");
         assertThrows(IllegalArgumentException.class,
                 () -> provider.start(SystemUnderTest.ETCD, 4),
                 "cannot start more members than provisioned nodes");
@@ -367,6 +370,75 @@ class RemoteSshProviderTest {
                 () -> provider.start(SystemUnderTest.TENDERMINT, 4));
         assertTrue(e.getMessage().contains("10.0.0.11"),
                 "the gate node must be NAMED: " + e.getMessage());
+    }
+
+    // ---- P3.3d: HotStuff remote substrate (shape verified by
+    //      HotStuffMultiNodeFormationTest, 2026-07-18) ----
+
+    private static RecordingSshExecutor hsReadyRecorder() {
+        var ssh = new RecordingSshExecutor();
+        for (int i = 1; i <= 4; i++) {
+            // Keygen artifacts as `node keys` writes them: {"name": pubkey,
+            // "secret": ...} — fixture placeholders for per-run randomness.
+            ssh.respondTo("cat " + RemoteSshProvider.HS_KEYGEN_DIR + "/node" + i + ".json",
+                    new SshExecutor.ExecResult(0,
+                            "{\"name\":\"PUB" + i + "\",\"secret\":\"SEC" + i + "\"}", ""));
+        }
+        // Boot gates (docker logs grep) succeed by default (canned exit 0).
+        return ssh;
+    }
+
+    @Test
+    void hotstuffSize4StartStopMatchesTheGoldenCommandSequence() throws Exception {
+        var ssh = hsReadyRecorder();
+        try (var provider = new RemoteSshProvider(ssh, IPS4, Duration.ofSeconds(5))) {
+            provider.start(SystemUnderTest.HOTSTUFF, 4);
+            provider.stop();
+        }
+        Path golden = Path.of("src/test/resources/goldens/hotstuff-size4-start-stop.txt");
+        List<String> expected = Files.readAllLines(golden).stream()
+                .filter(l -> !l.startsWith("#") && !l.isBlank())
+                .toList();
+        assertEquals(expected, ssh.commands(),
+                "the recorded HotStuff sequence must match the reviewed golden verbatim");
+    }
+
+    @Test
+    void hotstuffEndpointsAreBareTransactionAddressesAndThesisShapeOnly() throws Exception {
+        var ssh = hsReadyRecorder();
+        try (var provider = new RemoteSshProvider(ssh, IPS4, Duration.ofSeconds(5))) {
+            var nodes = provider.start(SystemUnderTest.HOTSTUFF, 4);
+            // BARE ip:26001 — the upstream client's --nodes/target contract;
+            // no ConsensusDriver ever consumes these (the documented
+            // measurement boundary for this system).
+            assertEquals(List.of(
+                    "10.0.0.11:26001", "10.0.0.12:26001",
+                    "10.0.0.13:26001", "10.0.0.14:26001"),
+                    provider.clientEndpoints());
+            assertEquals("10.0.0.12", nodes.get(1).privateIp());
+            assertEquals("thesis-hs2", nodes.get(1).containerName());
+        }
+        assertThrows(UnsupportedOperationException.class,
+                () -> new RemoteSshProvider(new RecordingSshExecutor(), IPS4,
+                        Duration.ofSeconds(1)).start(SystemUnderTest.HOTSTUFF, 3),
+                "BFT n=3f+1 with f=1 is 4 — any other size is not the thesis shape");
+    }
+
+    @Test
+    void localBuiltImageAbsentOnANodeFailsClosedWithTheShippingCommand() {
+        // F33: paxi/hotstuff exist in no registry; a bare docker run on a
+        // fresh VM would fail at first contact. The gate names the node AND
+        // the fix.
+        var ssh = hsReadyRecorder();
+        ssh.respondTo("docker image inspect -f {{.Id}} " + LocalDockerProvider.HOTSTUFF_IMAGE,
+                new SshExecutor.ExecResult(1, "", "Error: No such image: hotstuff:dc01ac8"));
+        var provider = new RemoteSshProvider(ssh, IPS4, Duration.ofSeconds(1));
+        var e = assertThrows(IllegalStateException.class,
+                () -> provider.start(SystemUnderTest.HOTSTUFF, 4));
+        assertTrue(e.getMessage().contains("10.0.0.11"),
+                "the image-less node must be NAMED: " + e.getMessage());
+        assertTrue(e.getMessage().contains("docker save"),
+                "the shipping command must be IN the message: " + e.getMessage());
     }
 
     @Test

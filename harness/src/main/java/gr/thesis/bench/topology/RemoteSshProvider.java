@@ -32,9 +32,16 @@ import java.util.stream.IntStream;
  *    §1), pre-clean covers crashed predecessors, and determinism is what
  *    makes the goldens exact.
  *
- * ETCD, KRAFT and PAXOS/EPAXOS for now — every other system fails closed
- * until its block lands with its own golden (claiming them unverified
- * would be v6's sin).
+ * Failed-start policy (F35, deliberate): {@code nodes} is registered only
+ * after every readiness gate passes, so a mid-start failure leaves the
+ * just-started containers RUNNING on the VMs — stop() removes nothing.
+ * That is evidence preservation: the operator debugs the failure from the
+ * still-alive containers' `docker logs`, and the F29 pre-clean sweeps them
+ * on the next start(), so stationarity is never at risk. (KAFKA_ZK's
+ * ensemble is the one exception — aux containers register as they start,
+ * so a failed broker phase still tears the ZK ensemble down.)
+ *
+ * All seven systems are served, each behind its own reviewed golden.
  */
 public final class RemoteSshProvider implements ClusterProvider {
 
@@ -51,7 +58,9 @@ public final class RemoteSshProvider implements ClusterProvider {
     static final String KRAFT_CLUSTER_ID = "5L6g3nShT-eMCtK--X86s0";
     static final String TM_HOME_DIR = "/root/thesis-tm";
     static final String TM_KEYGEN_DIR = "/root/thesis-tm-testnet";
-    private static final com.fasterxml.jackson.databind.ObjectMapper TM_JSON =
+    static final String HS_DIR = "/root/thesis-hs";
+    static final String HS_KEYGEN_DIR = "/root/thesis-hs-keys";
+    private static final com.fasterxml.jackson.databind.ObjectMapper JSON =
             new com.fasterxml.jackson.databind.ObjectMapper();
     private static final java.util.regex.Pattern TM_HEIGHT =
             java.util.regex.Pattern.compile("\"latest_block_height\":\"(\\d+)\"");
@@ -75,9 +84,9 @@ public final class RemoteSshProvider implements ClusterProvider {
 
     @Override
     public List<NodeHandle> start(SystemUnderTest system, int clusterSize) throws Exception {
-        if (system == SystemUnderTest.HOTSTUFF) {
+        if (system == SystemUnderTest.HOTSTUFF && clusterSize != 4) {
             throw new UnsupportedOperationException(
-                    "RemoteSshProvider does not serve HOTSTUFF yet — its block lands with its own golden");
+                    "HOTSTUFF runs the thesis shape of 4 (D9: n=3f+1, f=1); asked for " + clusterSize);
         }
         if (system == SystemUnderTest.TENDERMINT && clusterSize != 4) {
             throw new UnsupportedOperationException(
@@ -117,6 +126,8 @@ public final class RemoteSshProvider implements ClusterProvider {
             startKafkaZk(clusterSize);
         } else if (system == SystemUnderTest.TENDERMINT) {
             startTendermint(clusterSize);
+        } else if (system == SystemUnderTest.HOTSTUFF) {
+            startHotStuff(clusterSize);
         } else {
             startPaxi(system, clusterSize);
         }
@@ -170,6 +181,7 @@ public final class RemoteSshProvider implements ClusterProvider {
      *    detector result).
      */
     private void startPaxi(SystemUnderTest system, int clusterSize) throws Exception {
+        requireImageOnNodes(LocalDockerProvider.PAXI_IMAGE, clusterSize);
         String algorithm = system == SystemUnderTest.EPAXOS ? "epaxos" : "paxos";
         String config = paxiConfigJson(clusterSize);
 
@@ -372,7 +384,7 @@ public final class RemoteSshProvider implements ClusterProvider {
             }
             Thread.sleep(500);
         }
-        throw new IllegalStateException("KRaft cluster on " + ip + " never formed within "
+        throw new IllegalStateException("Kafka cluster on " + ip + " never formed within "
                 + healthDeadline + ": saw " + (seen < 0 ? "no broker list" : seen + " broker(s)")
                 + " joined, need " + clusterSize);
     }
@@ -483,7 +495,7 @@ public final class RemoteSshProvider implements ClusterProvider {
      *  line guarantee. Unparseable output fails closed naming the file. */
     private static String compactJson(String raw, String what) {
         try {
-            return TM_JSON.readTree(raw).toString();
+            return JSON.readTree(raw).toString();
         } catch (Exception e) {
             throw new IllegalStateException("unparseable " + what + " from the cometbft keygen: "
                     + e.getMessage(), e);
@@ -524,6 +536,146 @@ public final class RemoteSshProvider implements ClusterProvider {
         }
         throw new IllegalStateException("cometbft on " + ip + " never committed height >= 1 within "
                 + healthDeadline + " (fewer than 2/3 of validators signing?) — last: " + lastSeen);
+    }
+
+    /**
+     * HotStuff over SSH (P3.3d-hotstuff) — the DISTRIBUTION shape VERIFIED
+     * BY EXECUTION in HotStuffMultiNodeFormationTest (2026-07-18, 21.5 s
+     * green: 4 nodes, client traffic committed through BFT consensus, every
+     * replica logging logs.py's own commit-parse target). Recipe:
+     *  - `node keys` one-shots on node1 generate the four keypairs; each
+     *    key file is COMPACTED to single-line JSON (base64 material — no
+     *    single quotes, the printf safety proof) and distributed.
+     *  - committee.json = fab config.py's exact shape with REAL private IPs
+     *    and THREE ports per node: consensus :26000, transactions :26001
+     *    (the upstream client's target), mempool :26002.
+     *  - one `node -vv run` container per VM; -vv is the log level whose
+     *    benchmark-feature lines ARE HotStuff's metrics (P2.5/P4.5); the
+     *    store is container-local so state dies with the container.
+     *  - readiness is BOOT-level ("successfully booted" per node), not
+     *    commit-level: HotStuff commits only under traffic and its ONLY
+     *    traffic source is the upstream client — which itself refuses to
+     *    start until every --nodes address accepts connections, and whose
+     *    SUMMARY analysis fails closed on a run that committed nothing.
+     *    The quorum proof therefore rides the measured run; the golden
+     *    header states this honestly.
+     */
+    private void startHotStuff(int clusterSize) throws Exception {
+        String img = LocalDockerProvider.HOTSTUFF_IMAGE;
+        requireImageOnNodes(img, clusterSize);
+        // Fresh config dirs FIRST (stale keys + a fresh committee would be
+        // an unbootable mismatch); the store needs no rm — it is container-
+        // local and died with the pre-cleaned container.
+        ssh.execOrThrow(nodeIps.get(0), SSH_PORT, "rm -rf " + HS_DIR + " " + HS_KEYGEN_DIR);
+        for (int i = 2; i <= clusterSize; i++) {
+            ssh.execOrThrow(nodeIps.get(i - 1), SSH_PORT, "rm -rf " + HS_DIR);
+        }
+        log.debug("phase: keygen — {} `node keys` one-shots on {}", clusterSize, nodeIps.get(0));
+        for (int i = 1; i <= clusterSize; i++) {
+            ssh.execOrThrow(nodeIps.get(0), SSH_PORT,
+                    "docker run --rm -v " + HS_KEYGEN_DIR + ":/keys " + img
+                            + " node keys --filename /keys/node" + i + ".json");
+        }
+        String[] keyJson = new String[clusterSize];
+        String[] pubKey = new String[clusterSize];
+        for (int i = 0; i < clusterSize; i++) {
+            keyJson[i] = compactJson(
+                    ssh.execOrThrow(nodeIps.get(0), SSH_PORT,
+                            "cat " + HS_KEYGEN_DIR + "/node" + (i + 1) + ".json"),
+                    "node" + (i + 1) + ".json");
+            com.fasterxml.jackson.databind.JsonNode name;
+            try {
+                name = JSON.readTree(keyJson[i]).path("name");
+            } catch (Exception e) {
+                throw new IllegalStateException("unreadable hotstuff key file node"
+                        + (i + 1) + ".json", e);
+            }
+            if (name.isMissingNode() || name.asText().isEmpty()) {
+                throw new IllegalStateException("hotstuff key file node" + (i + 1)
+                        + ".json carries no 'name' (public key) — keygen contract broken");
+            }
+            pubKey[i] = name.asText();
+        }
+        String committee = hotStuffCommitteeJson(pubKey, clusterSize);
+
+        log.debug("phase: deploy — distributing files + starting {} hotstuff nodes over SSH",
+                clusterSize);
+        for (int i = 0; i < clusterSize; i++) {
+            String ip = nodeIps.get(i);
+            ssh.execOrThrow(ip, SSH_PORT, "mkdir -p " + HS_DIR);
+            ssh.execOrThrow(ip, SSH_PORT,
+                    "printf '%s' '" + keyJson[i] + "' > " + HS_DIR + "/node.json");
+            ssh.execOrThrow(ip, SSH_PORT,
+                    "printf '%s' '" + committee + "' > " + HS_DIR + "/committee.json");
+        }
+        for (int i = 0; i < clusterSize; i++) {
+            String ip = nodeIps.get(i);
+            ssh.execOrThrow(ip, SSH_PORT,
+                    "docker run -d --name " + containerName(SystemUnderTest.HOTSTUFF, i + 1)
+                            + " --network host -v " + HS_DIR + ":/hs " + img
+                            + " node -vv run --keys /hs/node.json --committee /hs/committee.json"
+                            + " --store /store");
+        }
+        for (int i = 0; i < clusterSize; i++) {
+            awaitContainerLog(nodeIps.get(i), containerName(SystemUnderTest.HOTSTUFF, i + 1),
+                    "successfully booted");
+        }
+        for (int i = 0; i < clusterSize; i++) {
+            String ip = nodeIps.get(i);
+            nodes.add(new NodeHandle(i, containerName(SystemUnderTest.HOTSTUFF, i + 1), ip, ip));
+            // BARE host:port of the TRANSACTIONS address — what the upstream
+            // client takes; the harness never drives HotStuff through a
+            // ConsensusDriver (the documented measurement boundary).
+            endpoints.add(ip + ":26001");
+        }
+    }
+
+    /** fab config.py's committee shape, single-line, insertion-ordered —
+     *  the same builder the formation test verified by execution. */
+    private String hotStuffCommitteeJson(String[] pubKey, int clusterSize) {
+        var consensusAuth = JSON.createObjectNode();
+        var mempoolAuth = JSON.createObjectNode();
+        for (int i = 0; i < clusterSize; i++) {
+            String ip = nodeIps.get(i);
+            var c = JSON.createObjectNode();
+            c.put("name", pubKey[i]);
+            c.put("stake", 1);
+            c.put("address", ip + ":26000");
+            consensusAuth.set(pubKey[i], c);
+            var m = JSON.createObjectNode();
+            m.put("name", pubKey[i]);
+            m.put("stake", 1);
+            m.put("transactions_address", ip + ":26001");
+            m.put("mempool_address", ip + ":26002");
+            mempoolAuth.set(pubKey[i], m);
+        }
+        var consensus = JSON.createObjectNode();
+        consensus.set("authorities", consensusAuth);
+        consensus.put("epoch", 1);
+        var mempool = JSON.createObjectNode();
+        mempool.set("authorities", mempoolAuth);
+        mempool.put("epoch", 1);
+        var root = JSON.createObjectNode();
+        root.set("consensus", consensus);
+        root.set("mempool", mempool);
+        return root.toString();
+    }
+
+    /** Local-built images (paxi, hotstuff) exist in NO registry (F33): a
+     *  bare `docker run` on a VM would try to pull and fail at first
+     *  contact on a billed box. Gate on presence per member node, failing
+     *  closed with the shipping command in the message. */
+    private void requireImageOnNodes(String image, int clusterSize) throws Exception {
+        for (int i = 1; i <= clusterSize; i++) {
+            String ip = nodeIps.get(i - 1);
+            SshExecutor.ExecResult r = ssh.exec(ip, SSH_PORT,
+                    "docker image inspect -f {{.Id}} " + image);
+            if (r.exitCode() != 0) {
+                throw new IllegalStateException("image " + image + " is not on node " + ip
+                        + " — ship it from the laptop: docker save " + image
+                        + " | ssh root@" + ip + " docker load");
+            }
+        }
     }
 
     private String paxiConfigJson(int clusterSize) {
