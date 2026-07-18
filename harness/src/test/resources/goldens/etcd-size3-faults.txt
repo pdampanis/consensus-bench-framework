@@ -54,11 +54,15 @@
 #     and sshd holds the channel open until stress-ng exits — measured as
 #     a 30 s join timeout against a real sshd, stalling and aborting the
 #     injection itself. pkill still matches: nohup execs, so the process
-#     cmdline stays "stress-ng --cpu 2 ...". ---
+#     cmdline stays "stress-ng --cpu 2 ...". The heal pattern's [g]
+#     character class (F31) stops pkill -f from matching the remote
+#     `sh -c` shell that runs the pkill itself — a plain pattern would
+#     SIGTERM that shell on every heal and make the WARN channel pure
+#     noise exactly where loudness is the signal. ---
 [[SLOW_NODE]]
 10.0.0.12:22$ nohup stress-ng --cpu 2 --timeout 120s >/dev/null 2>&1 & echo started
 # heal (best-effort + loud; the --timeout may already have ended it):
-10.0.0.12:22$ pkill -f 'stress-ng --cpu 2'
+10.0.0.12:22$ pkill -f 'stress-n[g] --cpu 2'
 #
 # --- DOUBLE_KILL: deterministic nodes 0+1 (any two lose a 3-node quorum;
 #     on BFT n=4 the intentional liveness-loss demo, 2>f=1) ---

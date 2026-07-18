@@ -89,7 +89,12 @@ public final class SshFaultInjector implements FaultInjector {
         // the data path. Hard --timeout so an aborted run can't pin the VM;
         // heal pkills it explicitly (the pattern still matches — nohup
         // execs, so the process cmdline stays "stress-ng --cpu 2 ...").
-        undo.push(new String[]{node.privateIp(), "pkill -f 'stress-ng --cpu 2'"});
+        // The [g] character class keeps pkill -f from matching the remote
+        // shell that runs the pkill itself (sshd wraps the command in
+        // `sh -c`, whose OWN cmdline contains the pattern text — a plain
+        // pattern would SIGTERM that shell every heal and turn the loud
+        // WARN channel into permanent noise; F31).
+        undo.push(new String[]{node.privateIp(), "pkill -f 'stress-n[g] --cpu 2'"});
         ssh.execOrThrow(node.privateIp(), SSH_PORT,
                 backgrounded("stress-ng --cpu 2 --timeout 120s"));
     }
