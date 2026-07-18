@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -76,6 +77,50 @@ class HotStuffLogAnalyzerTest {
         // sample 0: sent 2.0 committed 4.0; sample 1: sent 4.0 committed 6.0
         // -> mean 2.0 s = 2000 ms.
         assertEquals(2000, s.endToEndLatencyMs());
+    }
+
+    @Test
+    void warmupWindowDiscardsPreWarmupCommitsWithLogsPyFormulas() {
+        // NEXT-4b: HotStuff must drop warmup like every other system.
+        // clientStart = 10:00:01 (t+1.0). warmup=4 s -> windowStart = t+5.0.
+        // B1 committed t+4.0 (< 5.0) is DROPPED; only B2 (def=, committed
+        // t+6.0, proposed t+5.0, sample 1 sent t+4.0) survives.
+        String summary = HotStuffLogAnalyzer.summarize(
+                List.of(CLIENT), List.of(NODE0, NODE1), 0, 4);
+        HotStuffSummary s = HotStuffSummary.parse(summary);
+
+        // Only B2's 51200 B, over span = lastCommit(6.0) - windowStart(5.0)
+        // = 1.0 s: 51200/1.0/1024 = 50 tx/s (both consensus and e2e — the
+        // single kept batch's proposal == windowStart, so the starts coincide).
+        assertEquals(50, s.consensusTps());
+        assertEquals(50, s.endToEndTps());
+        // consensus latency = commit(6.0) - proposal(5.0) = 1.0 s = 1000 ms.
+        assertEquals(1000, s.consensusLatencyMs());
+        // e2e latency for sample 1 = commit(6.0) - sent(4.0) = 2.0 s (sample 0
+        // belongs to the discarded B1 and must NOT be averaged in).
+        assertEquals(2000, s.endToEndLatencyMs());
+        assertEquals(1, s.executionTimeSecs(), "execution time = the post-warmup span");
+    }
+
+    @Test
+    void warmupChangesTheNumbersItIsNotANoOp() {
+        // Guard against the fix silently doing nothing: the whole-run and
+        // windowed summaries of the SAME logs must differ.
+        String whole = HotStuffLogAnalyzer.summarize(List.of(CLIENT), List.of(NODE0, NODE1), 0);
+        String windowed = HotStuffLogAnalyzer.summarize(List.of(CLIENT), List.of(NODE0, NODE1), 0, 4);
+        assertNotEquals(whole, windowed,
+                "warmup=4 drops B1 — the summaries must not be identical");
+        // And warmup=0 must reproduce the whole-run summary EXACTLY (logs.py).
+        assertEquals(whole, HotStuffLogAnalyzer.summarize(List.of(CLIENT), List.of(NODE0, NODE1), 0, 0));
+    }
+
+    @Test
+    void warmupLongerThanTheRunFailsClosed() {
+        // A warmup that discards every commit is not a zero result — it is a
+        // run that never reached steady state; fail loud, never emit zeros.
+        var e = assertThrows(IllegalStateException.class,
+                () -> HotStuffLogAnalyzer.summarize(List.of(CLIENT), List.of(NODE0, NODE1), 0, 3600));
+        assertTrue(e.getMessage().contains("warmup"), e.getMessage());
     }
 
     @Test

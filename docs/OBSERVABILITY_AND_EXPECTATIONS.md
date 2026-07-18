@@ -134,11 +134,15 @@ CPU/NIC (rotating leadership); client's target node slightly busier;
 latency in the sub-second class at moderate rates (three-phase pipeline,
 no fixed block-interval wait — EXPECT it below CometBFT's p50, that
 directional comparison is preregistered).
-**Measurement asymmetry (carry into the thesis — PENDING_TASKS NEXT-4b):**
-HotStuff's numbers come from the logs.py port, which measures over the
-WHOLE run with NO warmup discard — every other system drops 180 s. This
-sits ON TOP of the D9 hardware seam and the log-derived caveat; HotStuff
-throughput/latency vs other systems is directional, never a bare ratio.
+**Measurement (NEXT-4b, resolved):** HotStuff now discards warmup like
+every other system — the logs.py-port analyzer applies logs.py's own
+formulas to only the post-warmup window, so `summary.txt` is the
+steady-state number that enters cross-system figures. The full-run
+(logs.py-exact, paper-comparable) number is still recomputable from the
+saved `logs/`. Two caveats REMAIN and carry into the thesis: the D9
+hardware seam (HotStuff on a larger node class) and the log-derived,
+no-server-metrics nature — so HotStuff-vs-other-system throughput/latency
+stays directional, never a bare ratio.
 **Fault expectation:** BASELINE only in this harness today (NEXT-4
 preregisters faults before implementing them).
 **Watch:** `cb-paxi-hs` + the run's `logs/` — its logs ARE its metrics.

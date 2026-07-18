@@ -29,10 +29,18 @@ import java.util.regex.Pattern;
  *    round-trips its own output through that strict parser before
  *    returning, so an unparseable SUMMARY can never leave this class.
  *
- * One deliberate DEVIATION, our house rule over logs.py's: a run with ZERO
- * committed batches throws instead of emitting an all-zero SUMMARY —
- * a fabricated-looking zero row is exactly what fail-closed exists to
- * prevent (the wedge/no-commit case is reported as a failed run, not data).
+ * Two deliberate departures from logs.py, both for honesty:
+ *  - a run with ZERO committed batches throws instead of emitting an
+ *    all-zero SUMMARY — a fabricated-looking zero row is exactly what
+ *    fail-closed prevents (the wedge/no-commit case is a failed run).
+ *  - an optional {@code warmupSecs} window (NEXT-4b): logs.py measures the
+ *    WHOLE run, but methodology §1 discards warmup for every other system,
+ *    so a full-run HotStuff number would carry a ramp the others don't.
+ *    When a warmup is given, the SAME logs.py formulas run over only the
+ *    batches committed after the window start; the 3-arg overload keeps the
+ *    logs.py-exact whole-run behavior (and the raw logs are always saved,
+ *    so full-run stays recomputable). Nothing is hidden; the numbers are
+ *    made comparable to the rest of the matrix.
  */
 public final class HotStuffLogAnalyzer {
 
@@ -65,16 +73,36 @@ public final class HotStuffLogAnalyzer {
 
     private HotStuffLogAnalyzer() { }
 
+    /** Whole-run summary — logs.py EXACT (no warmup discard). Kept for the
+     *  fixture tests and for recomputing the paper-comparable full-run
+     *  number from saved logs. */
+    public static String summarize(List<String> clientLogs, List<String> nodeLogs, int faults) {
+        return summarize(clientLogs, nodeLogs, faults, 0);
+    }
+
     /**
      * @param clientLogs one entry per client (the campaign runs exactly one)
      * @param nodeLogs   one entry per node; index 0 MUST be the client's
      *                   target node (logs.py's zip pairing — see class doc)
      * @param faults     crash-fault count the run was configured with (0 on
      *                   baseline; committee size = nodes + faults)
+     * @param warmupSecs seconds of load to DISCARD from the front (NEXT-4b —
+     *                   methodology §1: EVERY system drops warmup, so HotStuff
+     *                   must too or its throughput/latency carry a ramp the
+     *                   others don't). {@code 0} = whole run, reproducing
+     *                   logs.py EXACTLY. When {@code > 0}, only batches
+     *                   COMMITTED at/after (client start + warmup) contribute,
+     *                   and throughput is measured over the post-warmup span —
+     *                   logs.py's OWN formulas, applied to the steady-state
+     *                   window (the same restriction the engine's warmup
+     *                   flag applies to the other systems). The raw logs are
+     *                   always saved, so the full-run number stays
+     *                   recomputable via the 3-arg overload.
      * @return the canonical SUMMARY block, already validated by
      *         {@link HotStuffSummary#parse}
      */
-    public static String summarize(List<String> clientLogs, List<String> nodeLogs, int faults) {
+    public static String summarize(List<String> clientLogs, List<String> nodeLogs, int faults,
+                                   int warmupSecs) {
         if (clientLogs.isEmpty() || nodeLogs.isEmpty()) {
             throw new IllegalArgumentException("need at least one client log and one node log");
         }
@@ -138,14 +166,44 @@ public final class HotStuffLogAnalyzer {
                             + " (wedged or dead cluster; report the run as failed)");
         }
 
-        // ---- formulas, verbatim ----
-        double consensusStart = proposals.values().stream().mapToDouble(d -> d).min().orElseThrow();
-        double lastCommit = commits.values().stream().mapToDouble(d -> d).max().orElseThrow();
-        long totalBytes = sizes.values().stream().mapToLong(l -> l).sum();
+        // ---- warmup discard (NEXT-4b): keep only batches committed at/after
+        //      the window start. warmup<=0 => windowStart=-inf => all kept =>
+        //      logs.py-exact. ----
+        final double windowStart = warmupSecs > 0
+                ? startMin + warmupSecs : Double.NEGATIVE_INFINITY;
+        Map<String, Double> keptCommits = new HashMap<>();
+        for (Map.Entry<String, Double> e : commits.entrySet()) {
+            if (e.getValue() >= windowStart) keptCommits.put(e.getKey(), e.getValue());
+        }
+        if (keptCommits.isEmpty()) {
+            throw new IllegalStateException("no batch committed after the " + warmupSecs
+                    + "s warmup window — the run never reached measurable steady state"
+                    + " (raise duration or lower warmup)");
+        }
+        final java.util.Set<String> kept = keptCommits.keySet();
+
+        // ---- formulas: logs.py's, over the kept (post-warmup) batches ----
+        double lastCommit = keptCommits.values().stream().mapToDouble(d -> d).max().orElseThrow();
+        double minKeptProposal = kept.stream().map(proposals::get)
+                .filter(p -> p != null).mapToDouble(d -> d).min().orElse(lastCommit);
+        // logs.py exact at warmup<=0 (consensus from first proposal, e2e from
+        // client start); windowed clamps both starts to the window (the ramp
+        // that separated consensus- and e2e-TPS is exactly what warmup drops).
+        double consensusStart = warmupSecs > 0
+                ? Math.max(windowStart, minKeptProposal) : minKeptProposal;
+        double e2eStart = warmupSecs > 0 ? windowStart : startMin;
+        long totalBytes = sizes.entrySet().stream()
+                .filter(en -> kept.contains(en.getKey())).mapToLong(Map.Entry::getValue).sum();
         double consensusDuration = lastCommit - consensusStart;
+        double e2eDuration = lastCommit - e2eStart;
+        if (consensusDuration <= 0 || e2eDuration <= 0) {
+            throw new IllegalStateException("degenerate measurement window (span "
+                    + consensusDuration + "/" + e2eDuration + " s) — too few post-warmup"
+                    + " commits to measure; raise duration");
+        }
         double consensusBps = totalBytes / consensusDuration;
         double consensusTps = consensusBps / txSize;
-        double consensusLatency = commits.entrySet().stream()
+        double consensusLatency = keptCommits.entrySet().stream()
                 .mapToDouble(e -> {
                     Double p = proposals.get(e.getKey());
                     if (p == null) {
@@ -155,15 +213,14 @@ public final class HotStuffLogAnalyzer {
                     return e.getValue() - p;
                 }).average().orElse(0);
 
-        double e2eDuration = lastCommit - startMin;
         double e2eBps = totalBytes / e2eDuration;
         double e2eTps = e2eBps / txSize;
         java.util.DoubleSummaryStatistics e2e = new java.util.DoubleSummaryStatistics();
         int pairs = Math.min(sentSamples.size(), receivedSamples.size()); // logs.py zip
         for (int i = 0; i < pairs; i++) {
             for (Map.Entry<Long, String> r : receivedSamples.get(i).entrySet()) {
-                Double committed = commits.get(r.getValue());
-                if (committed == null) continue; // sample batch never committed
+                Double committed = keptCommits.get(r.getValue());
+                if (committed == null) continue; // batch never committed OR dropped by warmup
                 Double sent = sentSamples.get(i).get(r.getKey());
                 if (sent == null) {
                     throw new IllegalStateException("sample tx " + r.getKey()

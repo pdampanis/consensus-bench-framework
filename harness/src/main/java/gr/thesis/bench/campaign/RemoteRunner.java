@@ -303,7 +303,11 @@ public final class RemoteRunner {
         }
         Instant ended = Instant.now();
 
-        String summary = HotStuffLogAnalyzer.summarize(List.of(clientLog), nodeLogs, 0);
+        // Discard warmup like every other system (NEXT-4b): the analyzer
+        // applies logs.py's formulas to the post-warmup window. The raw logs
+        // are saved below, so the full-run number stays recomputable.
+        String summary = HotStuffLogAnalyzer.summarize(
+                List.of(clientLog), nodeLogs, 0, spec.warmupSecs());
         writeHotStuffResults(spec, summary, clientLog, nodeLogs, nodes, started, ended);
     }
 
@@ -338,15 +342,16 @@ public final class RemoteRunner {
                   "started_at": "%s",
                   "ended_at": "%s",
                   "duration_secs": %d,
+                  "warmup_secs": %d,
                   "rate_ops_s": %d,
                   "value_size_bytes": %d,
-                  "metrics_source": "summary.txt (logs.py-port; logs/ are the raw evidence)",
+                  "metrics_source": "summary.txt (logs.py-port over the post-warmup window, NEXT-4b; logs/ are the raw evidence — recompute full-run from them if needed)",
                   "status": "complete",
                   "harness": "consensus-bench-java"
                 }
                 """.formatted(spec.scenario().name().toLowerCase(), spec.clusterSize(),
                 spec.runId(), LocalDockerProvider.HOTSTUFF_IMAGE, started, ended,
-                spec.durationSecs(), spec.ratePerSec(), spec.valueSizeBytes());
+                spec.durationSecs(), spec.warmupSecs(), spec.ratePerSec(), spec.valueSizeBytes());
         Files.writeString(dir.resolve("manifest.json"), manifest);
         log.info("hotstuff results -> {}", dir);
     }

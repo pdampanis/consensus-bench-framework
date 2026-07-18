@@ -812,23 +812,20 @@ connections — probe first, locally, with the formation test's harness).
 Then: golden block for the fault sequence + analyzer handling + runner
 unlock, TDD.
 
-**NEXT-4b — HotStuff warmup asymmetry (author decision, threat-to-validity).**
-Honest gap surfaced building `RemoteRunner.runHotStuff`: every driver-based
-system discards a 180 s warmup window (methodology §1), but HotStuff's
-numbers come from the logs.py port, which computes throughput/latency over
-the WHOLE run with NO warmup exclusion (that is how fab/logs.py measures —
-deviating would make our HotStuff numbers non-comparable to published
-HotStuff numbers, which is worse). So a HotStuff `Execution time` includes
-its ramp, and cross-system latency/throughput comparisons involving
-HotStuff carry this asymmetry ON TOP of the D9 hardware seam and the
-"log-derived, no server metrics" caveat. Options for the author: (i) keep
-logs.py semantics and document the asymmetry as a named threat in §7
-(recommended — preserves comparability to the HotStuff paper); (ii) run
-HotStuff with a short deliberate discard by trimming the client log's
-pre-steady window before analysis (a NEW deviation from logs.py — needs its
-own validation). Decide before the BFT phase; today `remote-run --system
-hotstuff` runs the full duration and the manifest records `duration_secs`
-honestly so the choice is reversible at analysis time.
+**NEXT-4b — HotStuff warmup asymmetry. DONE 2026-07-18 (TDD).** Resolved
+the honest gap without losing the paper anchor: `HotStuffLogAnalyzer`
+gained an optional `warmupSecs` window applying logs.py's OWN formulas to
+only the batches committed after (client start + warmup) — the same
+warmup discard every other system gets (methodology §1). `warmupSecs=0`
+(the 3-arg overload) reproduces logs.py EXACTLY, so the full-run,
+paper-comparable number stays recomputable from the always-saved raw
+logs; `RemoteRunner` passes `spec.warmupSecs()` so `summary.txt` is the
+post-warmup, cross-system-comparable number. Not a new deviation — it is
+the standard warmup discard, applied to logs.py's formulas. TDD:
+hand-computed windowed fixture (warmup=4 drops the first batch → 50 tx/s,
+its sample excluded from e2e latency), warmup=0 byte-identical to
+whole-run, over-long warmup fails closed. The remaining HotStuff caveats
+(D9 hardware seam, log-derived/no-server-metrics) stand and are in §7.
 
 **NEXT-5 — P4 remainder.** PARTLY DONE (batch 3, this session): dashboards
 (P4.4) shipped — campaign-overview + per-algorithm (etcd, kafka [both
