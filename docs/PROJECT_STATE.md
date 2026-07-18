@@ -5,7 +5,36 @@ It is written for a fresh Claude session with no memory of prior turns.
 When something here conflicts with an older file, this document wins; update
 it at the end of every working session.
 
-Last updated: 2026-07-17 — fourth hard review + fixes (F28–F30, ledger in
+Last updated: 2026-07-18 — **fifth hard review (F31–F38, all fixed or
+decided same session; ledger in PENDING_TASKS) + the "everything
+remote-ready" session.** Protocol note: at the author's request every
+increment below was verified by ONE batched `mvn21 clean verify` at
+session end (not per increment; stated in each commit). Highlights:
+HEAD re-verified 115/115 green FIRST (the working tree held the
+uncommitted-but-passing HotStuffMultiNodeFormationTest — 4-node HotStuff
+formation EXECUTION-VERIFIED, 21.5 s). Then: **P3.3d-hotstuff COMPLETE**
+(remote golden written first + provider HOTSTUFF branch matching verbatim
+— **RemoteSshProvider now serves 7/7 systems**); **F33** image-presence
+gate (paxi/hotstuff exist in no registry — fail-closed per node with the
+docker save|load fix; cloud-init pre-pulls the four registry digests);
+**HotStuffLogAnalyzer** (logs.py ported verbatim at dc01ac8, fetched
+2026-07-18: same regexes/merge/formulas, byte-identical SUMMARY template,
+round-trip-validated by the strict P2.5 parser; deviation: zero commits
+THROWS — never an all-zero row); **M3.3-core `remote-run`** (one campaign
+cell on real VMs from the loadgen: typed Inventory, per-system driver
+dispatch, fault thread targeting the DETECTED leader — replica 0
+documented for EPaxos/CometBFT only — heal in finally, env=hetzner
+results, fault-run SUT-log collection, and the HotStuff path: upstream
+client on the loadgen + chunked whole-log retrieval (`RemoteLogs`, the
+sshj 2 MB window) + analyzer → summary.txt; HotStuff faults preregistered,
+BASELINE only); new docs `HOW_TO_CONTINUE.md` (the map) and
+`PER_ALGORITHM_TEST_GUIDE.md` (per-algorithm test/debug/benchmark
+checklists). Next: G2 golden read-through (HUMAN) → P3.5 price check →
+P3.4 canary → per-system smoke → M3.3-full (LLM-ready spec in
+PENDING_TASKS). **Suite after this session: 137 tests green** — the one
+batched `mvn21 clean verify` (BUILD SUCCESS, ~4 min; every new golden
+matched verbatim on the first run).
+Prior update, 2026-07-17 — fourth hard review + fixes (F28–F30, ledger in
 PENDING_TASKS; all fixed same day, TDD red→green) and the **P3.3d-kafka
 prerequisite verified by execution**: 3-broker KRaft formation on a
 user-defined Docker network (the increment the 2026-07-16 classifier
@@ -197,17 +226,21 @@ manual review kill the ship-unverified bug class.
 │ │  digest-pinned etcd,   │   │  bounded in-flight window (Semaphore)  │
 │ │  /health gate, Ryuk,   │   │  intended-time latency (CO correction) │
 │ │  pre-clean leftovers   │   │  keyFor(c): K=1000 reused, D7 conflict │
-│ └ RemoteSshProvider ✦    │   │  key 0 exclusive ← knob (P1.2)         │
-│    + FaultInjector ✦     │   └──────┬─────────────────────────────────┘
-└──────────────────────────┘          │ write(keyId∈[0,1000), value)
-                                      ▼
+│ └ RemoteSshProvider      │   │  key 0 exclusive ← knob (P1.2)         │
+│   7/7 golden-served      │   └──────┬─────────────────────────────────┘
+│   + SshFaultInjector     │          │ write(keyId∈[0,1000), value)
+└──────────▲───────────────┘          ▼
+           │ campaign.RemoteRunner (remote-run: one cell on real VMs,
+           │ Inventory-typed, fault mark, env=hetzner; HotStuff = upstream
+           │ client on loadgen + RemoteLogs + logs.py-port analyzer)
                      ┌─ ConsensusDriver (SPI) ────────────────┐
                      │ per-driver keyId encoding @connect():  │
                      │ ├ EtcdDriver (jetcd/gRPC, PRODUCTION;  │
                      │ │   leader detect x-validated vs HTTP) │
                      │ ├ EtcdHttpDriver  fallback + G3 check  │
                      │ ├ PaxiDriver      "/<id>" numeric-only │
-                     │ └ KafkaDriver ✦ CometBftDriver ✦ HS ✦  │
+                     │ ├ KafkaDriver (KRAFT+ZK) · CometBft    │
+                     │ └ HotStuffLogAnalyzer (logs=metrics)   │
                      │ completes ONLY on consensus commit     │
                      └──────┬─────────────────────────────────┘
                             │ CompletionStage → whenComplete
@@ -473,20 +506,23 @@ templated on the inventory, obs-VM compose (Prometheus + Grafana with
 provisioned datasource), and `export_queries.txt` (the fixed PromQL set the
 harness archives per run into `metrics/*.csv`).
 
-## 4. What is DESIGNED but NOT yet built
+## 4. What remains NOT yet built (F34 correction 2026-07-18 — everything
+   previously listed here except the items below IS built and tested; see
+   §3 and the PENDING_TASKS ledger)
 
-- Drivers: Etcd(jetcd), Kafka, CometBFT, HotStuff-boundary; Paxi leader
-  detection. (EtcdHttp + Paxi write path exist as pure-JDK.)
-- `ClusterProvider` impls: `LocalProcessProvider` (dev substrate — local
-  multi-process clusters, no Docker/cloud) and `RemoteSshProvider` (the v6
-  danger zone).
-- `FaultInjector` impls, `ValidityChecker`, `PrometheusExporter`, campaign
-  runner, picocli CLI, HdrHistogram swap.
-- The **SSH golden tests** (assert exact remote command sequences per
-  (system, scenario, size) cell before any VM is billed) and the **canary**
-  (one etcd cell on 2 temporary VMs).
+- **M3.3-full matrix runner** (loops the existing `remote-run` cells:
+  randomized order within system blocks, n=5, resume; LLM-ready spec in
+  PENDING_TASKS NEXT-3) and the picocli CLI (M1.3).
+- **HotStuff fault scenarios** (preregistration required first —
+  PENDING_TASKS NEXT-4; remote-run serves HotStuff BASELINE today).
+- `ValidityChecker` (M5.5), `PrometheusExporter` (M5.4), docker-events
+  audit (the open half of P4.5), ZK/JMX metric-name fixtures (P4.3),
+  Grafana dashboards as code (M5.6).
+- The **canary** (P3.4) and everything gate-blocked behind G2's HUMAN
+  golden read-through (all seven goldens now exist and are test-matched).
 - `analyse.py` v2 (pooled histograms, Holm correction, ECDFs, validity
-  filtering) and the 8 planned figures.
+  filtering) and the 8 planned figures (F15: vendor the old analyse.py
+  first).
 
 ## 5. The plan and its gates
 

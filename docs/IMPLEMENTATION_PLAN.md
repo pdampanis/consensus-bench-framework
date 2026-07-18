@@ -48,7 +48,7 @@ and Maven dependency resolution (no Central access in the sandbox).
 | ID | Task | Deliverable | Acceptance | Deps |
 |----|------|-------------|------------|------|
 | M2.1 | EtcdDriver (jetcd) | Driver + leader detection via maintenance status | 60 s smoke vs local etcd; on a 3-process local cluster, detected leader index matches `etcdctl endpoint status` | M1 |
-| M2.2 | KafkaDriver | kafka-clients producer, acks=all, callback-timed commit | 60 s smoke vs local single-broker KRaft; throughput within 15% of `kafka-producer-perf-test` on the same broker | M1 |
+| M2.2 | KafkaDriver | kafka-clients producer, acks=all, callback-timed commit | 60 s smoke vs local single-broker KRaft; LOCAL gate = order-of-magnitude band vs `kafka-producer-perf-test` on the same broker (amended 2026-07-18 per F27/P2.2c: laptop environments swung the ratio 0.2x–2.8x for identified reasons — evidence in the parity test's javadoc); the symmetric 15% comparison runs at G3/M6.1 on the cluster | M1 |
 | M2.3 | CometBftDriver | Async `broadcast_tx_commit`, window ≥200 | Local kvstore node: sustained > 300 tx/s (≥50× the old 6-client ceiling); p50 ≈ block interval | M1 |
 | M2.4 | Paxi leader detection | `Ballot` response-header parsing in PaxiDriver (F22: paxi has no `/state`; the header's ID part is the leader) | Unit test on Ballot-header fixtures + 3-node local Paxos smoke | M1 |
 | M2.5 | HotStuff boundary | SUMMARY parser as a class | Unit test against a captured `fab.log` fixture | M1 |

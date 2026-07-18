@@ -29,26 +29,30 @@ cd $REPO/harness
 mvn21 clean verify
 ```
 
-**Expect** (versions/counts as of 2026-07-17 — counts only grow):
+**Expect** (versions/counts as of 2026-07-18 — counts only grow):
 
 ```
-Tests run: 114, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 137, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
 and a ~77 MB shaded jar at `target/consensus-bench-0.1.0-SNAPSHOT.jar`.
-The provider tests need Docker; the first ever run pulls the pinned etcd
-image (~50 MB). If you see `client version 1.32 is too old`, the
-testcontainers pin regressed below 1.21.4 (Docker 29 needs ≥1.21.4).
+The provider tests need Docker plus BOTH local image builds
+(`docker build -t paxi:6823d0b infra/paxi` and
+`docker build -t hotstuff:dc01ac8 infra/hotstuff`); the first ever run
+pulls the pinned registry images. If you see `client version 1.32 is too
+old`, the testcontainers pin regressed below 1.21.4 (Docker 29 needs
+≥1.21.4). Per-algorithm selections and debugging:
+`docs/PER_ALGORITHM_TEST_GUIDE.md`.
 
-What the 114 tests pin, so you know what a failure means (headline additions
-since 101: 3-broker KRaft formation on a user-defined network — verified
-by execution, then encoded as the remote KRaft golden with its quorum-
-oracle gate; the 4-validator CometBFT formation from DISTRIBUTED files —
-BFT commit through 3-of-4 precommits, all replicas at the committed
-height — then encoded as the remote tendermint golden with its
-height>=1 quorum gate; the F28 real-sshd backgrounding pin; the F29
-pre-clean sweep; the F30 no-leader-claim pin):
+What the 137 tests pin, so you know what a failure means (headline
+additions since 114: the 4-node HotStuff formation — real client traffic
+committed through BFT consensus, logs.py's own parse targets asserted on
+every replica — then its remote golden + provider branch; the F33
+image-presence gates; the logs.py-port analyzer with hand-computed
+fixtures; the campaign layer — typed inventory, fault targeting, chunked
+log transfer, upstream-client command pin; the F31 pkill self-match fix
+and the F32 fail-closed CLI keys):
 - `ArgParserTest` (6) — CLI contract: `--key value` pairs, bare `-v/--verbose`,
   fail-closed on a dangling key, duration>warmup guard.
 - `EventLogTest` (3) + engine event tests — failover instrumentation:

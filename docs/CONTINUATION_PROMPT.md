@@ -86,30 +86,31 @@ start script, ZK :7000 gate + ZK-MODE started line + api-versions==3,
 teardown brokers-then-ensemble) matched verbatim by the provider
 KAFKA_ZK branch — the RemoteSshProvider now serves SIX of seven
 systems; only HOTSTUFF fails closed.
-Suite: 114 tests green via `mvn21 clean verify`
-(integration tests need the local Docker daemon + the once-per-machine
-`docker build -t paxi:6823d0b infra/paxi`).** The measurement instrument
-is complete. Do NOT redo any of it — PENDING_TASKS.md is the ledger
-(F1–F30), PROJECT_STATE.md §3 the evidence, MEASUREMENT_DIAGRAMS.md the
-architecture reference.
+**2026-07-18 update: P3.3d-hotstuff is COMPLETE and the remote layer is
+DONE for ALL SEVEN systems** — formation verified by execution (21.5 s),
+golden written first, provider HOTSTUFF branch matched verbatim, F33
+image-presence gate (paxi/hotstuff exist in no registry), plus
+HotStuffLogAnalyzer (logs.py ported verbatim at dc01ac8) and M3.3-core
+`remote-run` (one campaign cell on real VMs incl. the HotStuff
+upstream-client path; fault targeting = detected leader, heal in finally,
+env=hetzner). Fifth-review ledger F31–F38 in PENDING_TASKS. Suite green
+via ONE batched `mvn21 clean verify` at session end (author-authorized;
+count in PROJECT_STATE). Integration tests need the local Docker daemon +
+once-per-machine `docker build -t paxi:6823d0b infra/paxi` and
+`docker build -t hotstuff:dc01ac8 infra/hotstuff`.** The measurement
+instrument AND the remote layer are complete. Do NOT redo any of it —
+PENDING_TASKS.md is the ledger (F1–F38), PROJECT_STATE.md §3 the
+evidence, MEASUREMENT_DIAGRAMS.md the architecture reference,
+HOW_TO_CONTINUE.md the one-page map.
 
 Proposed next increment (confirm with me before coding, then do only this):
-**P3.3d-hotstuff formation — verify a 4-node cluster by execution.**
-The image + CLI increment is DONE (2026-07-17): `docker build -t
-hotstuff:dc01ac8 infra/hotstuff` (source-pinned; NO upstream Cargo.lock
-— image id 8501e107d4bf is the reproducibility anchor; rust≥1.85 +
-libclang/g++ are measured build requirements). The contract is
-source-verified AND probed live: node keys/run CLI, -vv logging (feeds
-the SUMMARY), client <ADDR> --timeout --size --rate --nodes, committee
-JSON with THREE ports per node (consensus, transactions=client target,
-mempool), parameters JSON fields enumerated in PENDING_TASKS. Now the
-KRaft/CometBFT pattern: a formation test on a user-defined Docker
-network — generate 4 keypairs, build committee.json from them,
-one node container per alias, run a bounded client burst, assert the
-benchmark log lines that logs.py aggregates (commits visible on
-multiple nodes). THEN the remote golden + provider HOTSTUFF branch.
-After that: the G2 human read-through of ALL goldens, and the P3.4
-canary. Also pending: P2.6 (safety-oracle scope, before M5.5), P2.0
+**NEXT-1 in PENDING_TASKS — the G2 golden read-through is MINE (human),
+not yours: surface all seven goldens and wait.** After my sign-off:
+P3.5 price check, then the P3.4 canary
+(PER_ALGORITHM_TEST_GUIDE §8 is the checklist), then per-system
+remote-run smokes, then M3.3-full (LLM-ready spec in PENDING_TASKS
+NEXT-3). Also pending: NEXT-4 (HotStuff fault preregistration — decisions
+listed, ask me), P2.6 (safety-oracle scope, before M5.5), P2.0
 (scheduler scaling — only if triggered).
 
 ## What "done" looks like for this whole effort
@@ -145,9 +146,10 @@ Don't let this become an afterthought bolted on at analysis time.
 - infra/ (main.tf + cloud-init.yaml), observability/
 - the consensus papers already in the project
 
-Start by reading PROJECT_STATE.md, confirming `mvn21 clean verify` is still
-green (114 tests, Docker required), then propose the P3.3d-hotstuff
-image+CLI-probe increment, and wait for my go-ahead.
+Start by reading PROJECT_STATE.md and HOW_TO_CONTINUE.md, confirming
+`mvn21 clean verify` is still green (count in PROJECT_STATE; Docker + both
+local image builds required), then surface the seven goldens for my G2
+read-through and wait for my go-ahead.
 
 ────────────────────────────────────────────────────────────────────────────
 Note on the model switch: this project involves consensus/BFT and distributed-

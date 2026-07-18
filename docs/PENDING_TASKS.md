@@ -1,6 +1,6 @@
 # Pending Tasks — Prioritized Backlog + Status Ledger
 
-**Last updated: 2026-07-17.** Companion to `IMPLEMENTATION_PLAN.md`
+**Last updated: 2026-07-18.** Companion to `IMPLEMENTATION_PLAN.md`
 (milestone-ordered M0→M6). This file is **priority-ordered for the current
 push** and doubles as the handoff ledger: a fresh session should be able to
 read this file plus `PROJECT_STATE.md` and know exactly what is done (with
@@ -553,8 +553,11 @@ Kafka+ZK per D10 — zk1-3 + broker1-3 colocated, CometBFT testnet, Paxi trio).*
      increment.
   2. **Host networking, no mapped ports** (D2): clientEndpoints() become
      `http://10.0.0.1x:<native port>`; cluster-formation flags advertise
-     private IPs, not Docker aliases; health gates now traverse the
-     private net from the loadgen.
+     private IPs, not Docker aliases. Provider health gates run ON each
+     node (curl 127.0.0.1 via SSH — the SSH hop itself proves loadgen→node
+     reachability); the loadgen→SERVICE path is proven separately by every
+     driver's fail-closed connect() probe (F36 wording fix, 2026-07-18 —
+     the code was right, this sentence was not).
   3. **netem must shape the PRIVATE interface**: resolved per node at
      runtime via `ip -o route get <peer_private_ip>` and parsed from the
      recorded output — never an assumed `eth0` (on Hetzner the public and
@@ -700,7 +703,121 @@ so sessions stop inheriting the unrelated `~/Downloads/CLAUDE.md`.
 
 ---
 
-## Immediate next increment (proposed)
+## 2026-07-18 fifth hard review + the "everything remote-ready" session
+
+**Verification protocol of this session (user-authorized deviation):** the
+author asked for all increments batched with ONE `mvn21 clean verify` at
+session end instead of per-increment runs; every commit from this session
+says so. Before any change, the committed HEAD was re-verified by
+execution: **115/115 green in 3:58** — 114 committed tests plus the
+until-then-UNCOMMITTED `HotStuffMultiNodeFormationTest` found in the
+working tree (the P3.3d-hotstuff step-2 in-flight work), which passed in
+21.5 s: the 4-node HotStuff formation is EXECUTION-VERIFIED (client
+traffic committed through BFT consensus, every replica logging logs.py's
+own commit regex).
+
+**Findings F31–F38** (review first, fixes in the same session):
+
+| # | Finding | Status |
+|---|---------|--------|
+| F31 | `SshFaultInjector.heal`'s `pkill -f 'stress-ng --cpu 2'` matches the remote `sh -c` shell running the pkill itself (its cmdline contains the pattern) — every slow_node heal would SIGTERM its own shell and turn the loud WARN channel into permanent noise | **FIXED** — `stress-n[g]` character-class trick; golden updated; canary checklist notes the one EXPECTED WARN (nothing to undo after --timeout) |
+| F32 | `Main.parse` silently ignored unknown argument keys: `--ratee 300` ran at the default rate — fail-open in a fail-closed CLI | **FIXED** — `requireKnownKeys` per command, TDD-pinned (`unknownArgumentKeyFailsClosed`) |
+| F33 | Local-built images (paxi:6823d0b, hotstuff:dc01ac8) exist in NO registry: the committed paxi golden would fail at first contact on a real VM (docker pull of an unpullable image); registry images' first `docker run` pull could trip the 30 s SSH bound | **FIXED** — provider `requireImageOnNodes` gate (fail-closed naming node + `docker save \| ssh docker load` fix; goldens updated, test-pinned) + cloud-init pre-pulls the four registry digests at boot |
+| F34 | PROJECT_STATE §3 diagram/§4 still said RemoteSshProvider, FaultInjector, and the Kafka/CometBFT drivers were "designed, not built" — the source-of-truth doc contradicted its own header | **FIXED** (docs) |
+| F35 | A mid-start provider failure leaves just-started containers RUNNING on VMs (nodes register only after gates pass; KAFKA_ZK's ensemble is the exception via auxContainers) | **DECIDED + DOCUMENTED** — deliberate evidence preservation; F29 pre-clean sweeps them at the next start; stated in the provider javadoc |
+| F36 | Remote-deltas preregistration item 2 said health gates "traverse the private net from the loadgen"; the implementation (correctly) curls ON the node — doc/code drift in the spec the goldens claim to encode | **FIXED** (wording, above) |
+| F37 | IMPLEMENTATION_PLAN M2.2 still carried the raw "within 15%" acceptance that F27/G1 moved to G3/M6.1 — and the authority rule says the plan wins on acceptance criteria | **FIXED** (plan amended) |
+| F38 | Nits: `awaitKafkaQuorum` message said "KRaft cluster" when gating KAFKA_ZK (fixed); dead `root` var in the new formation test (fixed); noted-not-fixed: SshjExecutor's lost putIfAbsent race returns an unpooled client (harmless), EtcdHttpDriver re-encodes the constant value per op (fallback path only), KRAFT and KAFKA_ZK share `thesis-k<i>` names (one system at a time + pre-clean make it safe; forensics ambiguity noted) | **FIXED / noted** |
+
+**Shipped this session (all seven systems now remote-ready):**
+
+- **P3.3d-hotstuff COMPLETE**: the formation test committed (with evidence),
+  the remote golden `hotstuff-size4-start-stop.txt` written FIRST (keygen
+  one-shots on node1, committee = fab config.py's exact shape on real
+  private IPs with three ports per node, boot-level readiness stated
+  honestly — commits need traffic and the client is the traffic source),
+  and the provider HOTSTUFF branch matching it verbatim + endpoint/shape/
+  image-gate tests. **RemoteSshProvider serves 7/7 systems.**
+- **HotStuffLogAnalyzer**: logs.py ported to Java VERBATIM at the pinned
+  commit (fetched dc01ac8 2026-07-18 — same regexes, same merge-earliest,
+  same formulas, byte-identical SUMMARY template that the strict P2.5
+  parser round-trip-validates). One deliberate deviation, our house rule:
+  zero commits THROWS instead of emitting an all-zero SUMMARY. Live-log
+  shape check (do real -vv lines match at dc01ac8?) is the first VM run's
+  job — listed in the guide.
+- **M3.3-core `remote-run`**: one campaign cell end-to-end from the loadgen
+  — `Inventory` (typed, fail-closed parse of the Terraform-generated file),
+  driver dispatch per system, fault thread at `--fault-at` targeting the
+  DETECTED leader (F13/F19; replica 0 documented for EPaxos/CometBFT only),
+  heal in finally, `environment=hetzner` results, fault-run SUT-log
+  collection (P4.5 partial), and the HotStuff path (upstream client on the
+  loadgen, whole-log collection, analyzer → summary.txt + logs + manifest).
+  A fault run whose injection failed THROWS after writing forensics — it
+  never masquerades as data. `RemoteLogs`: chunked `dd | base64` transfer
+  (1 MiB per command) because sshj's read-after-join caps single-command
+  output at the ~2 MB channel window — full -vv logs must survive intact
+  (byte-accumulated, decoded once; truncation fails loud).
+- **Docs**: `HOW_TO_CONTINUE.md` (the one-page map) and
+  `PER_ALGORITHM_TEST_GUIDE.md` (per-algorithm test/debug/benchmark
+  checklists + canary first-contact list).
+
+**Result of the batched verification: 137/137 tests green, BUILD SUCCESS
+(~4 min)** — 22 new tests (hotstuff provider ×3, analyzer ×5, campaign
+×13, F32 CLI ×1) plus the committed formation test; every new golden
+matched verbatim on the first run.
+
+---
+
+## Immediate next increments (LLM-ready specs)
+
+**NEXT-1 — G2 golden read-through (HUMAN, the author).** Read all seven
+goldens in `harness/src/test/resources/goldens/` against their header
+checklists. Deliverable: a signed-off line in this file. Blocks everything
+billed. No code.
+
+**NEXT-2 — P3.4 canary (after G2 + P3.5 price check).** Follow
+PER_ALGORITHM_TEST_GUIDE §8 verbatim. Expected code fallout: none, but
+budget for wording drift in tc/iptables/docker stderr on ubuntu-24.04 —
+each surfaces as a named fail-closed error; fix = adjust the one probe
+string + its golden, TDD.
+
+**NEXT-3 — M3.3-full matrix runner.** Plan for an implementing LLM:
+- New `campaign.MatrixRunner`: builds a `List<RemoteRunner.Spec>` from a
+  campaign phase (systems × scenarios × sizes × rates × n=5 repetitions ×
+  D7 conflicts for the paxi pair), shuffles WITHIN each system block
+  (methodology §1 randomization; seed logged), and loops
+  `RemoteRunner.run` serially (one system at a time —
+  EXECUTION_AND_COST_MODEL).
+- Resume = skip specs whose `manifest.json` already exists with
+  `status: complete` (path identity is the run identity — the v6
+  collision fix already guarantees uniqueness).
+- Per-spec failure: log + record into a `campaign-log.jsonl` on the
+  loadgen, continue (an invalid cell is rerun by hand; the runner never
+  hides one).
+- TDD: spec-matrix generation (counts per phase vs the runbook §3 tables),
+  shuffle-within-block pinning, resume-skips-complete, failure-continues.
+  No SSH in these tests — MatrixRunner takes a `Consumer<Spec>` seam.
+- CLI: `campaign-run --phase A|B|C --inventory … [--dry-run]` (dry-run
+  prints the ordered spec list — the operator's preflight).
+
+**NEXT-4 — HotStuff fault scenarios (preregister BEFORE implementing).**
+Decisions an implementing LLM must put to the author first: (a) target =
+replica 0 (rotating leader — same doc rule as CometBFT)? (b) SUMMARY
+`faults` field semantics for kill scenarios (logs.py's Faults line feeds
+committee_size = nodes + faults — a killed node still wrote logs up to the
+kill; decide whether its log stays in the analyzer input); (c) is a
+mid-run kill even meaningful for the upstream client (it may exit on lost
+connections — probe first, locally, with the formation test's harness).
+Then: golden block for the fault sequence + analyzer handling + runner
+unlock, TDD.
+
+**NEXT-5 — P4 remainder.** ValidityChecker (six gates + empty-series-fails
++ loadgen-steal), PrometheusExporter (runbook §5 protocol), docker-events
+audit (the P4.5 half still open), ZK/JMX metric-name fixture tests (P4.3),
+dashboards (P4.4). Each is already specified in its P4 entry above; no new
+decisions needed.
+
+(The section below is the previous session's text, kept for history.)
 
 **P3.3d-kafka_zk STEP 2 — the remote golden + provider KAFKA_ZK branch.**
 STEP 1 IS DONE (2026-07-17, 18.7 s green): `KafkaZkColocatedFormationTest`

@@ -73,10 +73,12 @@ consensus-bench-thesis/
 │   │   ├── driver/                 ConsensusDriver SPI + EtcdDriver (jetcd,
 │   │   │                           production) + EtcdHttp/Paxi drivers
 │   │   ├── results/                CsvResultsWriter (manifest v2, latency.hlog)
-│   │   ├── topology/               ClusterProvider SPI + LocalDockerProvider
-│   │   └── Main.java               CLI: endpoint-run + local-run (one command,
-│   │                               clean→deploy→run→teardown)
-│   ├── src/test/java/              114 tests (TDD; integration tests need Docker)
+│   │   ├── topology/               ClusterProvider SPI + Local/Remote providers
+│   │   │                           + SshFaultInjector (all golden-tested)
+│   │   ├── campaign/               Inventory + RemoteRunner (remote-run cell)
+│   │   │                           + RemoteLogs (chunked whole-log retrieval)
+│   │   └── Main.java               CLI: endpoint-run + local-run + remote-run
+│   ├── src/test/java/              TDD suite (count: PROJECT_STATE; needs Docker)
 │   └── results/                    M0 EVIDENCE — real etcd run outputs
 ├── infra/
 │   ├── main.tf                     cluster as Terraform, phase-parameterized
@@ -95,6 +97,8 @@ consensus-bench-thesis/
     ├── MASTER_PLAN.md              decisions D1–D11 + architecture
     ├── CAMPAIGN_RUNBOOK.md         topology, phases, cost, retrieval protocol
     ├── EXECUTION_AND_COST_MODEL.md one-system-at-a-time model, per-system cost
+    ├── HOW_TO_CONTINUE.md          ← the one-page map: ladder + numbered next steps
+    ├── PER_ALGORITHM_TEST_GUIDE.md per-algorithm tests/debug/benchmark checklists
     ├── LOCAL_TESTING.md            manual verification: exact commands + outputs
     ├── MONITORING_GUIDE.md         novice guide: watch/debug runs, Grafana+Prometheus demo
     ├── MEASUREMENT_DIAGRAMS.md     engine core + per-system commit-path diagrams
@@ -109,21 +113,22 @@ consensus-bench-thesis/
         └── DEPLOYMENT_GUIDE.md     retired shell deployment guide
 ```
 
-## Current status (verified, not asserted — as of 2026-07-17)
+## Current status (verified, not asserted — as of 2026-07-18)
 
-- **P0, P1, and the whole P2 driver phase closed; GATE G1 SIGNED OFF.
-  P3.3a-d (SSH seam + etcd/KRaft/paxi remote providers + fault injector,
-  golden-verified — the KRaft and CometBFT recipes each de-risked by a
-  real multi-node formation run BEFORE their goldens were written).
-  The RemoteSshProvider serves SIX of seven systems — etcd, KRaft,
-  Kafka+ZK (D10 colocated), CometBFT, Paxos, EPaxos — each recipe
-  verified by a real formation run BEFORE its golden; only HotStuff
-  remains. Suite: 114 tests green** (`mvn21 clean
-  verify`; the integration tests need the local Docker daemon + the
-  once-per-machine `docker build -t paxi:6823d0b infra/paxi`). Details
-  and evidence: `docs/PROJECT_STATE.md` §3, ledger in
-  `docs/PENDING_TASKS.md` (F1–F30), diagrams in
-  `docs/MEASUREMENT_DIAGRAMS.md`.
+- **P0, P1, P2 (G1 signed off), and the WHOLE remote layer closed:
+  RemoteSshProvider serves ALL SEVEN systems** — etcd, KRaft, Kafka+ZK
+  (D10 colocated), CometBFT, Paxos, EPaxos, HotStuff — every recipe
+  verified by a real formation run BEFORE its golden, every golden
+  matched verbatim, local-built images gated per node (F33).
+  **M3.3-core `remote-run`** drives one campaign cell end-to-end on real
+  VMs (typed inventory, detected-leader fault targeting, heal-in-finally,
+  env=hetzner results; HotStuff via its upstream client + the logs.py-port
+  analyzer). Suite green via `mvn21 clean verify` (this session: one
+  batched run at session end, author-authorized; count and evidence in
+  `docs/PROJECT_STATE.md` §3). Integration tests need the local Docker
+  daemon + once-per-machine `docker build -t paxi:6823d0b infra/paxi`
+  and `docker build -t hotstuff:dc01ac8 infra/hotstuff`. Ledger:
+  `docs/PENDING_TASKS.md` (F1–F38); map: `docs/HOW_TO_CONTINUE.md`.
 - **The measurement instrument is complete**: open-loop engine with CO
   correction, real HdrHistogram (true mean, `latency.hlog` pooling input),
   `EventLog` failover instrumentation, manifest v2 (params, digests,
@@ -149,10 +154,13 @@ consensus-bench-thesis/
   local parity gate is the order-of-magnitude band (15% at G3/M6.1 on the
   cluster); paxi leader_kill semantics are preregistered at P3.3 (F26:
   stock paxi has no failure detector).
-- **No remote layer yet**: RemoteSshProvider + FaultInjector + golden tests
-  (P3.3) and the canary (P3.4) gate any `terraform apply` (G2).
-- **No ValidityChecker / PrometheusExporter / campaign runner yet**
-  (P4.1/P4.2/M3.3).
+- **The remote layer is code-complete but VM-unverified**: the G2 human
+  read-through of the seven goldens and the P3.4 canary still gate any
+  `terraform apply`. HotStuff remote runs are BASELINE-only (fault
+  scenarios preregistered, PENDING_TASKS NEXT-4); the analyzer's live-log
+  shape check happens at the first VM run.
+- **No ValidityChecker / PrometheusExporter / full-matrix runner yet**
+  (P4.1/P4.2/M3.3-full — LLM-ready specs in PENDING_TASKS).
 - **`analyse.py` and the React visualizer are not in this repo** (F15): the
   writer targets their contract, but the contract is unverifiable here until
   they are vendored or golden-tested.
@@ -164,18 +172,19 @@ consensus-bench-thesis/
 ## Quick start for the next work session
 
 ```bash
-# 1. build + full suite (needs Docker; ~1.5 min)
-cd harness && mvn21 clean verify          # expect: Tests run: 114, BUILD SUCCESS
+# 1. build + full suite (needs Docker + both local image builds; ~4 min)
+cd harness && mvn21 clean verify          # expect: BUILD SUCCESS (count: PROJECT_STATE)
 
 # 2. the one-command local loop (the P0 deliverable)
 java -jar target/consensus-bench-0.1.0-SNAPSHOT.jar \
   local-run --size 3 --rate 100 --duration 6 --warmup 2 -v
 
-# 3. exact expected outputs for everything laptop-provable
-#    → docs/LOCAL_TESTING.md (9-point green checklist)
+# 3. per-algorithm tests, debugging, and benchmark checklists
+#    → docs/PER_ALGORITHM_TEST_GUIDE.md
+#    exact expected whole-suite outputs → docs/LOCAL_TESTING.md
 ```
 
-Then continue from `docs/PENDING_TASKS.md` (next: **P3.3d-hotstuff — the
-asonnino image from pinned source, then verify-first formation**; after
-it, the G2 human read-through of ALL goldens and the P3.4 canary), one
+Then continue from `docs/HOW_TO_CONTINUE.md` (next: **the G2 human
+read-through of ALL SEVEN goldens — the author's, never skipped**; then
+P3.5 price check, the P3.4 canary, per-system smokes, M3.3-full), one
 increment per session, per the working agreement in `docs/PROJECT_STATE.md` §9.
