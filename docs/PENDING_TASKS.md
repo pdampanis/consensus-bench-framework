@@ -812,6 +812,24 @@ connections — probe first, locally, with the formation test's harness).
 Then: golden block for the fault sequence + analyzer handling + runner
 unlock, TDD.
 
+**NEXT-4b — HotStuff warmup asymmetry (author decision, threat-to-validity).**
+Honest gap surfaced building `RemoteRunner.runHotStuff`: every driver-based
+system discards a 180 s warmup window (methodology §1), but HotStuff's
+numbers come from the logs.py port, which computes throughput/latency over
+the WHOLE run with NO warmup exclusion (that is how fab/logs.py measures —
+deviating would make our HotStuff numbers non-comparable to published
+HotStuff numbers, which is worse). So a HotStuff `Execution time` includes
+its ramp, and cross-system latency/throughput comparisons involving
+HotStuff carry this asymmetry ON TOP of the D9 hardware seam and the
+"log-derived, no server metrics" caveat. Options for the author: (i) keep
+logs.py semantics and document the asymmetry as a named threat in §7
+(recommended — preserves comparability to the HotStuff paper); (ii) run
+HotStuff with a short deliberate discard by trimming the client log's
+pre-steady window before analysis (a NEW deviation from logs.py — needs its
+own validation). Decide before the BFT phase; today `remote-run --system
+hotstuff` runs the full duration and the manifest records `duration_secs`
+honestly so the choice is reversible at analysis time.
+
 **NEXT-5 — P4 remainder.** PARTLY DONE (batch 3, this session): dashboards
 (P4.4) shipped — campaign-overview + per-algorithm (etcd, kafka [both
 modes], cometbft, paxi+hotstuff), each carrying an embedded reading guide

@@ -134,6 +134,11 @@ CPU/NIC (rotating leadership); client's target node slightly busier;
 latency in the sub-second class at moderate rates (three-phase pipeline,
 no fixed block-interval wait — EXPECT it below CometBFT's p50, that
 directional comparison is preregistered).
+**Measurement asymmetry (carry into the thesis — PENDING_TASKS NEXT-4b):**
+HotStuff's numbers come from the logs.py port, which measures over the
+WHOLE run with NO warmup discard — every other system drops 180 s. This
+sits ON TOP of the D9 hardware seam and the log-derived caveat; HotStuff
+throughput/latency vs other systems is directional, never a bare ratio.
 **Fault expectation:** BASELINE only in this harness today (NEXT-4
 preregisters faults before implementing them).
 **Watch:** `cb-paxi-hs` + the run's `logs/` — its logs ARE its metrics.
