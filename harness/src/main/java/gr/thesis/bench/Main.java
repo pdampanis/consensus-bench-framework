@@ -30,6 +30,10 @@ import java.util.Map;
  *               inventory-typed topology, golden-tested provider/injector,
  *               per-system driver, environment=hetzner results. Runs ON the
  *               loadgen VM. See docs/PER_ALGORITHM_TEST_GUIDE.md.
+ *   campaign-run  ONE SYSTEM BLOCK (M3.3-full): every cell of
+ *               scenarios x rates x conflicts x reps, seeded shuffle,
+ *               manifest-resume, failure-continues. --dry-run previews the
+ *               ordered cell list — the operator's preflight.
  */
 public final class Main {
 
@@ -40,7 +44,8 @@ public final class Main {
     public static void main(String[] args) throws Exception {
         boolean local = args.length > 0 && "local-run".equals(args[0]);
         boolean remote = args.length > 0 && "remote-run".equals(args[0]);
-        Map<String, String> a = parse(local || remote
+        boolean campaign = args.length > 0 && "campaign-run".equals(args[0]);
+        Map<String, String> a = parse(local || remote || campaign
                 ? Arrays.copyOfRange(args, 1, args.length) : args);
 
         // -v/--verbose raises the level to DEBUG: every phase boundary and
@@ -61,13 +66,48 @@ public final class Main {
         System.setProperty("org.slf4j.simpleLogger.dateTimeFormat", "HH:mm:ss.SSS");
         Logger log = LoggerFactory.getLogger(Main.class);
 
-        if (remote) {
+        if (campaign) {
+            campaignRun(a);
+        } else if (remote) {
             remoteRun(a);
         } else if (local) {
             localRun(a, log);
         } else {
             endpointRun(a, log);
         }
+    }
+
+    /** M3.3-full: one SYSTEM BLOCK — the campaign's execution unit. Sweep
+     *  rates are operator inputs (25/50/75% of the measured saturation from
+     *  a prior sat block — the runbook's procedure); failover distributions
+     *  are their own block (--scenarios leader_kill --reps 30). */
+    private static void campaignRun(Map<String, String> a) throws Exception {
+        requireKnownKeys(a, java.util.Set.of("inventory", "system", "size", "scenarios",
+                "rates", "conflicts", "reps", "seed", "out", "ssh-user", "dry-run", "verbose"));
+        String systemArg = a.get("system");
+        if (systemArg == null) {
+            throw new IllegalArgumentException("--system is required (one block per system)");
+        }
+        var system = SystemUnderTest.valueOf(systemArg.toUpperCase(java.util.Locale.ROOT));
+        var scenarios = Arrays.stream(a.getOrDefault("scenarios", "baseline").split(","))
+                .map(s -> Scenario.valueOf(s.strip().toUpperCase(java.util.Locale.ROOT)))
+                .toList();
+        var rates = Arrays.stream(a.getOrDefault("rates", "0").split(","))
+                .map(String::strip).map(Long::parseLong).toList();
+        var conflicts = Arrays.stream(a.getOrDefault("conflicts", "0").split(","))
+                .map(String::strip).map(Double::parseDouble).toList();
+        var block = gr.thesis.bench.campaign.MatrixRunner.block(
+                system,
+                Integer.parseInt(a.getOrDefault("size",
+                        String.valueOf(system.defaultClusterSize()))),
+                scenarios, rates, conflicts,
+                Integer.parseInt(a.getOrDefault("reps", "5")),
+                Long.parseLong(a.getOrDefault("seed", "20260718")),
+                Path.of(a.getOrDefault("out", "results")),
+                Path.of(a.getOrDefault("inventory", "deploy/inventory.env")),
+                a.getOrDefault("ssh-user", "root"));
+        gr.thesis.bench.campaign.MatrixRunner.run(block,
+                gr.thesis.bench.campaign.RemoteRunner::run, a.containsKey("dry-run"));
     }
 
     /** M3.3 session mode: one campaign cell on the real VMs. Everything
@@ -236,6 +276,8 @@ public final class Main {
         for (int i = 0; i < args.length; i++) {
             if (args[i].equals("-v") || args[i].equals("--verbose")) {
                 m.put("verbose", "true");           // boolean flag: consumes no value
+            } else if (args[i].equals("--dry-run")) {
+                m.put("dry-run", "true");           // boolean flag (campaign-run preflight)
             } else if (i + 1 < args.length) {
                 m.put(args[i].replaceFirst("^--", ""), args[++i]);
             } else {

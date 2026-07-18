@@ -51,6 +51,13 @@ class ArgParserTest {
     }
 
     @Test
+    void bareDryRunFlagDoesNotEatTheNextKey() {
+        Map<String, String> m = Main.parse(new String[]{"--dry-run", "--rates", "300"});
+        assertEquals("true", m.get("dry-run"));
+        assertEquals("300", m.get("rates"), "--dry-run must not consume --rates as its value");
+    }
+
+    @Test
     void unknownArgumentKeyFailsClosed() {
         // F32: a typo'd key (--ratee) must throw, not silently run at the
         // default — the same fail-closed rule the value-less key already has.
