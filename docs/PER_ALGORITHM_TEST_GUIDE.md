@@ -283,9 +283,17 @@ ordered cell list without executing anything.
 1. `hcloud server-type list` → sync prices in `main.tf` (P3.5).
 2. `terraform apply` (2 VMs variant) — G2 must be signed off FIRST.
 3. cloud-init done? `cloud-init status --wait`; images pre-pulled
-   (`docker images`); chrony synced (`chronyc tracking`).
+   (`docker images`); chrony synced (`chronyc tracking`); **JMX agent
+   downloaded** (`ls -l /opt/thesis/jmx_prometheus_javaagent.jar` — the
+   Kafka branches gate on it fail-closed, F46).
 4. Ship paxi/hotstuff images if this canary touches them.
 5. One etcd baseline cell via remote-run; then one leader_kill cell.
+   **Exporter first-contact (F46 — names are execution-pinned locally;
+   the LIVE path is proven here):** while the etcd cluster is up,
+   `curl -s http://127.0.0.1:2381/metrics | grep etcd_server_has_leader`
+   on a node; `node_timex_offset_seconds` on :9100 (gate 6's clock_offset
+   source, F40). Kafka/CometBFT smokes check :7071 (both JMX names) and
+   :26660 (cometbft_consensus_height) the same way.
 6. VERIFY on the VM: `sudo tc qdisc show`, `sudo iptables -L` clean after
    heal; pkill heal WARN noise is EXPECTED once per slow_node (nothing to
    undo after --timeout) but must not appear as a channel error (F31).

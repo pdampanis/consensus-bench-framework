@@ -168,8 +168,11 @@ quorum-lost jetcd put was bounded only by etcd's ~7 s server-side grace).
                                                  │                   honest status
                                                  ├─ metrics/*.csv 🔶 PrometheusExporter (P4.2): query_range
                                                  │                   over export_queries.txt, ±15 s pad
-                                                 └─ validity.json 🔶 ValidityChecker (P4.1): six gates,
-                                                                     empty-series-fails meta-rule
+                                                 └─ validity.json ✅ ValidityChecker (M5.5, hardened
+                                                                     2026-07-21): six gates, per-system
+                                                                     fault witnesses, empty-series-fails
+                                                                     meta-rule; a LIBRARY until M5.4
+                                                                     calls check(runDir) per run
  rsync → laptop (count-verified BEFORE destroy) → analyse.py v2 🔶 (pooled
  histograms, bootstrap CIs, Holm correction, ECDFs, validity filtering) → 8 figures
 ```
@@ -182,23 +185,71 @@ than average-in broken runs (no silent outlier removal, ever).
 
 ---
 
-## 3. Topologies — what the harness drives
+## 3. Topologies — what the harness drives (updated 2026-07-21, true to code)
+
+### 3a. LOCAL — Docker dev substrate ✅ (functional evidence ONLY, never thesis data)
 
 ```
- LOCAL (dev substrate, ✅):  one Docker network per cluster, digest-pinned
-   images, /health-gated parallel start, Ryuk teardown, thesis-* names
-   ┌─────────────────────────── laptop ───────────────────────────┐
-   │  harness JVM ──► mapped ports ──► [etcd1 etcd2 etcd3] or [k1] │
-   └───────────────────────────────────────────────────────────────┘
-   Functional evidence ONLY (environment=local) — never thesis data.
+┌──────────────────────────────── laptop ────────────────────────────────────┐
+│  mvn21 clean verify (170 tests)          java -jar … local-run (etcd only) │
+│        │                                        │                          │
+│        ▼                                        ▼                          │
+│  LocalDockerProvider (Testcontainers): digest-pinned images, one Docker    │
+│  network per cluster, thesis-* names, parallel start, Ryuk teardown        │
+│   ├─ etcd 1|3      /health quorum gate            (P0.2, jetcd driver)     │
+│   ├─ KRaft 1       testcontainers kafka module    (P2.2)                   │
+│   ├─ CometBFT 1    kvstore, max_subscription 2000 (P2.3)                   │
+│   └─ Paxi 3        committed-probe-write gate     (P2.4, paxi:6823d0b)     │
+│  FORMATION TESTS (execution-proof BEFORE each remote golden):              │
+│   KRaft×3 · Kafka+ZK×3 colocated · CometBFT×4 · HotStuff×4 (static-IP      │
+│   subnet 172.29.5.0/24, upstream client) · KafkaJmxAgentTest (real broker  │
+│   + pinned jmx agent 1.0.1 + repo rules → :7071 serves the 2 JMX names)    │
+│  Goldens: RecordingSshExecutor records every remote command verbatim —     │
+│  src/test/resources/goldens/*.txt = the G2 human-review artifact           │
+└────────────────────────────────────────────────────────────────────────────┘
+```
 
- CAMPAIGN (Hetzner, 🔶 P3, gated by G2 goldens + canary): one consensus
-   node per VM, private net 10.0.0.0/24, spread placement group,
-   loadgen ccx13 (D11) + obs cpx21; phases A/B/C per CAMPAIGN_RUNBOOK §2.
-   One system under test at a time, serial blocks (EXECUTION_AND_COST_MODEL).
-   Substrate ✅ (P3.3, golden-verified — NOT yet run on a VM): RemoteSsh-
-   Provider (etcd) + SshFaultInjector, both through the SshExecutor seam;
-   goldens under src/test/resources/goldens/ are the G2 human read-through.
+### 3b. CAMPAIGN — Hetzner VMs ✅ code+golden-verified · ⛔ NOT yet applied (G2/canary gate)
+
+```
+ LAPTOP: terraform apply/destroy · docker save|ssh load (paxi, hotstuff)
+         · rsync results · scripts/collect_block.sh    — never measures
+────────────────────────────────────────────────────────────────────────────
+ Hetzner private net 10.0.0.0/24 · spread placement · public FW: SSH only
+┌─ loadgen .20 (ccx13, D11) ────────────────────────────────────────────────┐
+│ harness uber-jar: remote-run / campaign-run (MatrixRunner: seeded shuffle,│
+│ manifest-resume, failure-continues)                                       │
+│  ├─ SshjExecutor (pooled, 30 s bound) ──ssh──► every node                 │
+│  ├─ WorkloadEngine ──driver──► leader/entry endpoints (measurement path)  │
+│  ├─ SshFaultInjector: docker kill · netem on RESOLVED iface · pairwise    │
+│  │   iptables DROP (loadgen→leader path SURVIVES) · host stress-ng;       │
+│  │   heal LIFO in finally; mark = injection COMPLETE (F47)                │
+│  ├─ HotStuff exception: upstream client container HERE is the loadgen;   │
+│  │   RemoteLogs (chunked dd|base64) → HotStuffLogAnalyzer → summary.txt  │
+│  └─ results/<sys>/<scen>/size<N>[/c<pct>]/<runId>/ (+ validity.json when │
+│      M5.4 wires ValidityChecker.check per run)                           │
+└───────────────────────────────────────────────────────────────────────────┘
+┌─ node1..N .11+ (ccx13; BFT phase ccx23) — ONE SUT container per VM ───────┐
+│ RemoteSshProvider (per-system branch, golden-matched verbatim):           │
+│  pre-clean sweeps thesis-* on ALL nodes (F29) → image/jar gates (F33/F46) │
+│  → --network host start with REAL private IPs → readiness gates           │
+│  etcd     :2379 client │:2380 peer │:2381 metrics        (F46)            │
+│  KRaft    :9092 client │:9093 ctrl │:7071 JMX agent      (F46/P4.3)       │
+│  Kafka+ZK :9092 broker + thesis-zk :2181/:2888/:3888/:7000 ZK metrics     │
+│  CometBFT :26657 RPC   │:26656 p2p │:26660 metrics       (F46)            │
+│  Paxi     :8080 http   │:1735 tcp  │ (no server metrics — documented)     │
+│  HotStuff :26000 cons  │:26001 tx  │:26002 mempool (no metrics — logs)    │
+│  every VM: node_exporter :9100 (cloud-init) · chrony · stress-ng ·        │
+│            /opt/thesis/jmx_prometheus_javaagent.jar (pinned download)     │
+└───────────────────────────────────────────────────────────────────────────┘
+┌─ obs .21 (cpx21) ─────────────────────────────────────────────────────────┐
+│ Prometheus (5 s scrape: :9100 all VMs · :2381 · :7071 · :7000 · :26660 ·  │
+│ harness :9400 when M5.3 lands) + Grafana dashboards-as-code;              │
+│ M5.4 exporter reads query_range → per-run metrics/*.csv; TSDB snapshot    │
+│ collected pre-destroy (offline replay: observability/offline/)            │
+└───────────────────────────────────────────────────────────────────────────┘
+ Phases (one main.tf): A 3×ccx13 CFT · B 7×ccx13 D8 · C 4×ccx23 BFT —
+ one system at a time, serial blocks; destroy between phases.
 ```
 
 The local→campaign deltas the goldens encode (why laptop faults would be

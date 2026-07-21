@@ -28,7 +28,15 @@ PENDING_TASKS/PROJECT_STATE > other docs > docs/archive (history only).
 
 ## Build / test
 ```bash
-cd harness && mvn21 clean verify   # ~/tools/maven/mvn21.sh if no alias;
-                                   # needs Docker + once-per-machine:
-                                   # docker build -t paxi:6823d0b infra/paxi
+cd harness && mvn21 clean verify   # ~/tools/maven/mvn21.sh if no alias
+# Needs Docker + BOTH local images, once per machine:
+#   docker build -t paxi:6823d0b infra/paxi
+#   docker build -t hotstuff:dc01ac8 infra/hotstuff
+# Expected count: docs/LOCAL_TESTING.md (170 green as of 2026-07-21).
 ```
+
+## Next task (as of 2026-07-21 — verify against PROJECT_STATE header)
+G2 golden read-through is the AUTHOR'S (surface the seven goldens in
+harness/src/test/resources/goldens/ and wait) → P3.5 price check → P3.4
+canary. LLM-ready specs: docs/PENDING_TASKS.md "Immediate next increments";
+architecture diagrams: docs/MEASUREMENT_DIAGRAMS.md §3.

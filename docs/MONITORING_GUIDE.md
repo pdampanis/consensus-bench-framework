@@ -220,7 +220,8 @@ Three habits cover 90% of debugging:
 The demo only scrapes your laptop's node_exporter. It does **not** show
 etcd/Kafka/CometBFT protocol internals — those come from per-system
 exporters that only run on the campaign VMs (etcd's `:2381`, Kafka's JMX
-agent, CometBFT's `:26660`; wired at milestone M5.2). The full campaign
+agent on `:7071`, CometBFT's `:26660`; wired into the provider/goldens
+2026-07-21, F46 — first scraped LIVE at the canary). The full campaign
 query set lives in `observability/export_queries.txt`. So on the laptop,
 Grafana teaches you the **node-health** panels; the protocol panels light
 up only on the cluster.

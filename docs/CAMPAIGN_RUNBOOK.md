@@ -158,9 +158,12 @@ Mechanics, in order:
    validity FAILURE for that run, never a pass — an empty series means the
    retrieval path is broken, precisely when a gate must not wave runs through.
 6. **Fault alignment:** the harness stamps the fault-injection time into the
-   manifest (P1.4); gate 3 (fault ground truth) then checks the corroborating
-   series (`node_up` drop, `etcd_leader_chg` increment, `cmt_rounds` jump)
-   inside the ±60 s window around that timestamp.
+   manifest (P1.4); gate 3 (fault ground truth) then checks the PER-SYSTEM
+   witness (`etcd_leader_chg` increment / `cmt_rounds` jump / `kafka_urp`
+   above zero; `node_up` as a generic extra — it only moves for VM-level
+   faults) inside the ±60 s window around that timestamp; paxi/hotstuff
+   have no server metrics and SKIP loudly until the P4.5 docker-events
+   audit (methodology §4.3, F41).
 
 Worked example — leader-change corroboration for a leader_kill run:
 

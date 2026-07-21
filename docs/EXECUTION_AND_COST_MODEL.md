@@ -192,7 +192,7 @@ Artifact inventory — what exists, where, and its collection status:
 |---|---|---|
 | `throughput.csv`, `latency.csv`, `latency.hlog`, `manifest.json` per run | loadgen, results tree | ✅ implemented (harness writes them) |
 | `metrics/*.csv` (Prometheus query_range per run) | loadgen (PrometheusExporter, M5.4) | ⬜ designed (P4.2) |
-| `validity.json` per run | loadgen (ValidityChecker, M5.5) | ⬜ designed (P4.1) |
+| `validity.json` per run | loadgen (ValidityChecker, M5.5) | ✅ built + hardened 2026-07-21 (library; M5.4 wires it per run) |
 | **SUT container logs** (per node, per block) | consensus nodes, docker | ❌ **GAP found by this review — no doc or task covered it.** HotStuff's client SUMMARY lines (its only metrics source) and fault forensics (why did recovery take 9 s?) live in these logs. New task **P4.5** |
 | `docker events` audit (validity gate 4: no unexpected restarts) | consensus nodes | ❌ same gap — folded into P4.5 |
 | Harness log (the campaign's own narrative) | loadgen stdout | ⬜ campaign runner redirects to file (M3.3 requirement, noted) |
