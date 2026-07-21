@@ -125,13 +125,26 @@ class HotStuffMultiNodeFormationTest {
             Thread.sleep(8_000); // a bounded burst window
 
             // 3. Every replica commits — logs.py's OWN commit regex, on all
-            //    four nodes: the BFT quorum is live and replicating.
+            //    four nodes: the BFT quorum is live and replicating. The
+            //    assertion is a DEADLINE-POLLED gate, not a fixed-instant
+            //    snapshot (F45): under laptop CPU pressure one replica's
+            //    LOCAL commit can lag the burst window while the chain
+            //    advances healthily on the other three (observed 2026-07-21:
+            //    three runs, the lagging node varied, proposals kept a
+            //    ~100 ms cadence throughout — the F27 pressure class, same
+            //    rule as every provider health gate: retry until a bound,
+            //    then fail closed). A node that NEVER commits still fails.
             Pattern committed = Pattern.compile("Committed B\\d+ -> [^ ]+=");
+            long commitDeadline = System.nanoTime() + Duration.ofSeconds(30).toNanos();
             for (int i = 0; i < N; i++) {
                 String log = nodes.get(i).getLogs();
+                while (!committed.matcher(log).find() && System.nanoTime() < commitDeadline) {
+                    Thread.sleep(500);
+                    log = nodes.get(i).getLogs();
+                }
                 assertTrue(committed.matcher(log).find(),
-                        "node" + (i + 1) + " must log commits (logs.py's parse target); got:\n"
-                                + tail(log));
+                        "node" + (i + 1) + " never logged a commit within the deadline"
+                                + " (logs.py's parse target); got:\n" + tail(log));
                 assertFalse(log.contains("panic"),
                         "a panic fails logs.py's parse; node" + (i + 1) + ":\n" + tail(log));
             }
