@@ -46,3 +46,12 @@ runcmd:
   - docker pull apache/kafka@sha256:4ceccc577f03f51f6af8dbfda55194d0d892f4fa7913ffbded567ce3895622ed
   - docker pull cometbft/cometbft@sha256:22c2ac018f40665e5c113e485d81531d8421f4fc76f9c8b013fbb6c0c16e150d
   - docker pull zookeeper@sha256:4c6f15fbd5491a3e01b0108c046891125553329a4956848ba3014cedff5386ee
+  # Kafka JMX exporter agent (M5.2/P4.3): version-pinned, downloaded once at
+  # boot to the path the broker goldens bind-mount; the harness printf's the
+  # rules (observability/kafka-jmx-rules.yml, names execution-verified by
+  # KafkaJmxAgentTest — which also pins THIS url's version to the pom's).
+  # The provider gates fail-closed per node if this file is missing.
+  - mkdir -p /opt/thesis
+  - >-
+    curl -fsSL -o /opt/thesis/jmx_prometheus_javaagent.jar
+    https://repo1.maven.org/maven2/io/prometheus/jmx/jmx_prometheus_javaagent/1.0.1/jmx_prometheus_javaagent-1.0.1.jar

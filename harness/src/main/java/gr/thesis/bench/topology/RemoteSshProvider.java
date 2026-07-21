@@ -56,6 +56,23 @@ public final class RemoteSshProvider implements ClusterProvider {
      *  Deterministic on purpose: state is container-local (no volume), so
      *  a fixed id can never collide with stale storage. */
     static final String KRAFT_CLUSTER_ID = "5L6g3nShT-eMCtK--X86s0";
+    /** The Kafka JMX rules the provider printf's onto each broker node —
+     *  the FUNCTIONAL lines of observability/kafka-jmx-rules.yml (comments
+     *  stripped), pinned byte-for-byte against that file by
+     *  KafkaJmxAgentTest: the file is what a real broker verified, these
+     *  lines are what the VMs run — they must never diverge (M5.2/P4.3). */
+    static final java.util.List<String> KAFKA_JMX_RULES_LINES = java.util.List.of(
+            "lowercaseOutputName: true",
+            "rules:",
+            "  - pattern: kafka.server<type=ReplicaManager, name=UnderReplicatedPartitions><>Value",
+            "    name: kafka_server_replicamanager_underreplicatedpartitions",
+            "    type: GAUGE",
+            "  - pattern: kafka.server<type=ReplicaManager, name=IsrShrinksPerSec><>Count",
+            "    name: kafka_server_replicamanager_isrshrinks_total",
+            "    type: COUNTER");
+    static final String KAFKA_JMX_RULES_PATH = "/root/thesis-jmx-rules.yml";
+    static final String KAFKA_JMX_AGENT_JAR = "/opt/thesis/jmx_prometheus_javaagent.jar";
+
     static final String TM_HOME_DIR = "/root/thesis-tm";
     static final String TM_KEYGEN_DIR = "/root/thesis-tm-testnet";
     static final String HS_DIR = "/root/thesis-hs";
@@ -228,7 +245,41 @@ public final class RemoteSshProvider implements ClusterProvider {
      * would serve acks=all silently degraded — refuse it). The bench
      * topic is KafkaDriver.connect()'s job, not the provider's.
      */
+    /** M5.2/P4.3 (F46): gate the cloud-init-downloaded agent jar per node
+     *  (fail-closed BEFORE anything starts — a missing jar would otherwise
+     *  surface as an opaque never-started broker), then printf the
+     *  execution-verified rules. Shared by BOTH Kafka modes: one wiring is
+     *  part of F6's identical-binaries story. */
+    private void deployKafkaJmx(int clusterSize) throws Exception {
+        for (int i = 1; i <= clusterSize; i++) {
+            String ip = nodeIps.get(i - 1);
+            SshExecutor.ExecResult r = ssh.exec(ip, SSH_PORT, "test -f " + KAFKA_JMX_AGENT_JAR);
+            if (r.exitCode() != 0) {
+                throw new IllegalStateException(KAFKA_JMX_AGENT_JAR + " is missing on node "
+                        + ip + " — cloud-init's pinned download did not run (see"
+                        + " infra/cloud-init.yaml; re-run it or curl the jar by hand)");
+            }
+        }
+        String printfRules = "printf '%s\\n'" + KAFKA_JMX_RULES_LINES.stream()
+                .map(l -> " '" + l + "'").collect(Collectors.joining())
+                + " > " + KAFKA_JMX_RULES_PATH;
+        for (int i = 1; i <= clusterSize; i++) {
+            ssh.execOrThrow(nodeIps.get(i - 1), SSH_PORT, printfRules);
+        }
+    }
+
+    /** The broker-container additions: jar + rules bind-mounts and the
+     *  KAFKA_OPTS javaagent flag (kafka-run-class.sh appends it to the
+     *  broker JVM in both modes; the value has no spaces — golden-clean). */
+    private static String kafkaJmxDockerArgs() {
+        return " -v " + KAFKA_JMX_AGENT_JAR + ":" + KAFKA_JMX_AGENT_JAR
+                + " -v " + KAFKA_JMX_RULES_PATH + ":/opt/thesis/kafka-jmx-rules.yml"
+                + " -e KAFKA_OPTS=-javaagent:" + KAFKA_JMX_AGENT_JAR
+                + "=7071:/opt/thesis/kafka-jmx-rules.yml";
+    }
+
     private void startKraft(int clusterSize) throws Exception {
+        deployKafkaJmx(clusterSize);
         String voters = IntStream.rangeClosed(1, clusterSize)
                 .mapToObj(i -> i + "@" + nodeIps.get(i - 1) + ":9093")
                 .collect(Collectors.joining(","));
@@ -242,6 +293,7 @@ public final class RemoteSshProvider implements ClusterProvider {
             String ip = nodeIps.get(i - 1);
             ssh.execOrThrow(ip, SSH_PORT,
                     "docker run -d --name " + containerName(SystemUnderTest.KRAFT, i) + " --network host"
+                            + kafkaJmxDockerArgs()
                             + " -e KAFKA_NODE_ID=" + i
                             + " -e KAFKA_PROCESS_ROLES=broker,controller"
                             + " -e KAFKA_CONTROLLER_QUORUM_VOTERS=" + voters
@@ -301,6 +353,7 @@ public final class RemoteSshProvider implements ClusterProvider {
      * both the campaign's scrape target and the per-node readiness gate.
      */
     private void startKafkaZk(int clusterSize) throws Exception {
+        deployKafkaJmx(clusterSize);
         String zooServers = IntStream.rangeClosed(1, clusterSize)
                 .mapToObj(i -> "server." + i + "=" + nodeIps.get(i - 1) + ":2888:3888;2181")
                 .collect(Collectors.joining(" "));
@@ -329,7 +382,8 @@ public final class RemoteSshProvider implements ClusterProvider {
             String ip = nodeIps.get(i - 1);
             ssh.execOrThrow(ip, SSH_PORT,
                     "docker run -d --name " + containerName(SystemUnderTest.KAFKA_ZK, i)
-                            + " --network host --entrypoint sh " + LocalDockerProvider.KAFKA_IMAGE
+                            + " --network host" + kafkaJmxDockerArgs()
+                            + " --entrypoint sh " + LocalDockerProvider.KAFKA_IMAGE
                             + " -c \"printf '%s\\n'"
                             + " 'broker.id=" + i + "'"
                             + " 'zookeeper.connect=" + zkConnect + "'"

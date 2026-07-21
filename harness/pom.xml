@@ -118,6 +118,32 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.2.5</version>
       </plugin>
+      <!-- Kafka JMX agent (M5.2/P4.3): stage the PINNED exporter jar where
+           KafkaJmxAgentTest mounts it into a real broker. Same version as
+           cloud-init's VM download — the test pins the two together. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.7.1</version>
+        <executions>
+          <execution>
+            <id>stage-jmx-agent</id>
+            <phase>generate-test-resources</phase>
+            <goals><goal>copy</goal></goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>io.prometheus.jmx</groupId>
+                  <artifactId>jmx_prometheus_javaagent</artifactId>
+                  <version>1.0.1</version>
+                  <outputDirectory>${project.build.directory}/jmx</outputDirectory>
+                  <destFileName>jmx_prometheus_javaagent.jar</destFileName>
+                </artifactItem>
+              </artifactItems>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>

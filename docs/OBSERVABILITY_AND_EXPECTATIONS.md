@@ -72,9 +72,12 @@ throughput. Leader (partition-0) NIC-tx ≈ 2× followers at RF=3.
 then recovery — KRaft's controller re-election is expected to be at least
 as fast as the ZK path (that comparison IS the F6 story; do not assume
 the direction, measure it).
-**Watch:** `cb-kafka`. NOTE: the kafka_* JMX panels are UNVERIFIED until
-P4.3 pins the exporter names — treat them as absent until then; node
-panels + ZK znode_count are trustworthy now.
+**Watch:** `cb-kafka`. The kafka_* JMX names are EXECUTION-PINNED
+(P4.3 closed 2026-07-21: KafkaJmxAgentTest runs a real broker with the
+pinned agent + repo rules file and asserts both names on :7071); the
+remaining caveat is the LIVE scrape path (VM agent download, :7071
+reachability), first proven at the canary smoke. Node panels + ZK
+znode_count were already trustworthy.
 **False positives:** URP > 0 at baseline = the cluster formed degraded
 (the provider's api-versions gate exists to prevent this — if you see it,
 something changed; stop); a QUIET ZooKeeper during baseline is CORRECT

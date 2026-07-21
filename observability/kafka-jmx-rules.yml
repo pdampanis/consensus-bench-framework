@@ -1,0 +1,29 @@
+# kafka-jmx-rules.yml — the P4.3 rules file, pinned in-repo.
+#
+# jmx_prometheus_javaagent config for the Kafka brokers (BOTH modes — the
+# same broker JVM runs KRaft and ZK mode, so one rules file serves F6's
+# identical-binaries comparison). Deliberately MINIMAL: exactly the MBeans
+# export_queries.txt and the cb-kafka dashboard consume, nothing else — a
+# broad catch-all pattern set would add JMX-scrape overhead on 2-vCPU
+# brokers (the IMPLEMENTATION_PLAN's "JMX agent overhead" risk) for series
+# nothing reads.
+#
+# Names are the contract, spelled EXPLICITLY per rule (never derived by a
+# generic pattern, so a jmx-exporter naming-convention change cannot drift
+# them): kafka_server_replicamanager_underreplicatedpartitions (validity
+# gate 3's broker-fault witness — URP > 0 = replication degraded) and
+# kafka_server_replicamanager_isrshrinks_total (the F6 failover story).
+# Verified BY EXECUTION against a real broker in KafkaJmxAgentTest (agent
+# jar staged by the pom's dependency-copy).
+#
+# Agent invocation (identical locally and on the VMs):
+#   -javaagent:jmx_prometheus_javaagent.jar=7071:kafka-jmx-rules.yml
+# serves http://0.0.0.0:7071/metrics — prometheus.yml's kafka-jmx job.
+lowercaseOutputName: true
+rules:
+  - pattern: kafka.server<type=ReplicaManager, name=UnderReplicatedPartitions><>Value
+    name: kafka_server_replicamanager_underreplicatedpartitions
+    type: GAUGE
+  - pattern: kafka.server<type=ReplicaManager, name=IsrShrinksPerSec><>Count
+    name: kafka_server_replicamanager_isrshrinks_total
+    type: COUNTER

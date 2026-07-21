@@ -1,7 +1,7 @@
 {
   "uid": "cb-kafka",
   "title": "Kafka — KRaft & Kafka+ZK (F6 panels)",
-  "description": "Explanation layer for both Kafka modes. HONESTY NOTE: the kafka_* JMX metric names below are PENDING P4.3 verification (they depend on the JMX-exporter rules file, which is not live-pinned yet) — those panels are titled accordingly and must not be trusted until P4.3 closes. The ZK :7000 names are verified (znode_count probed 2026-07-17).",
+  "description": "Explanation layer for both Kafka modes. The kafka_* JMX names are EXECUTION-PINNED (P4.3 closed 2026-07-21: KafkaJmxAgentTest runs a real broker with the pinned jmx_prometheus_javaagent + observability/kafka-jmx-rules.yml and asserts both names on :7071). Remaining caveat: the LIVE scrape path (VM agent download, :7071 reachability) is first proven at the canary smoke. The ZK :7000 names are verified (znode_count probed 2026-07-17).",
   "tags": ["consensus-bench", "kraft", "kafka_zk"],
   "schemaVersion": 39,
   "version": 1,
@@ -16,14 +16,14 @@
       "options": {"mode": "markdown", "content": "**The F6 story (the thesis's signature figure):** SAME image digest, SAME hardware, SAME colocation — only the coordination machinery differs (KRaft controller quorum vs ZooKeeper ensemble). Compare panels BETWEEN two runs, one per mode, at the same rate.\n\n**Baseline expectation (Kafka literature + our G1 parity evidence):** acks=all with min.insync.replicas=2 commits at a majority; throughput should track the offered rate up to the NIC/disk knee; under-replicated partitions ZERO for the whole window; no ISR shrink events. On the D10 shape, ZK ensemble activity is tiny at steady state (Kafka only touches ZK for metadata/ISR changes — a QUIET zk panel during baseline is CORRECT, not broken; KRaft's controller traffic replaces it on :9093).\n\n**leader_kill (broker):** ISR shrinks step up, URP goes >0 for the failover window, then recovers as leadership moves — the harness's per-second CSV shows the commit gap; both must agree on timing (gate 3).\n\n**Suspect signs:** URP > 0 during BASELINE = the cluster never fully formed (the api-versions gate should have refused it — investigate before trusting anything); steadily climbing ZK znode_count = something is leaking metadata; one broker's CPU flat at zero = it is not actually serving (check `docker logs thesis-k<i>`)."}
     },
     {
-      "id": 2, "type": "timeseries", "title": "(pending P4.3) Under-replicated partitions — must be 0 at baseline",
+      "id": 2, "type": "timeseries", "title": "Under-replicated partitions — must be 0 at baseline",
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
       "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
       "targets": [{"datasource": {"type": "prometheus", "uid": "prometheus"}, "expr": "kafka_server_replicamanager_underreplicatedpartitions", "legendFormat": "{{instance}}", "refId": "A"}]
     },
     {
-      "id": 3, "type": "timeseries", "title": "(pending P4.3) ISR shrinks/s — steps at broker death",
+      "id": 3, "type": "timeseries", "title": "ISR shrinks/s — steps at broker death",
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
       "fieldConfig": {"defaults": {"unit": "ops", "min": 0}, "overrides": []},
