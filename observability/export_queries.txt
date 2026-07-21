@@ -18,6 +18,11 @@
 # --- validity: client-not-bottleneck & environment stationarity ------------
 loadgen_cpu       | 1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle",role="loadgen"}[30s]))
 loadgen_cpu_steal | avg by (instance) (rate(node_cpu_seconds_total{mode="steal",role="loadgen"}[30s]))
+# clock_offset backs validity gate 6 (chrony discipline, |offset| < 5 ms):
+# node_exporter's timex collector (on by default) exposes the kernel clock
+# offset chrony steers, in seconds — signed, so the gate takes abs().
+# Live-verify at the canary: the series must be nonzero-noise, never absent.
+clock_offset      | node_timex_offset_seconds
 node_cpu          | 1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle",job="node"}[30s]))
 node_cpu_steal    | avg by (instance) (rate(node_cpu_seconds_total{mode="steal",role="consensus"}[30s]))
 node_mem_used    | 1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes
