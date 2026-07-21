@@ -108,6 +108,12 @@ class CometBftMultiValidatorFormationTest {
                     + " /cometbft/config/config.toml"
                     + " && sed -i 's/^addr_book_strict = .*/addr_book_strict = false/'"
                     + " /cometbft/config/config.toml"
+                    // M5.2/F46: [instrumentation] prometheus=false by default;
+                    // this sed matches ONLY the boolean line (the space-equals
+                    // misses prometheus_listen_addr, which keeps its :26660
+                    // default — probed live against the digest 2026-07-21).
+                    + " && sed -i 's/^prometheus = .*/prometheus = true/'"
+                    + " /cometbft/config/config.toml"
                     + " && cometbft start --proxy_app=kvstore"
                     + " --rpc.laddr=tcp://0.0.0.0:26657"
                     + " --p2p.laddr=tcp://0.0.0.0:26656"
@@ -115,7 +121,7 @@ class CometBftMultiValidatorFormationTest {
             nodes.add(new GenericContainer<>(COMETBFT)
                     .withNetwork(net)
                     .withNetworkAliases("tm" + (i + 1))
-                    .withExposedPorts(26657)
+                    .withExposedPorts(26657, 26660)
                     .withCopyToContainer(Transferable.of(genesis), "/cometbft/config/genesis.json")
                     .withCopyToContainer(Transferable.of(privKey[i]), "/cometbft/config/priv_validator_key.json")
                     .withCopyToContainer(Transferable.of(nodeKey[i]), "/cometbft/config/node_key.json")
@@ -169,6 +175,18 @@ class CometBftMultiValidatorFormationTest {
                 assertTrue(h >= committedAt, "replica " + node.getMappedPort(26657)
                         + " stuck at height " + h + " < committed " + committedAt);
             }
+
+            // 6. M5.2/F46: the instrumentation sed serves Prometheus on
+            //    :26660 with the exact export_queries.txt names — gate 3's
+            //    cmt_rounds witness and the cb-cometbft dashboard both read
+            //    this endpoint; an unverified name here is a dead panel and
+            //    a false validity FAIL on the campaign.
+            String metrics = get(http, "http://" + nodes.get(0).getHost() + ":"
+                    + nodes.get(0).getMappedPort(26660) + "/metrics");
+            assertTrue(metrics.contains("cometbft_consensus_height"),
+                    ":26660/metrics must serve cometbft_consensus_height");
+            assertTrue(metrics.contains("cometbft_consensus_rounds"),
+                    ":26660/metrics must serve cometbft_consensus_rounds (gate 3's witness)");
         } finally {
             nodes.forEach(GenericContainer::stop);
             net.close();

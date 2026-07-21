@@ -474,6 +474,12 @@ public final class RemoteSshProvider implements ClusterProvider {
                             + " /cometbft/config/config.toml"
                             + " && sed -i 's/^addr_book_strict = .*/addr_book_strict = false/'"
                             + " /cometbft/config/config.toml"
+                            // M5.2/F46: instrumentation on — :26660/metrics is
+                            // prometheus.yml's cometbft job and gate 3's
+                            // cmt_rounds witness. Execution-verified (formation
+                            // test asserts the live endpoint).
+                            + " && sed -i 's/^prometheus = .*/prometheus = true/'"
+                            + " /cometbft/config/config.toml"
                             + " && cometbft start --proxy_app=kvstore"
                             + " --rpc.laddr=tcp://0.0.0.0:26657"
                             + " --p2p.laddr=tcp://0.0.0.0:26656"
