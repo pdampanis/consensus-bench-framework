@@ -10,7 +10,9 @@ scrape_configs:
   # query matching instance=~".*LOADGEN.*" silently returns nothing — that
   # exact bug shipped in rev1 of this pair of files.
   # D8 note: the provisioning templating adds NODE5..NODE7 targets for the
-  # scalability phase (CONSENSUS_NODE_COUNT in inventory.env is the truth).
+  # scalability phase (CONSENSUS_NODE_COUNT in inventory.env is the truth) —
+  # to the `node` job AND the `etcd` job below (etcd runs sizes 5/7 there;
+  # a missing target would silently halve gate 3's leader-change witness).
   - job_name: node
     static_configs:
       - targets:

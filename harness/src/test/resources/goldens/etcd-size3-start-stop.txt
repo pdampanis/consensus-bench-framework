@@ -13,13 +13,17 @@
 # xargs -r runs nothing ⇒ exit 0; a real removal failure is non-zero
 # (never `|| true`). Health = curl ON the node against localhost (host
 # networking), retried by the provider until quorum answers; teardown
-# removes every container this cluster started.
+# removes every container this cluster started. --listen-metrics-urls
+# :2381 is the M5.2 Prometheus scrape target (prometheus.yml etcd job;
+# etcd_leader_chg feeds validity gate 3) — LIVE-VERIFIED 2026-07-21
+# against this exact digest: :2381/metrics serves etcd_server_has_leader
+# and etcd_server_leader_changes_seen_total.
 10.0.0.11:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
 10.0.0.12:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
 10.0.0.13:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
-10.0.0.11:22$ docker run -d --name thesis-etcd1 --network host quay.io/coreos/etcd@sha256:5a65b4c67dea6e835c2812cf2fdea064f494c68b509fab939b12c0fa1fa423bb etcd --name etcd1 --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://10.0.0.11:2379 --listen-peer-urls http://0.0.0.0:2380 --initial-advertise-peer-urls http://10.0.0.11:2380 --initial-cluster etcd1=http://10.0.0.11:2380,etcd2=http://10.0.0.12:2380,etcd3=http://10.0.0.13:2380 --initial-cluster-state new --initial-cluster-token thesis-bench
-10.0.0.12:22$ docker run -d --name thesis-etcd2 --network host quay.io/coreos/etcd@sha256:5a65b4c67dea6e835c2812cf2fdea064f494c68b509fab939b12c0fa1fa423bb etcd --name etcd2 --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://10.0.0.12:2379 --listen-peer-urls http://0.0.0.0:2380 --initial-advertise-peer-urls http://10.0.0.12:2380 --initial-cluster etcd1=http://10.0.0.11:2380,etcd2=http://10.0.0.12:2380,etcd3=http://10.0.0.13:2380 --initial-cluster-state new --initial-cluster-token thesis-bench
-10.0.0.13:22$ docker run -d --name thesis-etcd3 --network host quay.io/coreos/etcd@sha256:5a65b4c67dea6e835c2812cf2fdea064f494c68b509fab939b12c0fa1fa423bb etcd --name etcd3 --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://10.0.0.13:2379 --listen-peer-urls http://0.0.0.0:2380 --initial-advertise-peer-urls http://10.0.0.13:2380 --initial-cluster etcd1=http://10.0.0.11:2380,etcd2=http://10.0.0.12:2380,etcd3=http://10.0.0.13:2380 --initial-cluster-state new --initial-cluster-token thesis-bench
+10.0.0.11:22$ docker run -d --name thesis-etcd1 --network host quay.io/coreos/etcd@sha256:5a65b4c67dea6e835c2812cf2fdea064f494c68b509fab939b12c0fa1fa423bb etcd --name etcd1 --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://10.0.0.11:2379 --listen-metrics-urls http://0.0.0.0:2381 --listen-peer-urls http://0.0.0.0:2380 --initial-advertise-peer-urls http://10.0.0.11:2380 --initial-cluster etcd1=http://10.0.0.11:2380,etcd2=http://10.0.0.12:2380,etcd3=http://10.0.0.13:2380 --initial-cluster-state new --initial-cluster-token thesis-bench
+10.0.0.12:22$ docker run -d --name thesis-etcd2 --network host quay.io/coreos/etcd@sha256:5a65b4c67dea6e835c2812cf2fdea064f494c68b509fab939b12c0fa1fa423bb etcd --name etcd2 --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://10.0.0.12:2379 --listen-metrics-urls http://0.0.0.0:2381 --listen-peer-urls http://0.0.0.0:2380 --initial-advertise-peer-urls http://10.0.0.12:2380 --initial-cluster etcd1=http://10.0.0.11:2380,etcd2=http://10.0.0.12:2380,etcd3=http://10.0.0.13:2380 --initial-cluster-state new --initial-cluster-token thesis-bench
+10.0.0.13:22$ docker run -d --name thesis-etcd3 --network host quay.io/coreos/etcd@sha256:5a65b4c67dea6e835c2812cf2fdea064f494c68b509fab939b12c0fa1fa423bb etcd --name etcd3 --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://10.0.0.13:2379 --listen-metrics-urls http://0.0.0.0:2381 --listen-peer-urls http://0.0.0.0:2380 --initial-advertise-peer-urls http://10.0.0.13:2380 --initial-cluster etcd1=http://10.0.0.11:2380,etcd2=http://10.0.0.12:2380,etcd3=http://10.0.0.13:2380 --initial-cluster-state new --initial-cluster-token thesis-bench
 10.0.0.11:22$ curl -sf --max-time 2 http://127.0.0.1:2379/health
 10.0.0.12:22$ curl -sf --max-time 2 http://127.0.0.1:2379/health
 10.0.0.13:22$ curl -sf --max-time 2 http://127.0.0.1:2379/health

@@ -149,6 +149,10 @@ public final class RemoteSshProvider implements ClusterProvider {
                             + " --name etcd" + i
                             + " --listen-client-urls http://0.0.0.0:2379"
                             + " --advertise-client-urls http://" + ip + ":2379"
+                            // M5.2: the dedicated metrics listener prometheus.yml
+                            // scrapes (:2381; etcd_leader_chg feeds validity gate 3).
+                            // Live-verified against this digest 2026-07-21.
+                            + " --listen-metrics-urls http://0.0.0.0:2381"
                             + " --listen-peer-urls http://0.0.0.0:2380"
                             + " --initial-advertise-peer-urls http://" + ip + ":2380"
                             + " --initial-cluster " + initialCluster
