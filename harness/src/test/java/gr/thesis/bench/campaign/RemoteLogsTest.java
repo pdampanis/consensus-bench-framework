@@ -44,9 +44,9 @@ class RemoteLogsTest {
     void dockerLogsSnapshotsChunksAndCleansUp() throws Exception {
         var ssh = new Canned();
         String content = "line one\nline two\n";
-        ssh.responses.put("stat -c %s /root/thesis-log-thesis-hs1",
+        ssh.responses.put("stat -c %s /tmp/thesis-log-thesis-hs1",
                 new SshExecutor.ExecResult(0, content.length() + "\n", ""));
-        ssh.responses.put("dd if=/root/thesis-log-thesis-hs1 bs=1048576 skip=0 count=1 status=none"
+        ssh.responses.put("dd if=/tmp/thesis-log-thesis-hs1 bs=1048576 skip=0 count=1 status=none"
                         + " | base64 -w0",
                 new SshExecutor.ExecResult(0, b64(content.getBytes()), ""));
 
@@ -54,11 +54,11 @@ class RemoteLogsTest {
 
         assertEquals(content, got);
         assertEquals(List.of(
-                "10.0.0.11:22$ docker logs thesis-hs1 > /root/thesis-log-thesis-hs1 2>&1",
-                "10.0.0.11:22$ stat -c %s /root/thesis-log-thesis-hs1",
-                "10.0.0.11:22$ dd if=/root/thesis-log-thesis-hs1 bs=1048576 skip=0 count=1"
+                "10.0.0.11:22$ docker logs thesis-hs1 > /tmp/thesis-log-thesis-hs1 2>&1",
+                "10.0.0.11:22$ stat -c %s /tmp/thesis-log-thesis-hs1",
+                "10.0.0.11:22$ dd if=/tmp/thesis-log-thesis-hs1 bs=1048576 skip=0 count=1"
                         + " status=none | base64 -w0",
-                "10.0.0.11:22$ rm -f /root/thesis-log-thesis-hs1"),
+                "10.0.0.11:22$ rm -f /tmp/thesis-log-thesis-hs1"),
                 ssh.commands, "snapshot -> size -> chunk(s) -> cleanup, exactly");
     }
 

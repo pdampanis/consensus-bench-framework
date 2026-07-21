@@ -141,10 +141,18 @@ label, dead target), which is exactly when a gate must not pass by default.
    offsets vs sent count; etcd key-scan; CometBFT height/tx audit) — a
    consensus benchmark that lost acknowledged data is void, not slow.
 3. **Fault ground truth**: for injected faults, Prometheus corroborates —
-   the target's node_exporter goes silent at kill, etcd/Kafka leader-change
-   counters move within the expected window, CometBFT round numbers jump.
-   A "leader_kill" whose leader did not change is reclassified, not
-   averaged in.
+   per-system witnesses (etcd leader-change counter; CometBFT round
+   numbers; Kafka under-replicated partitions > 0), plus node_up as a
+   generic extra (it only moves for VM-level faults — a `docker kill` of
+   the SUT container never silences the host's node_exporter). Paxi and
+   HotStuff expose no server metrics (§2): their gate is an explicit SKIP
+   until the docker-events audit (P4.5) provides a kill witness. A
+   "leader_kill" whose witness did not move is reclassified, not averaged
+   in. Mark semantics (F47): the manifest's `fault_injected_at_ms` is
+   stamped when the injection COMPLETED — for multi-command faults
+   (partition = four iptables rules) the fault may bite mid-apply, so
+   `failover_ms` is a lower bound on fault-effect→recovery; an earlier
+   mark would let a pre-fault commit fake a ~0 failover.
 4. **Environment stationarity**: CPU-steal below 1% on consensus nodes
    (dedicated vCPUs should show ~0; a violation means a platform problem);
    no unexpected container restarts (`docker events` audit).

@@ -174,7 +174,10 @@ public final class PaxiDriver implements ConsensusDriver {
     }
 
     /** Synchronous bounded PUT of the probe key — shared by the connect
-     *  gate and leader detection. Never called on the measured path. */
+     *  gate and leader detection. Never called on the per-op measured path;
+     *  honesty note: leader detection IS called once mid-run by the fault
+     *  thread (injection time), so one probe write lands inside the
+     *  measurement window — a single unrecorded op, stated not hidden. */
     private HttpResponse<Void> probePut(int endpointIdx) throws Exception {
         HttpRequest req = HttpRequest.newBuilder(putUris[endpointIdx][PROBE_KEY])
                 .timeout(Duration.ofSeconds(5))

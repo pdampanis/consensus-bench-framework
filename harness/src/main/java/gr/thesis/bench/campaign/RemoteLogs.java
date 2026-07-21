@@ -23,10 +23,12 @@ public final class RemoteLogs {
 
     private RemoteLogs() { }
 
-    /** Full `docker logs` of a container (both streams), any size. */
+    /** Full `docker logs` of a container (both streams), any size. The
+     *  snapshot lands in /tmp (F49): /root assumed a root SSH user, and
+     *  --ssh-user is an operator input — /tmp is writable for any of them. */
     public static String dockerLogs(SshExecutor ssh, String host, String container)
             throws Exception {
-        String remote = "/root/thesis-log-" + container;
+        String remote = "/tmp/thesis-log-" + container;
         ssh.execOrThrow(host, SSH_PORT, "docker logs " + container + " > " + remote + " 2>&1");
         try {
             return readRemoteFile(ssh, host, remote);

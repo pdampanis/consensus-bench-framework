@@ -69,7 +69,11 @@ public final class RemoteRunner {
                        int packetLossPercent, Path out, String runId,
                        Path inventoryFile, String sshUser) {
         public Spec {
-            if (faultAtSecs >= durationSecs) {
+            // Fault scenarios only (F48): BASELINE never starts a fault
+            // thread, and Main DEFAULTS fault-at to warmup+60 — rejecting a
+            // short baseline over an input it never reads is fail-closed on
+            // the wrong thing.
+            if (scenario != Scenario.BASELINE && faultAtSecs >= durationSecs) {
                 throw new IllegalArgumentException("faultAt (" + faultAtSecs
                         + "s) must fall inside the run (duration " + durationSecs + "s)");
             }
@@ -146,11 +150,26 @@ public final class RemoteRunner {
         }
     }
 
+    /**
+     * Mark semantics (F47, documented deliberately): the fault delay counts
+     * from MEASUREMENT start (the thread waits for the engine to start the
+     * event log — connect() time no longer shifts the fault into the run),
+     * and the mark is stamped AFTER apply() returns, i.e. when the
+     * injection COMPLETED. For single-command faults (kill) that is ~an SSH
+     * round-trip after the fault bit; for multi-command faults (partition:
+     * four iptables rules) the fault may start biting mid-apply, so the
+     * reported failover_ms is a LOWER bound on fault-effect→recovery —
+     * stated in methodology §4.3 rather than "fixed" with a fabricated
+     * earlier mark, which would let a pre-fault commit fake a ~0 failover.
+     */
     private static Thread faultThread(Spec spec, ConsensusDriver driver,
                                       SshFaultInjector injector, List<NodeHandle> nodes,
                                       EventLog events, AtomicReference<Exception> failure) {
         Thread t = new Thread(() -> {
             try {
+                while (!events.isStarted()) {
+                    Thread.sleep(100); // engine is still in connect()
+                }
                 Thread.sleep(spec.faultAtSecs() * 1000L);
                 int target = faultTargetIndex(spec.system(), driver);
                 log.info("phase: fault inject — {} on node index {} ({})",

@@ -35,6 +35,10 @@ public final class EventLog {
     private final AtomicInteger next = new AtomicInteger();
     private final LongAdder dropped = new LongAdder();
     private volatile long originNanos;
+    // Explicit flag, NOT originNanos==0: zero is a legitimate origin (the
+    // synthetic-nanos unit tests use it) — a sentinel value would make the
+    // guard silently skippable exactly where it must be loud (F47).
+    private volatile boolean started;
     private volatile long faultRelNanos = Long.MIN_VALUE; // MIN_VALUE = no fault marked
 
     public EventLog(int capacity) {
@@ -45,6 +49,15 @@ public final class EventLog {
     /** Engine calls once at run start; every timestamp is relative to this. */
     public void start(long originNanos) {
         this.originNanos = originNanos;
+        this.started = true;
+    }
+
+    /** True once the engine set the origin — the campaign's fault thread
+     *  waits on this before its fault-delay sleep, aligning "fault at T"
+     *  with MEASUREMENT start (not thread start) and making a pre-start
+     *  mark structurally impossible (F47). */
+    public boolean isStarted() {
+        return started;
     }
 
     /** Hot path (driver completion threads): lock-free slot claim + store. */
@@ -66,6 +79,12 @@ public final class EventLog {
 
     /** Same, with an explicit nanoTime — unit-testable without sleeping. */
     public long faultInjectedAt(long absNanos) {
+        if (!started) {
+            // A mark against an unset origin would be a garbage rel-nanos
+            // that LOOKS like a real failover number — fail loud (F47).
+            throw new IllegalStateException(
+                    "fault marked before the engine started the event log");
+        }
         long rel = absNanos - originNanos;
         this.faultRelNanos = rel;
         return rel / 1_000_000L;

@@ -42,6 +42,22 @@ class EventLogTest {
     }
 
     @Test
+    void faultMarkBeforeStartFailsLoudInsteadOfProducingAGarbageMark() {
+        // F47: the campaign's fault thread starts before engine.run() sets
+        // the origin. If its mark ever landed pre-start, the rel-nanos
+        // would be measured against origin 0 — a garbage failover number
+        // that LOOKS real. Fail loud instead; the runner waits on
+        // isStarted() so this can only fire on a real wiring bug.
+        var log = new EventLog(4);
+        org.junit.jupiter.api.Assertions.assertFalse(log.isStarted());
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class,
+                () -> log.faultInjectedAt(5_000_000L));
+        log.start(0); // 0 is a legitimate origin (synthetic-nanos tests use it)
+        assertTrue(log.isStarted());
+        log.faultInjectedAt(5_000_000L); // now fine
+    }
+
+    @Test
     void overflowDropsLoudlyInsteadOfCrashing() {
         // The buffer is preallocated (no allocation on the hot path); if a
         // run outgrows it, later events are counted as dropped — the run

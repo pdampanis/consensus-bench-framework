@@ -114,4 +114,16 @@ class RemoteRunnerTest {
                 0.0, 480 /* == duration: fault could never land */, 30,
                 Path.of("results"), "r001", Path.of("deploy/inventory.env"), "root"));
     }
+
+    @Test
+    void baselineSpecIgnoresTheFaultTimeItNeverUses() {
+        // F48: a short BASELINE run was rejected because the DEFAULTED
+        // fault-at (warmup+60) landed outside it — but no fault thread ever
+        // starts on BASELINE, so the check validated an input the run never
+        // reads. The validation now applies to fault scenarios only.
+        var spec = new RemoteRunner.Spec(SystemUnderTest.ETCD, Scenario.BASELINE, 3, 300,
+                200, 180, 200, 1024, 0.0, 240 /* > duration, unused */, 30,
+                Path.of("results"), "r001", Path.of("deploy/inventory.env"), "root");
+        assertEquals(Scenario.BASELINE, spec.scenario());
+    }
 }
