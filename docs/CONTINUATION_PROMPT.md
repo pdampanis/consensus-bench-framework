@@ -103,6 +103,13 @@ PENDING_TASKS.md is the ledger (F1–F38), PROJECT_STATE.md §3 the
 evidence, MEASUREMENT_DIAGRAMS.md the architecture reference,
 HOW_TO_CONTINUE.md the one-page map.
 
+**2026-07-21 update (sixth review, F39–F49 — ledger in PENDING_TASKS):
+ValidityChecker (M5.5-core) is BUILT and hardened; the M5.2 exporters
+(etcd :2381, CometBFT :26660, Kafka JMX :7071 with P4.3's names
+execution-pinned) are wired INTO the goldens, so the seven goldens are
+FINAL text for G2 — no post-sign-off rewrite. Suite: 170 green,
+per-increment gates.**
+
 Proposed next increment (confirm with me before coding, then do only this):
 **NEXT-1 in PENDING_TASKS — the G2 golden read-through is MINE (human),
 not yours: surface all seven goldens and wait.** After my sign-off:

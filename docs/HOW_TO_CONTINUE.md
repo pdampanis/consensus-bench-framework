@@ -1,7 +1,9 @@
 # HOW TO CONTINUE — one page, low noise
 
-State date: 2026-07-18. Suite: one batched `mvn21 clean verify` at session end
-(user-authorized deviation from per-increment runs — see PENDING_TASKS ledger).
+State date: 2026-07-21 (sixth review F39–F49 closed; suite **170 green**,
+per-increment gates). The seven goldens are FINAL text for G2 — the M5.2
+exporters (etcd :2381, cometbft :26660, kafka JMX :7071) are wired IN them
+(F46), so the read-through happens once.
 Detail lives in `PROJECT_STATE.md` / `PENDING_TASKS.md`; per-algorithm test &
 debug commands live in `PER_ALGORITHM_TEST_GUIDE.md`. This page is the map.
 
@@ -44,14 +46,14 @@ debug commands live in `PER_ALGORITHM_TEST_GUIDE.md`. This page is the map.
    executes one system block (scenarios×rates×conflicts×reps, seeded
    shuffle, manifest-resume, failure-continues, `--dry-run` preflight).
    Rates are operator inputs from the prior sat block (runbook §3).
-6. **P4** — PARTLY DONE: dashboards-as-code shipped (P4.4 — campaign
-   overview + per-algorithm, each with an embedded reading guide; Kafka
-   JMX panels honestly labeled "pending P4.3"); collection + offline
-   replay shipped (`scripts/collect_block.sh` → one dated dir →
-   `observability/offline/` compose replays the snapshot on the SAME
-   dashboards); analyse.py foundation in `analysis/` (F15). STILL OPEN:
-   ValidityChecker (six gates), PrometheusExporter (per-run metrics/*.csv),
-   ZK/JMX name pinning (P4.3), docker-events audit. Reading guide:
+6. **P4** — MOSTLY DONE: dashboards-as-code (P4.4); collection + offline
+   replay (`scripts/collect_block.sh` → `observability/offline/`);
+   analyse.py foundation (`analysis/`, F15); **ValidityChecker (M5.5-core,
+   hardened — sixth review F39–F44)**; **P4.3 Kafka JMX names
+   execution-pinned** (KafkaJmxAgentTest; ZK znode_count probed earlier).
+   STILL OPEN: PrometheusExporter (M5.4 — then wire ValidityChecker.check
+   per run), harness self-metrics :9400 (M5.3), docker-events audit
+   (P4.5's open half). Reading guide:
    `OBSERVABILITY_AND_EXPECTATIONS.md` (expectations + corpus anchors +
    false positives + cleanup).
 7. **G3** — OPEN: harness vs native tools on the real cluster (≤15% or

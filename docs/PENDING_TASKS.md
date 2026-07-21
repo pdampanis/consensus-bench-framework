@@ -1,6 +1,6 @@
 # Pending Tasks — Prioritized Backlog + Status Ledger
 
-**Last updated: 2026-07-18.** Companion to `IMPLEMENTATION_PLAN.md`
+**Last updated: 2026-07-21.** Companion to `IMPLEMENTATION_PLAN.md`
 (milestone-ordered M0→M6). This file is **priority-ordered for the current
 push** and doubles as the handoff ledger: a fresh session should be able to
 read this file plus `PROJECT_STATE.md` and know exactly what is done (with
@@ -772,6 +772,48 @@ pin; the observability/analysis work is non-Java (dashboards, analyse.py
 
 ---
 
+## 2026-07-21 sixth hard review + fixes (F39–F49, all closed same session)
+
+**Protocol:** full code+docs read-through first (committed HEAD re-verified
+by execution: 158/158 green incl. the then-uncommitted M5.5 package found
+in the working tree); then one increment per commit, TDD red→green with
+the red shown, a green `mvn21 clean verify` before EVERY push (six gates
+run; the one batched-verify exception covers exactly the F45+M5.2-etcd
+pair, stated in both messages). Suite grew 158 → **170 tests green**.
+(Doc-drift note closed by this section: the "143" headline count was one
+commit stale — HEAD had 146 committed tests before this session; NEXT-4b's
+3 analyzer tests landed after the 07-18 close-out was written.)
+
+| # | Finding | Status |
+|---|---------|--------|
+| F39 | The M5.5 ValidityChecker package sat UNCOMMITTED and unledgered in the working tree while §4/NEXT-5/README still said "not built" — the exact working-agreement violation (update state docs at session end) this file exists to prevent | **CLOSED** — landed HARDENED (F40–F44 fixed first), ledger updated |
+| F40 | Gate 6 read metrics/clock_offset.csv but NO export query produced it — post-M5.4 every run would FAIL clock_discipline with a false "broken retrieval" diagnosis | **FIXED** — `clock_offset \| node_timex_offset_seconds` added; a new contract test pins EVERY consulted metric name against export_queries.txt (the drift class now fails in-suite) |
+| F41 | Gate 3 corroboration was etcd/cometbft-only: every Kafka fault run would FAIL with a wrong diagnosis, every paxi/hotstuff fault run would FAIL for metrics they NEVER had (documented §2 limitation; the F26 wedge changes no leader BY DESIGN); node_up can never witness a container kill (host node_exporter survives) | **FIXED** — per-system witness map (etcd_leader_chg / cmt_rounds / kafka_urp>0), honest SKIP naming P4.5 for paxi/hotstuff, node_up kept with its limit stated |
+| F42 | HotStuff run dirs (summary.txt, no throughput.csv BY DESIGN) failed rate_adherence + convergence as if broken | **FIXED** — explicit SKIPs; a missing throughput.csv for driver systems stays FAIL |
+| F43 | Methodology §4.1's window-ceiling half and §4.4's restart-audit half had NO gate row — silent absence in a "SKIP is loud" design | **FIXED** — window_headroom (awaits M5.3) + container_restarts (awaits P4.5) as loud SKIPs |
+| F44 | checkTree aborted the whole walk on one corrupt manifest | **FIXED** — record-and-continue, uncheckable = not-valid loudly |
+| F45 | HotStuffMultiNodeFormationTest asserted every-replica-commits at a FIXED instant: 3 observed fails 2026-07-21 with the lagging node VARYING while proposals held ~100 ms cadence — laptop pressure (F27 class), not regression | **FIXED** — deadline-polled gate (30 s), same rule as provider health gates; never-commits still fails; re-verified green ×2 |
+| F46 | M5.2 SEQUENCING TRAP: prometheus.yml/dashboards/gate 3 assumed metric endpoints (etcd :2381, cometbft :26660, kafka :7071) that no provider start command opened — and the plan had M5.2 land AFTER the canary, i.e. the author would sign off G2 goldens that M5.2 must rewrite | **FIXED** — all three exporters wired NOW, probe-first (etcd flag live-verified on the digest; cometbft sed execution-verified in the formation test; kafka agent+rules execution-verified on a real broker in KafkaJmxAgentTest, closing P4.3's name question; agent 1.0.1 pinned across pom/cloud-init/goldens by test — 1.1.0 was a wrong guess, Central's metadata is the truth). **The seven goldens are FINAL text for the G2 read-through** |
+| F47 | Fault thread timing: delay counted from thread start (pre-connect), and a mark before EventLog.start() would produce a garbage failover that reads real | **FIXED** — isStarted() wait + fail-loud guard; mark semantics documented (mark = injection COMPLETE ⇒ failover_ms is a lower bound for multi-command faults; methodology §4.3) |
+| F48 | Spec rejected short BASELINE runs over the DEFAULTED fault-at they never read | **FIXED** — validation applies to fault scenarios only |
+| F49 | RemoteLogs snapshotted to /root, assuming a root --ssh-user | **FIXED** — /tmp |
+
+**Noted, not fixed (deliberate):**
+- **N1 (watch at M6.2):** for preregistered-failure scenarios (F26 paxi
+  wedge, DOUBLE_KILL liveness demo) the writer's honesty rule
+  (error_rate>0.5 ⇒ status=failed) could exclude exactly the preregistered
+  evidence from analyse.py AND make resume re-run the cell. At campaign
+  rates the wedge's error mass stays well under 0.5 (the in-flight window
+  throttles wedged issue to ~window/5 s ops/s), so it should not trip —
+  verify at the pilot; if it does, the decision is scenario-aware status
+  vs analysis-side handling, the author's call.
+- **N2 (author's call):** `corpus/` tracks the SIGNED thesis-assignment
+  form (personal document). The GitHub repo is PRIVATE today, so no
+  exposure — but if it is ever made public the file (and its git history)
+  goes with it; removal then needs a history rewrite, not just `git rm`.
+
+---
+
 ## Immediate next increments (LLM-ready specs)
 
 **NEXT-1 — G2 golden read-through (HUMAN, the author).** Read all seven
@@ -827,25 +869,33 @@ its sample excluded from e2e latency), warmup=0 byte-identical to
 whole-run, over-long warmup fails closed. The remaining HotStuff caveats
 (D9 hardware seam, log-derived/no-server-metrics) stand and are in §7.
 
-**NEXT-5 — P4 remainder.** PARTLY DONE (batch 3, this session): dashboards
+**NEXT-5 — P4 remainder.** PARTLY DONE (batch 3, 2026-07-18): dashboards
 (P4.4) shipped — campaign-overview + per-algorithm (etcd, kafka [both
 modes], cometbft, paxi+hotstuff), each carrying an embedded reading guide
-(baseline expectation, fault signature, false-positive catalogue); the
-Kafka JMX panels are honestly labelled "pending P4.3" until the exporter
-names are pinned. Collection + offline replay shipped
+(baseline expectation, fault signature, false-positive catalogue).
+Collection + offline replay shipped
 (`scripts/collect_block.sh` → one dated dir with results + Prometheus
 snapshot, count-verified pre-destroy; `observability/offline/` compose
 replays the snapshot against the SAME provisioned dashboards). analyse.py
 foundation shipped (`analysis/`, F15 successor: per-cell median/IQR + mean
 bootstrap CI, per-run percentile SPREADS not averages, environment/status
-exclusion listed not silent, `--selftest` green). STILL OPEN:
-**ValidityChecker** (M5.5 — six gates + empty-series-fails + loadgen-steal,
-writing validity.json), **PrometheusExporter** (M5.4 — runbook §5
-query_range → per-run metrics/*.csv; the harness self-metrics on :9400
-via micrometer, M5.3), **P4.3** (ZK :7000 + Kafka JMX name fixture tests —
-the dashboards' Kafka panels stay untrusted until then), **docker-events
-audit** (the open half of P4.5), and analyse.py's growth to pooled
-histograms + Holm + the 8 figures (M6.4). No new decisions needed on any.
+exclusion listed not silent, `--selftest` green).
+**2026-07-21 additions (sixth review): ValidityChecker (M5.5-core) DONE
+and hardened** — six gates + empty-series-fails + loadgen-steal into
+validity.json, per-system gate-3 witnesses, hotstuff-aware, the
+consulted-metrics↔export_queries contract test; it is a LIBRARY — the
+M5.4 integration (and any CLI) wires it into the run flow. **P4.3 DONE
+for Kafka JMX** (KafkaJmxAgentTest: real broker + pinned agent 1.0.1 +
+in-repo rules file serve the two export-query names; ZK znode_count was
+probed 2026-07-17). **M5.2 exporters wired in the providers/goldens**
+(etcd :2381, cometbft :26660, kafka :7071 — F46; goldens FINAL for G2).
+STILL OPEN: **PrometheusExporter** (M5.4 — runbook §5 query_range →
+per-run metrics/*.csv, then call ValidityChecker.check per run), the
+harness self-metrics on :9400 (micrometer, M5.3 — unlocks the
+window_headroom gate), **docker-events audit** (the open half of P4.5 —
+unlocks container_restarts and the paxi/hotstuff gate-3 witness), and
+analyse.py's growth to pooled histograms + Holm + the 8 figures (M6.4).
+No new decisions needed on any.
 
 **NEXT-6 — observability/analysis polish (batch 3, DONE).** See
 `OBSERVABILITY_AND_EXPECTATIONS.md` (per-algorithm preregistered baselines

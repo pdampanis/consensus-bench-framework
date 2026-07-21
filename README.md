@@ -168,13 +168,17 @@ consensus-bench-thesis/
   `terraform apply`. HotStuff remote runs are BASELINE-only (fault
   scenarios preregistered, PENDING_TASKS NEXT-4); the analyzer's live-log
   shape check happens at the first VM run.
-- **No ValidityChecker / PrometheusExporter / full-matrix runner yet**
-  (P4.1/P4.2/M3.3-full — LLM-ready specs in PENDING_TASKS).
+- **ValidityChecker (M5.5) is BUILT and hardened (2026-07-21, F39–F44)**
+  as a library; the PrometheusExporter (M5.4) that feeds it metrics/*.csv
+  per run — and the M5.3 harness self-metrics — are still open. The
+  full-matrix runner (M3.3-full) shipped 2026-07-18.
 - **`analyse.py` and the React visualizer are not in this repo** (F15): the
   writer targets their contract, but the contract is unverifiable here until
   they are vendored or golden-tested.
-- **ZK :7000 and Kafka JMX metric names are unverified** until real
-  exporters run (P4.3).
+- **Kafka JMX names are EXECUTION-PINNED (P4.3, 2026-07-21)** — a real
+  broker with the pinned agent + in-repo rules served both export-query
+  names (KafkaJmxAgentTest); ZK znode_count was probed 2026-07-17. The
+  remaining exporter caveat is the LIVE scrape path, proven at the canary.
 - **Laptop numbers are functional evidence only** — `environment=local` is
   never thesis data.
 

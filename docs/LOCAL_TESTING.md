@@ -29,10 +29,10 @@ cd $REPO/harness
 mvn21 clean verify
 ```
 
-**Expect** (versions/counts as of 2026-07-18 — counts only grow):
+**Expect** (versions/counts as of 2026-07-21 — counts only grow):
 
 ```
-Tests run: 143, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 170, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -45,8 +45,14 @@ old`, the testcontainers pin regressed below 1.21.4 (Docker 29 needs
 ≥1.21.4). Per-algorithm selections and debugging:
 `docs/PER_ALGORITHM_TEST_GUIDE.md`.
 
-What the 143 tests pin, so you know what a failure means (headline
-additions since 114: the 4-node HotStuff formation — real client traffic
+What the 170 tests pin, so you know what a failure means (headline
+additions since 143: the sixth-review batch — ValidityCheckerTest ×19
+[the six §4 gates, per-system fault witnesses, the consulted-metrics ↔
+export_queries contract], KafkaJmxAgentTest ×3 [real broker serves the
+pinned JMX names; version pinned across pom/cloud-init], the F45
+deadline-polled HotStuff commit gate, the F47 pre-start fault-mark guard,
+the F48 baseline-Spec pin; earlier headline additions since 114: the
+4-node HotStuff formation — real client traffic
 committed through BFT consensus, logs.py's own parse targets asserted on
 every replica — then its remote golden + provider branch; the F33
 image-presence gates; the logs.py-port analyzer with hand-computed

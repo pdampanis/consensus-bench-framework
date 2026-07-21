@@ -5,7 +5,30 @@ It is written for a fresh Claude session with no memory of prior turns.
 When something here conflicts with an older file, this document wins; update
 it at the end of every working session.
 
-Last updated: 2026-07-18 — **fifth hard review (F31–F38, all fixed or
+Last updated: 2026-07-21 — **sixth hard review (F39–F49, all closed same
+session; ledger in PENDING_TASKS §"2026-07-21").** Highlights: the
+in-flight **M5.5 ValidityChecker landed HARDENED** (per-system gate-3
+witnesses, hotstuff-aware gates, loud SKIPs for the two collector-less
+gate halves, record-and-continue tree walk, and a contract test pinning
+every consulted metric name against export_queries.txt — which caught
+clock_offset having NO producing query, F40); **all three M5.2 exporters
+wired probe-first BEFORE the G2 read-through** (F46 — the plan's ordering
+would have had the author sign off goldens M5.2 then rewrites): etcd
+`--listen-metrics-urls :2381` (live-verified on the digest), CometBFT
+`prometheus = true` sed (execution-verified in the formation test, which
+now asserts the live :26660 endpoint), Kafka JMX agent (P4.3 CLOSED for
+Kafka: KafkaJmxAgentTest runs a real broker with the pinned
+jmx_prometheus_javaagent 1.0.1 + in-repo rules and asserts both
+export-query names on :7071; pom/cloud-init/goldens pinned to ONE version
+by test) — **the seven goldens are FINAL text for G2**; **F45** (HotStuff
+formation's fixed-instant commit assert → deadline-polled gate; three
+observed pressure fails, lagging node varying); **F47–F49** (fault-mark
+alignment + documented lower-bound semantics, baseline Spec honesty,
+/tmp log snapshots). Verification: TDD red→green per increment, a green
+`mvn21 clean verify` before every push (six full gates; one batched pair
+stated in its two commit messages). **Suite: 170 tests green.**
+Next: G2 golden read-through (HUMAN) → P3.5 price check → P3.4 canary.
+Prior update, 2026-07-18 — **fifth hard review (F31–F38, all fixed or
 decided same session; ledger in PENDING_TASKS) + the "everything
 remote-ready" session.** Protocol note: at the author's request every
 increment below was verified by ONE batched `mvn21 clean verify` at
@@ -269,7 +292,8 @@ manual review kill the ship-unverified bug class.
         latency.hlog (FULL histogram — methodology §3 pooling input)
         manifest.json (v2: params, environment, image digest, version,
           config_hash, error_rate, fault/failover ms, honest status)
-        metrics/*.csv ✦ (PrometheusExporter, M5.4) · validity.json ✦ (M5.5)
+        metrics/*.csv ✦ (PrometheusExporter, M5.4) · validity.json (M5.5
+          BUILT 2026-07-21: ValidityChecker library; M5.4 wires it per run)
 ```
 
 Data-flow invariants the tests pin: same keyId stream and load model for
@@ -518,19 +542,20 @@ templated on the inventory, obs-VM compose (Prometheus + Grafana with
 provisioned datasource), and `export_queries.txt` (the fixed PromQL set the
 harness archives per run into `metrics/*.csv`).
 
-## 4. What remains NOT yet built (F34 correction 2026-07-18 — everything
-   previously listed here except the items below IS built and tested; see
-   §3 and the PENDING_TASKS ledger)
+## 4. What remains NOT yet built (updated 2026-07-21 — sixth review:
+   ValidityChecker is BUILT/hardened, P4.3's Kafka names are pinned, the
+   M5.2 exporters are wired; see the PENDING_TASKS 2026-07-21 ledger)
 
 - **HotStuff fault scenarios** (preregistration required first —
   PENDING_TASKS NEXT-4; remote-run serves HotStuff BASELINE today) and the
   picocli CLI (M1.3 — the hand-rolled parser is now fail-closed, F32).
-- `ValidityChecker` (M5.5), `PrometheusExporter` (M5.4 — per-run
-  metrics/*.csv) + harness self-metrics on :9400 (M5.3), docker-events
-  audit (the open half of P4.5), ZK/JMX metric-name fixtures (P4.3 — the
-  Kafka dashboard panels stay untrusted until then).
+- `PrometheusExporter` (M5.4 — per-run metrics/*.csv, then calling
+  `ValidityChecker.check` per run) + harness self-metrics on :9400 (M5.3 —
+  unlocks the window_headroom gate), docker-events audit (the open half of
+  P4.5 — unlocks container_restarts and the paxi/hotstuff gate-3 witness).
 - The **canary** (P3.4) and everything gate-blocked behind G2's HUMAN
-  golden read-through (all seven goldens now exist and are test-matched).
+  golden read-through (all seven goldens exist, are test-matched, and are
+  FINAL text — the F46 exporter wiring means no post-sign-off rewrite).
 - `analysis/analyse.py`'s growth to pooled histograms, Holm correction,
   ECDFs, and the 8 figures (M6.4 — the foundation now exists in-repo:
   per-cell CIs, percentile spreads, honest exclusion, `--selftest`).
