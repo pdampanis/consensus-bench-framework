@@ -152,4 +152,46 @@ class RemoteRunnerTest {
                 Path.of("results"), "r001", Path.of("deploy/inventory.env"), "root");
         assertEquals(Scenario.BASELINE, spec.scenario());
     }
+
+    // ---- F70: how the event buffer is sized, and where it stops scaling ----
+
+    /** faultAt is derived so the Spec's own F48 guard is always satisfied —
+     *  these tests are about buffer sizing, not about fault timing. */
+    private static RemoteRunner.Spec faultSpec(long rate, int duration) {
+        return new RemoteRunner.Spec(SystemUnderTest.ETCD, Scenario.LEADER_KILL, 3, rate,
+                duration, 180, 200, 1024, 0.0, Math.max(1, duration / 2), 30,
+                Path.of("results"), "r001", Path.of("deploy/inventory.env"), "root");
+    }
+
+    @Test
+    void eventCapacityScalesWithTheRunShapeForRateBoundRuns() {
+        // The buffer is derived, not fixed: rate x duration with 2x slack for
+        // retries and the drain tail, plus the in-flight window.
+        assertEquals(1_000 * 300 * 2 + 200, RemoteRunner.eventCapacity(faultSpec(1_000, 300)));
+        // …and it is floored, so a tiny smoke run still records its events.
+        assertEquals(100_000, RemoteRunner.eventCapacity(faultSpec(10, 10)));
+    }
+
+    @Test
+    void eventCapacityStopsScalingAtTheRoofAndSaturationRunsGetOnlyTheRoof() {
+        // F70's mechanism, pinned so the roof is visible in the suite rather
+        // than buried in a constant. At the campaign shape (duration 480) the
+        // derived size reaches the 4,000,000 roof at ~4,167 ops/s, so every
+        // faster run is capped — and a SATURATION run (rate <= 0) has no rate
+        // to derive from and takes the roof unconditionally.
+        assertEquals(4_000_000, RemoteRunner.eventCapacity(faultSpec(50_000, 480)));
+        assertEquals(4_000_000, RemoteRunner.eventCapacity(faultSpec(0, 480)));
+
+        // Why that matters, stated as arithmetic rather than prose: the
+        // campaign injects at warmup+60 = 240 s, so a run sustaining more
+        // than 4,000,000 / 240 s commits fills the buffer BEFORE the fault
+        // mark. Past that point failoverMillis() can find no qualifying
+        // commit and the manifest would read "fault fired, never recovered".
+        // CsvResultsWriter now refuses to call such a run complete (F70);
+        // sizing the buffer from a measured saturation input is the follow-on.
+        assertTrue(4_000_000 / 240 < 20_000,
+                "a >20k ops/s fault run overflows before the mark — the honest-status"
+                        + " rule in CsvResultsWriter is what stands between that and the"
+                        + " F4 failover ECDF");
+    }
 }

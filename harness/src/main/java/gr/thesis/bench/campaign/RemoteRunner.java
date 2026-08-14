@@ -271,10 +271,23 @@ public final class RemoteRunner {
         };
     }
 
-    /** Event capacity: every completion is one long. Rate-bound runs size
-     *  from the schedule (2x slack for retries/drain); saturation runs get
-     *  a generous fixed roof. Overflow drops loudly (EventLog contract). */
-    private static int eventCapacity(Spec spec) {
+    /**
+     * Event capacity: every completion is one long. Rate-bound runs size from
+     * the schedule (2x slack for retries/drain); saturation runs have no rate
+     * to derive from and take the fixed roof.
+     *
+     * <p>That roof is load-bearing, so it is pinned by test rather than left
+     * as a bare constant (F70): at the campaign shape the derived size hits
+     * 4,000,000 at ~4,167 ops/s, and a run sustaining more than
+     * {@code 4,000,000 / faultAtSecs} commits fills the buffer BEFORE the
+     * fault mark — after which {@link EventLog#failoverMillis()} finds no
+     * qualifying commit and the run reads as "the fault fired and nothing
+     * ever recovered", which is also what a genuine wedge looks like.
+     * Overflow is counted, never silent (EventLog contract), and
+     * {@link gr.thesis.bench.results.CsvResultsWriter} refuses to call such a
+     * run complete. Package-private so the sizing contract is testable.
+     */
+    static int eventCapacity(Spec spec) {
         long expected = spec.ratePerSec() > 0
                 ? spec.ratePerSec() * spec.durationSecs() * 2 + spec.window()
                 : 4_000_000;

@@ -303,4 +303,91 @@ class CsvResultsWriterTest {
         assertTrue(manifest(FAULT_ID).contains("\"status\": \"complete\""),
                 "a marked fault run is valid data: " + manifest(FAULT_ID));
     }
+
+    // ---- F70: an EventLog that OVERFLOWED may not pose as a measurement ----
+    // EventLog.append drops silently past capacity and only counts the drops;
+    // RemoteRunner caps the buffer at 4,000,000 events, which a saturation run
+    // exceeds. If the buffer fills before the fault mark, failoverMillis()
+    // finds no qualifying commit and returns empty — so the run writes
+    // "fault_injected_at_ms": <n> with "failover_ms": null, which is
+    // INDISTINGUISHABLE from the honest "the system never recovered" (the
+    // preregistered paxi wedge, F26). The distinguishing fact — that we lost
+    // the record — was computed by EventLog.dropped() and then read by nobody.
+
+    @Test
+    void faultRunThatLostItsEventRecordMayNotClaimComplete() throws IOException {
+        // Capacity 2, four appends: the log overflows BEFORE the mark, so the
+        // recovery commit at 95 ms is dropped and never seen again.
+        var events = new EventLog(2);
+        events.start(0);
+        events.append(1_000_000L, true);
+        events.append(2_000_000L, true);
+        events.append(3_000_000L, true);          // dropped
+        events.faultInjectedAt(25_000_000L);
+        events.append(95_000_000L, true);         // the recovery — dropped
+
+        var rec = new LatencyRecorder();
+        for (int i = 0; i < 100; i++) rec.record(1_000, true);
+        writeRun(FAULT_ID, new WorkloadEngine.Result(tenGoodSeconds(), rec, 0, events), CFG);
+
+        String m = manifest(FAULT_ID);
+        assertTrue(m.contains("\"fault_injected_at_ms\": 25"), m);
+        assertTrue(m.contains("\"failover_ms\": null"), m);
+        assertTrue(m.contains("\"status\": \"failed\""),
+                "a fault run whose event record overflowed cannot tell 'never recovered'"
+                        + " from 'we lost the evidence' — it must not claim complete: " + m);
+    }
+
+    @Test
+    void manifestCarriesTheDroppedEventCount() throws IOException {
+        var events = new EventLog(2);
+        events.start(0);
+        events.append(1_000_000L, true);
+        events.append(2_000_000L, true);
+        events.append(3_000_000L, true);          // dropped
+        events.faultInjectedAt(25_000_000L);
+
+        var rec = new LatencyRecorder();
+        for (int i = 0; i < 100; i++) rec.record(1_000, true);
+        writeRun(FAULT_ID, new WorkloadEngine.Result(tenGoodSeconds(), rec, 0, events), CFG);
+
+        assertTrue(manifest(FAULT_ID).contains("\"events_dropped\": 1"),
+                "the drop count is the only thing that distinguishes a lost record from"
+                        + " a real absence — it belongs in the manifest: " + manifest(FAULT_ID));
+    }
+
+    @Test
+    void baselineRunReportsNullDroppedNotZero() throws IOException {
+        // A run with no EventLog did not measure zero drops; it did not
+        // measure drops at all. Absent != zero, as with the fault fields.
+        writeRun(ID, result(tenGoodSeconds(), 0, 100), CFG);
+        assertTrue(manifest(ID).contains("\"events_dropped\": null"), manifest(ID));
+    }
+
+    @Test
+    void faultRunWithDropsButAResolvedFailoverStaysComplete() throws IOException {
+        // The guard against over-correcting, and the reason the rule is not
+        // simply "drops > 0 => failed": here the buffer filled AFTER the
+        // recovery commit was already recorded, so the failover number is
+        // real and the run is valid data. Discarding it would throw away a
+        // good measurement to punish a late overflow.
+        var events = new EventLog(4);
+        events.start(0);
+        events.append(1_000_000L, true);
+        events.faultInjectedAt(25_000_000L);
+        events.append(95_000_000L, true);         // recovery, captured
+        events.append(96_000_000L, true);
+        events.append(97_000_000L, true);
+        events.append(98_000_000L, true);         // dropped
+
+        var rec = new LatencyRecorder();
+        for (int i = 0; i < 100; i++) rec.record(1_000, true);
+        writeRun(FAULT_ID, new WorkloadEngine.Result(tenGoodSeconds(), rec, 0, events), CFG);
+
+        String m = manifest(FAULT_ID);
+        assertTrue(m.contains("\"failover_ms\": 70"), m);
+        assertTrue(m.contains("\"events_dropped\": 1"), m);
+        assertTrue(m.contains("\"status\": \"complete\""),
+                "drops after a captured recovery do not void the measurement: " + m);
+    }
 }

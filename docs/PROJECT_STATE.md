@@ -5,6 +5,16 @@ It is written for a fresh Claude session with no memory of prior turns.
 When something here conflicts with an older file, this document wins; update
 it at the end of every working session.
 
+> **S0.1 (F70) LANDED on `eighth-review-tier1` — suite 177 → 183 green**
+> (`mvn21 clean verify`, BUILD SUCCESS, 4:40; count read from Maven's own
+> summary line per F76). An overflowed EventLog can no longer pose as a
+> measurement: `events_dropped` is a manifest field (null, not 0, when there
+> was no log) and `CsvResultsWriter` refuses `complete` for a fault run that
+> fired, dropped events, and resolved no failover. Next unblocked increment:
+> **S1.1** (D14's packet-loss sweep + severity into run identity).
+> **S0.2 (F69) is BLOCKED on the author** — it writes destructive host
+> commands into goldens that are FINAL text for G2.
+>
 > **IN FLIGHT — read before starting work (2026-08-14).**
 > Branch **`seventh-review-tier1`**, HEAD `08d0a80`, **5 commits ahead of
 > `origin/main` and NOT PUSHED**. Two Claude sessions worked this repo the

@@ -128,11 +128,20 @@ public final class CsvResultsWriter {
         // an absent measurement is null, never zero.
         String faultAt = "null", failover = "null";
         boolean faultFired = r.events() != null && r.events().faultMarkMillis().isPresent();
+        boolean failoverResolved = false;
         if (faultFired) {
             faultAt = Long.toString(r.events().faultMarkMillis().getAsLong());
-            failover = r.events().failoverMillis().isPresent()
+            failoverResolved = r.events().failoverMillis().isPresent();
+            failover = failoverResolved
                     ? Long.toString(r.events().failoverMillis().getAsLong()) : "null";
         }
+        // F70: the EventLog drops silently past capacity and only COUNTS the
+        // drops — a number that, until now, no production code read. It is
+        // written here because it is the single fact that separates two
+        // opposite readings of the same manifest, and null (not 0) when there
+        // was no event log: a baseline run did not measure zero drops, it did
+        // not measure drops at all.
+        String eventsDropped = r.events() == null ? "null" : Long.toString(r.events().dropped());
 
         // F50: a fault-scenario run that cannot evidence its fault is VOID as
         // that scenario, however clean the measurement looks. The mark is
@@ -144,7 +153,21 @@ public final class CsvResultsWriter {
         // campaign's resume check, the ValidityChecker and analyse.py all read
         // one truth, and keeps the trap disarmed for any future caller.
         boolean faultNeverFired = id.scenario() != Scenario.BASELINE && !faultFired;
-        String status = (opsAfterWarmup > 0 && errorRate <= 0.5 && !faultNeverFired)
+
+        // F70, the same principle one layer down: a fault run whose event
+        // record OVERFLOWED cannot distinguish "the system never recovered"
+        // (a real, preregistered result — the F26 paxi wedge) from "we lost
+        // the commit that proves it did". Both write failover_ms: null.
+        // The rule is deliberately narrow — drops alone do not void a run:
+        // if the recovery commit was recorded BEFORE the buffer filled, the
+        // failover number is real and discarding it would throw away a good
+        // measurement to punish a late overflow. Only the combination
+        // "fault fired + evidence dropped + no failover resolved" is void.
+        boolean faultEvidenceLost = id.scenario() != Scenario.BASELINE
+                && faultFired && !failoverResolved
+                && r.events().dropped() > 0;
+        String status = (opsAfterWarmup > 0 && errorRate <= 0.5
+                && !faultNeverFired && !faultEvidenceLost)
                 ? "complete" : "failed";
 
         String manifest = """
@@ -170,6 +193,7 @@ public final class CsvResultsWriter {
                   "error_rate": %s,
                   "fault_injected_at_ms": %s,
                   "failover_ms": %s,
+                  "events_dropped": %s,
                   "status": "%s",
                   "harness": "consensus-bench-java"
                 }
@@ -186,7 +210,7 @@ public final class CsvResultsWriter {
                               cfg.targetRatePerSec(), cfg.maxInFlight(), cfg.valueSizeBytes(),
                               opsAfterWarmup, r.errors(),
                               String.format(java.util.Locale.ROOT, "%.4f", errorRate),
-                              faultAt, failover,
+                              faultAt, failover, eventsDropped,
                               status);
         Files.writeString(dir.resolve("manifest.json"), manifest);
     }

@@ -442,7 +442,7 @@ correctness bugs that would otherwise contaminate the canary.
 
 ### S0 — Close the two correctness holes that corrupt the record (before G2)
 
-**S0.1 — F70: an overflowed EventLog may not pose as a measurement.**
+**S0.1 — F70. DONE (TDD red→green, 183 green.)**
 *Why*: proven by execution — a saturation fault run that overflows before
 the mark writes `fault_injected_at_ms` set, `failover_ms: null`,
 `status: complete`, which reads downstream as "never recovered" and silently
