@@ -146,7 +146,11 @@ public final class Main {
                 Integer.parseInt(a.getOrDefault("valsize", "1024")),
                 Double.parseDouble(a.getOrDefault("conflict", "0")),
                 Integer.parseInt(a.getOrDefault("fault-at", String.valueOf(warmup + 60))),
-                Integer.parseInt(a.getOrDefault("loss", "30")),
+                // D14/F53: no default severity. It is required for
+                // PACKET_LOSS (the value IS part of cell identity) and
+                // refused elsewhere; the Spec re-checks both.
+                scenario == Scenario.PACKET_LOSS
+                        ? Integer.parseInt(requireArg(a, "loss", scenario)) : 0,
                 Path.of(a.getOrDefault("out", "results")),
                 runId,
                 Path.of(a.getOrDefault("inventory", "deploy/inventory.env")),
@@ -247,6 +251,18 @@ public final class Main {
                 r.latencies().percentileMicros(99), r.latencies().percentileMicros(99.9),
                 r.latencies().percentileMicros(100));
         log.info("results -> {}", id.dir(out));
+    }
+
+    /** A required argument, named in the failure so the operator knows what
+     *  to pass and why it is not defaulted (D14: a hidden severity is the
+     *  F53 bug). */
+    static String requireArg(Map<String, String> args, String key, Object because) {
+        String v = args.get(key);
+        if (v == null) {
+            throw new IllegalArgumentException(
+                    "--" + key + " is required for " + because + " and has no default");
+        }
+        return v;
     }
 
     /** Fail closed on a typo'd argument name (F32): `--ratee 300` parsing

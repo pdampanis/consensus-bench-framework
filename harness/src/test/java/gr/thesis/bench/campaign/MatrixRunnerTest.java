@@ -119,4 +119,41 @@ class MatrixRunnerTest {
                 true);
         assertEquals(0, s.ran() + s.skipped() + s.failed());
     }
+
+    // ---- D14/F53: severity is a swept factor, and only for packet_loss ----
+
+    @Test
+    void packetLossExpandsOverSeveritiesAndOtherScenariosDoNot(@TempDir Path out) {
+        var b = MatrixRunner.block(SystemUnderTest.ETCD, 3,
+                List.of(Scenario.BASELINE, Scenario.PACKET_LOSS),
+                List.of(300L), List.of(0.0), 1, 42,
+                out, Path.of("deploy/inventory.env"), "root");
+        List<RemoteRunner.Spec> specs = MatrixRunner.specs(b);
+
+        // baseline x1 + packet_loss x2 severities = 3, not 4: sweeping a
+        // severity a scenario does not have would duplicate every cell.
+        assertEquals(3, specs.size(), specs.toString());
+        var losses = specs.stream()
+                .filter(s -> s.scenario() == Scenario.PACKET_LOSS)
+                .map(RemoteRunner.Spec::packetLossPercent).sorted().toList();
+        assertEquals(List.of(5, 30), losses, "D14 sweeps 5% and 30%");
+        assertEquals(0, specs.stream().filter(s -> s.scenario() == Scenario.BASELINE)
+                .findFirst().orElseThrow().packetLossPercent(),
+                "a baseline cell has no severity to carry");
+    }
+
+    @Test
+    void thePacketLossSeveritiesLandInDifferentDirectories(@TempDir Path out) {
+        var b = MatrixRunner.block(SystemUnderTest.ETCD, 3,
+                List.of(Scenario.PACKET_LOSS), List.of(300L), List.of(0.0), 1, 42,
+                out, Path.of("deploy/inventory.env"), "root");
+        var dirs = MatrixRunner.specs(b).stream()
+                .map(s -> new gr.thesis.bench.results.CsvResultsWriter.RunIdentity(
+                        s.system(), s.scenario(), s.clusterSize(), s.conflictRatio(),
+                        s.packetLossPercent(), s.runId()).dir(out))
+                .distinct().toList();
+        assertEquals(2, dirs.size(),
+                "the two severities must not share a directory — that is the D14"
+                        + " overwrite this increment exists to prevent: " + dirs);
+    }
 }

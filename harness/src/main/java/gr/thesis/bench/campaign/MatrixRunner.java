@@ -44,10 +44,18 @@ public final class MatrixRunner {
 
     private static final Logger log = LoggerFactory.getLogger(MatrixRunner.class);
 
-    /** One system block. Durations default to the campaign shape
-     *  (180 s warmup + 300 s measurement) via {@link #block}. */
+    /**
+     * One system block. Durations default to the campaign shape
+     * (180 s warmup + 300 s measurement) via {@link #block}.
+     *
+     * @param lossPercents packet-loss severities to sweep (D14: 5% and 30%).
+     *        Applied ONLY to PACKET_LOSS cells — expanding every scenario
+     *        over a factor it does not have would silently duplicate the
+     *        entire block.
+     */
     public record Block(SystemUnderTest system, int clusterSize, List<Scenario> scenarios,
-                        List<Long> rates, List<Double> conflicts, int repetitions, long seed,
+                        List<Long> rates, List<Double> conflicts, List<Integer> lossPercents,
+                        int repetitions, long seed,
                         int durationSecs, int warmupSecs, int window, int valueSizeBytes,
                         Path out, Path inventoryFile, String sshUser) {
         public Block {
@@ -56,15 +64,27 @@ public final class MatrixRunner {
                 throw new IllegalArgumentException(
                         "a block needs >=1 scenario, rate, conflict and repetition");
             }
+            if (scenarios.contains(Scenario.PACKET_LOSS) && lossPercents.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "a PACKET_LOSS block needs at least one severity (D14 sweeps 5 and 30)");
+            }
         }
     }
+
+    /** D14's preregistered severity sweep: 5% tests the "modest degradation,
+     *  continued availability" prediction; 30% probes where degradation turns
+     *  qualitative. Both directions are preregistered in
+     *  METRICS_AND_SOURCES before any run — changing them after seeing data
+     *  would void the preregistration. */
+    public static final List<Integer> DEFAULT_LOSS_PERCENTS = List.of(5, 30);
 
     /** Campaign-default block (runbook §3 durations, F21 valsize 1024). */
     public static Block block(SystemUnderTest system, int clusterSize,
                               List<Scenario> scenarios, List<Long> rates,
                               List<Double> conflicts, int repetitions, long seed,
                               Path out, Path inventoryFile, String sshUser) {
-        return new Block(system, clusterSize, scenarios, rates, conflicts, repetitions,
+        return new Block(system, clusterSize, scenarios, rates, conflicts,
+                DEFAULT_LOSS_PERCENTS, repetitions,
                 seed, 480, 180, 200, 1024, out, inventoryFile, sshUser);
     }
 
@@ -82,13 +102,20 @@ public final class MatrixRunner {
         for (Scenario scenario : b.scenarios()) {
             for (long rate : b.rates()) {
                 for (double conflict : b.conflicts()) {
-                    for (int rep = 1; rep <= b.repetitions(); rep++) {
-                        String runId = (rate > 0 ? "rate" + rate : "sat")
-                                + String.format("r%02d", rep);
-                        out.add(new RemoteRunner.Spec(b.system(), scenario, b.clusterSize(),
-                                rate, b.durationSecs(), b.warmupSecs(), b.window(),
-                                b.valueSizeBytes(), conflict, b.warmupSecs() + 60, 30,
-                                b.out(), runId, b.inventoryFile(), b.sshUser()));
+                    // Severity is a factor of PACKET_LOSS alone (D14). Every
+                    // other scenario expands over the singleton 0, so the
+                    // block size is unchanged for them.
+                    List<Integer> losses = scenario == Scenario.PACKET_LOSS
+                            ? b.lossPercents() : List.of(0);
+                    for (int loss : losses) {
+                        for (int rep = 1; rep <= b.repetitions(); rep++) {
+                            String runId = (rate > 0 ? "rate" + rate : "sat")
+                                    + String.format("r%02d", rep);
+                            out.add(new RemoteRunner.Spec(b.system(), scenario, b.clusterSize(),
+                                    rate, b.durationSecs(), b.warmupSecs(), b.window(),
+                                    b.valueSizeBytes(), conflict, b.warmupSecs() + 60, loss,
+                                    b.out(), runId, b.inventoryFile(), b.sshUser()));
+                        }
                     }
                 }
             }
@@ -100,7 +127,8 @@ public final class MatrixRunner {
     /** A cell is complete when its manifest says so — the resume check. */
     static boolean alreadyComplete(RemoteRunner.Spec spec) {
         Path manifest = new CsvResultsWriter.RunIdentity(spec.system(), spec.scenario(),
-                spec.clusterSize(), spec.conflictRatio(), spec.runId())
+                spec.clusterSize(), spec.conflictRatio(), spec.packetLossPercent(),
+                spec.runId())
                 .dir(spec.out()).resolve("manifest.json");
         try {
             return Files.exists(manifest)
@@ -120,8 +148,11 @@ public final class MatrixRunner {
                 dryRun ? " — DRY RUN, executing nothing" : "");
         int ran = 0, skipped = 0, failed = 0;
         for (RemoteRunner.Spec spec : specs) {
+            // Mirrors RunIdentity.dir()'s segments, severity included (D14) —
+            // otherwise two severities log and fail under the same cell name.
             String cell = spec.system() + "/" + spec.scenario() + "/size" + spec.clusterSize()
                     + (spec.conflictRatio() > 0 ? "/c" + Math.round(spec.conflictRatio() * 100) : "")
+                    + (spec.packetLossPercent() > 0 ? "/loss" + spec.packetLossPercent() : "")
                     + "/" + spec.runId();
             if (dryRun) {
                 log.info("dry-run: {}", cell);

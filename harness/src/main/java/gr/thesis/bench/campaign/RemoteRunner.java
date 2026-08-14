@@ -86,6 +86,22 @@ public final class RemoteRunner {
                 throw new IllegalArgumentException("faultAt (" + faultAtSecs
                         + "s) must fall inside the run (duration " + durationSecs + "s)");
             }
+            // D14/F53: severity is required exactly where it means something.
+            // Before this, `--loss` defaulted to 30 for EVERY scenario, so a
+            // leader_kill spec silently carried a packet-loss percentage it
+            // never used — harmless until severity became part of cell
+            // identity, at which point it would have put a `loss30` segment
+            // on runs that never lost a packet.
+            if (scenario == Scenario.PACKET_LOSS) {
+                if (packetLossPercent < 1 || packetLossPercent > 100) {
+                    throw new IllegalArgumentException(
+                            "PACKET_LOSS needs --loss in [1,100], got " + packetLossPercent
+                                    + " (D14 sweeps 5 and 30; there is no safe default)");
+                }
+            } else if (packetLossPercent != 0) {
+                throw new IllegalArgumentException(
+                        scenario + " takes no --loss, got " + packetLossPercent);
+            }
         }
     }
 
@@ -116,7 +132,8 @@ public final class RemoteRunner {
         var cfg = new WorkloadEngine.Config(spec.durationSecs(), spec.warmupSecs(),
                 spec.ratePerSec(), spec.window(), spec.valueSizeBytes(), spec.conflictRatio());
         var id = new CsvResultsWriter.RunIdentity(spec.system(), spec.scenario(),
-                spec.clusterSize(), spec.conflictRatio(), spec.runId());
+                spec.clusterSize(), spec.conflictRatio(), spec.packetLossPercent(),
+                spec.runId());
         boolean faultRun = spec.scenario() != Scenario.BASELINE;
         EventLog events = faultRun ? new EventLog(eventCapacity(spec)) : null;
 
@@ -400,7 +417,8 @@ public final class RemoteRunner {
                                              List<String> nodeLogs, List<NodeHandle> nodes,
                                              Instant started, Instant ended) throws Exception {
         var id = new CsvResultsWriter.RunIdentity(spec.system(), spec.scenario(),
-                spec.clusterSize(), spec.conflictRatio(), spec.runId());
+                spec.clusterSize(), spec.conflictRatio(), spec.packetLossPercent(),
+                spec.runId());
         Path dir = id.dir(spec.out());
         Files.createDirectories(dir.resolve("logs"));
         Files.writeString(dir.resolve("summary.txt"), summary);

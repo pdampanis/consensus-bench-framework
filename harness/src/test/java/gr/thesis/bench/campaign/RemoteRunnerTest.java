@@ -111,7 +111,7 @@ class RemoteRunnerTest {
     void faultTimeOutsideTheRunFailsClosedAtConstruction() {
         assertThrows(IllegalArgumentException.class, () -> new RemoteRunner.Spec(
                 SystemUnderTest.ETCD, Scenario.LEADER_KILL, 3, 300, 480, 180, 200, 1024,
-                0.0, 480 /* == duration: fault could never land */, 30,
+                0.0, 480 /* == duration: fault could never land */, 0,
                 Path.of("results"), "r001", Path.of("deploy/inventory.env"), "root"));
     }
 
@@ -148,18 +148,41 @@ class RemoteRunnerTest {
         // starts on BASELINE, so the check validated an input the run never
         // reads. The validation now applies to fault scenarios only.
         var spec = new RemoteRunner.Spec(SystemUnderTest.ETCD, Scenario.BASELINE, 3, 300,
-                200, 180, 200, 1024, 0.0, 240 /* > duration, unused */, 30,
+                200, 180, 200, 1024, 0.0, 240 /* > duration, unused */, 0,
                 Path.of("results"), "r001", Path.of("deploy/inventory.env"), "root");
         assertEquals(Scenario.BASELINE, spec.scenario());
     }
 
     // ---- F70: how the event buffer is sized, and where it stops scaling ----
 
+    // ---- D14/F53: --loss belongs to PACKET_LOSS and nowhere else ----
+
+    @Test
+    void severityIsRequiredForPacketLossAndRefusedElsewhere() {
+        // Before D14 `--loss` defaulted to 30 for EVERY scenario, so a
+        // leader_kill spec silently carried a severity it never used. Once
+        // severity became part of cell identity that would have written a
+        // `loss30` path segment onto runs that never lost a packet.
+        assertThrows(IllegalArgumentException.class, () -> new RemoteRunner.Spec(
+                SystemUnderTest.ETCD, Scenario.LEADER_KILL, 3, 300, 480, 180, 200, 1024,
+                0.0, 240, 30, Path.of("results"), "r001",
+                Path.of("deploy/inventory.env"), "root"));
+        assertThrows(IllegalArgumentException.class, () -> new RemoteRunner.Spec(
+                SystemUnderTest.ETCD, Scenario.PACKET_LOSS, 3, 300, 480, 180, 200, 1024,
+                0.0, 240, 0, Path.of("results"), "r001",
+                Path.of("deploy/inventory.env"), "root"));
+        // …and the valid shape constructs.
+        var ok = new RemoteRunner.Spec(SystemUnderTest.ETCD, Scenario.PACKET_LOSS, 3, 300,
+                480, 180, 200, 1024, 0.0, 240, 5, Path.of("results"), "r001",
+                Path.of("deploy/inventory.env"), "root");
+        assertEquals(5, ok.packetLossPercent());
+    }
+
     /** faultAt is derived so the Spec's own F48 guard is always satisfied —
      *  these tests are about buffer sizing, not about fault timing. */
     private static RemoteRunner.Spec faultSpec(long rate, int duration) {
         return new RemoteRunner.Spec(SystemUnderTest.ETCD, Scenario.LEADER_KILL, 3, rate,
-                duration, 180, 200, 1024, 0.0, Math.max(1, duration / 2), 30,
+                duration, 180, 200, 1024, 0.0, Math.max(1, duration / 2), 0,
                 Path.of("results"), "r001", Path.of("deploy/inventory.env"), "root");
     }
 

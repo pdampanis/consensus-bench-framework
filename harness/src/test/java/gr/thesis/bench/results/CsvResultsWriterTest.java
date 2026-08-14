@@ -304,6 +304,84 @@ class CsvResultsWriterTest {
                 "a marked fault run is valid data: " + manifest(FAULT_ID));
     }
 
+    // ---- D14/F53: packet-loss SEVERITY is part of cell identity ----
+    // Sweeping severity (5% and 30%) without this is worse than leaving it
+    // hardcoded: RunIdentity.dir() is <system>/<scenario>/size<N>[/c<pct>]/
+    // <runId> and MatrixRunner's runId is rate<R>r<NN>, so two severities of
+    // the same scenario resolved to the SAME directory and the SAME
+    // config_hash. The latent ambiguity would have become an active
+    // overwrite — the v6 path-collision class this record's javadoc claims
+    // is inexpressible.
+
+    private static final CsvResultsWriter.RunIdentity LOSS5 =
+            new CsvResultsWriter.RunIdentity(SystemUnderTest.ETCD, Scenario.PACKET_LOSS,
+                    3, 0.0, 5, "t1");
+    private static final CsvResultsWriter.RunIdentity LOSS30 =
+            new CsvResultsWriter.RunIdentity(SystemUnderTest.ETCD, Scenario.PACKET_LOSS,
+                    3, 0.0, 30, "t1");
+
+    private static WorkloadEngine.Result markedFaultResult() {
+        var events = new EventLog(16);
+        events.start(0);
+        events.append(10_000_000L, true);
+        events.faultInjectedAt(25_000_000L);
+        events.append(95_000_000L, true);
+        var rec = new LatencyRecorder();
+        for (int i = 0; i < 100; i++) rec.record(1_000, true);
+        return new WorkloadEngine.Result(tenGoodSeconds(), rec, 0, events);
+    }
+
+    @Test
+    void twoPacketLossSeveritiesGetDifferentResultDirectories() {
+        assertNotEquals(LOSS5.dir(root), LOSS30.dir(root),
+                "5% and 30% packet loss are different cells — sharing a directory means"
+                        + " the second silently OVERWRITES the first and resume skips it");
+        assertTrue(LOSS5.dir(root).toString().contains("loss5"), LOSS5.dir(root).toString());
+    }
+
+    @Test
+    void twoPacketLossSeveritiesGetDifferentConfigHashes() throws IOException {
+        writeRun(LOSS5, markedFaultResult(), CFG);
+        writeRun(LOSS30, markedFaultResult(), CFG);
+        String h5 = hashOf(manifest(LOSS5)), h30 = hashOf(manifest(LOSS30));
+        assertNotEquals(h5, h30,
+                "methodology §1 requires any cell individually reproducible from its"
+                        + " config_hash; identical hashes make the severity invisible");
+    }
+
+    @Test
+    void manifestCarriesLossPercentOnlyWhereItMeansSomething() throws IOException {
+        writeRun(LOSS30, markedFaultResult(), CFG);
+        assertTrue(manifest(LOSS30).contains("\"loss_percent\": 30"), manifest(LOSS30));
+        // A non-packet-loss run did not measure a loss percentage of zero —
+        // it has none. Absent is not zero, as with the fault fields (F70).
+        writeRun(ID, result(tenGoodSeconds(), 0, 100), CFG);
+        assertTrue(manifest(ID).contains("\"loss_percent\": null"), manifest(ID));
+    }
+
+    @Test
+    void severityOnANonPacketLossScenarioFailsClosed() {
+        assertThrows(IllegalArgumentException.class, () ->
+                new CsvResultsWriter.RunIdentity(SystemUnderTest.ETCD, Scenario.LEADER_KILL,
+                        3, 0.0, 30, "t1"),
+                "a leader_kill run has no packet-loss severity — silently carrying one"
+                        + " would put a meaningless segment in the results tree");
+    }
+
+    @Test
+    void packetLossWithoutASeverityFailsClosed() {
+        assertThrows(IllegalArgumentException.class, () ->
+                new CsvResultsWriter.RunIdentity(SystemUnderTest.ETCD, Scenario.PACKET_LOSS,
+                        3, 0.0, 0, "t1"),
+                "a packet_loss cell whose severity is unset is the F53 ambiguity again");
+    }
+
+    private static String hashOf(String manifest) {
+        var m = java.util.regex.Pattern.compile("\"config_hash\": \"([0-9a-f]+)\"").matcher(manifest);
+        assertTrue(m.find(), "manifest carries a config_hash");
+        return m.group(1);
+    }
+
     // ---- F70: an EventLog that OVERFLOWED may not pose as a measurement ----
     // EventLog.append drops silently past capacity and only counts the drops;
     // RemoteRunner caps the buffer at 4,000,000 events, which a saturation run

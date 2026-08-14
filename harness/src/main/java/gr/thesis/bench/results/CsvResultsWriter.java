@@ -26,8 +26,20 @@ import java.time.Instant;
  */
 public final class CsvResultsWriter {
 
+    /**
+     * @param lossPercent packet-loss SEVERITY, which D14 makes a swept
+     *        workload factor (5% and 30%) rather than a hidden constant. It
+     *        is part of cell IDENTITY, not decoration: without it two
+     *        severities of the same scenario resolve to one directory and
+     *        one config_hash, so the second run silently OVERWRITES the
+     *        first and {@code MatrixRunner.alreadyComplete} then skips it —
+     *        the v6 collision class this record exists to make
+     *        inexpressible. Meaningful only for PACKET_LOSS; the 5-arg
+     *        constructor supplies 0 for every other scenario.
+     */
     public record RunIdentity(SystemUnderTest system, Scenario scenario,
-                              int clusterSize, double conflictRatio, String runId) {
+                              int clusterSize, double conflictRatio, int lossPercent,
+                              String runId) {
         public RunIdentity {
             // The ratio becomes a path segment (c<percent>). A non-whole
             // percent would render the same segment as its rounding neighbor
@@ -38,14 +50,36 @@ public final class CsvResultsWriter {
                 throw new IllegalArgumentException(
                         "conflictRatio must be a whole percent in [0,1], got " + conflictRatio);
             }
+            // Severity is required exactly where it means something and
+            // refused everywhere else: an unset PACKET_LOSS severity is the
+            // F53 ambiguity again, and a severity on a leader_kill run would
+            // put a meaningless segment in the results tree.
+            if (scenario == Scenario.PACKET_LOSS) {
+                if (lossPercent < 1 || lossPercent > 100) {
+                    throw new IllegalArgumentException(
+                            "PACKET_LOSS needs a severity in [1,100], got " + lossPercent);
+                }
+            } else if (lossPercent != 0) {
+                throw new IllegalArgumentException(
+                        scenario + " carries no packet-loss severity, got " + lossPercent);
+            }
+        }
+
+        /** Every non-PACKET_LOSS cell: severity is not applicable. */
+        public RunIdentity(SystemUnderTest system, Scenario scenario,
+                           int clusterSize, double conflictRatio, String runId) {
+            this(system, scenario, clusterSize, conflictRatio, 0, runId);
         }
 
         /**
-         * .../<system>/<scenario>/size<N>[/c<percent>]/<runId>
+         * .../<system>/<scenario>/size<N>[/c<percent>][/loss<percent>]/<runId>
          * The c-segment appears only for conflict runs (c > 0): the five
          * non-Paxi systems never sweep conflict, so their tree (and the
          * committed M0 reference results) keeps its layout; a c>0 run can
          * never collide with a c=0 run because the extra segment differs.
+         * The loss-segment follows exactly that rule for D14's severity
+         * sweep and appears only on PACKET_LOSS cells, so every other
+         * scenario's tree stays byte-identical to before.
          */
         public Path dir(Path root) {
             Path p = root.resolve(system.name().toLowerCase())
@@ -53,6 +87,9 @@ public final class CsvResultsWriter {
                          .resolve("size" + clusterSize);
             if (conflictRatio > 0.0) {
                 p = p.resolve("c" + Math.round(conflictRatio * 100.0));
+            }
+            if (lossPercent > 0) {
+                p = p.resolve("loss" + lossPercent);
             }
             return p.resolve(runId);
         }
@@ -191,6 +228,7 @@ public final class CsvResultsWriter {
                   "ops_after_warmup": %d,
                   "errors": %d,
                   "error_rate": %s,
+                  "loss_percent": %s,
                   "fault_injected_at_ms": %s,
                   "failover_ms": %s,
                   "events_dropped": %s,
@@ -210,6 +248,8 @@ public final class CsvResultsWriter {
                               cfg.targetRatePerSec(), cfg.maxInFlight(), cfg.valueSizeBytes(),
                               opsAfterWarmup, r.errors(),
                               String.format(java.util.Locale.ROOT, "%.4f", errorRate),
+                              // Absent, not zero, where severity has no meaning.
+                              id.lossPercent() > 0 ? Integer.toString(id.lossPercent()) : "null",
                               faultAt, failover, eventsDropped,
                               status);
         Files.writeString(dir.resolve("manifest.json"), manifest);
@@ -232,6 +272,10 @@ public final class CsvResultsWriter {
         String canonical = String.join("|",
                 id.system().name(), id.scenario().name(),
                 Integer.toString(id.clusterSize()), Double.toString(id.conflictRatio()),
+                // D14/F53: without severity, a 5% and a 30% packet_loss cell
+                // hash identically and §1's "any cell individually
+                // reproducible" is false for that scenario.
+                Integer.toString(id.lossPercent()),
                 Integer.toString(cfg.durationSecs()), Integer.toString(cfg.warmupSecs()),
                 Long.toString(cfg.targetRatePerSec()), Integer.toString(cfg.maxInFlight()),
                 Integer.toString(cfg.valueSizeBytes()),
