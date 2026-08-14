@@ -81,7 +81,7 @@ class SshFaultInjectorTest {
         // F29 pre-clean sweeps thesis-* CONTAINERS, never host tc/iptables
         // state, so the leaked rule silently shapes every later run on that VM.
         var ssh = new BlockingRecorder("sudo tc qdisc add");
-        var injector = new SshFaultInjector(ssh, CLUSTER);
+        var injector = new SshFaultInjector(ssh, CLUSTER, 270);
 
         Thread injecting = new Thread(() -> {
             try {
@@ -147,7 +147,9 @@ class SshFaultInjectorTest {
 
     private static List<String> recordedFor(Scenario scenario, RecordingSshExecutor ssh)
             throws Exception {
-        var injector = new SshFaultInjector(ssh, CLUSTER);
+        // The golden shows the STANDARD block: duration 480, fault at 240,
+        // +30 s slack = 270 s (D15.3). A failover block derives 150 s.
+        var injector = new SshFaultInjector(ssh, CLUSTER, 270);
         try {
             injector.apply(scenario, CLUSTER, LEADER, 30);
         } finally {
@@ -208,7 +210,7 @@ class SshFaultInjectorTest {
         var ssh = new RecordingSshExecutor();
         ssh.respondTo("sudo iptables -A INPUT -s 10.0.0.11 -j DROP",
                 new SshExecutor.ExecResult(1, "", "iptables: Permission denied"));
-        var injector = new SshFaultInjector(ssh, CLUSTER);
+        var injector = new SshFaultInjector(ssh, CLUSTER, 270);
 
         assertThrows(IllegalStateException.class,
                 () -> injector.partition(CLUSTER.get(LEADER),

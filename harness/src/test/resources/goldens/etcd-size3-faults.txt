@@ -47,7 +47,16 @@
 # --- SLOW_NODE: CPU pressure on the leader VM via HOST stress-ng
 #     (cloud-init installs it on every node); backgrounded with a hard
 #     --timeout so an aborted run cannot leave the VM pinned, and heal
-#     pkills it explicitly. The consensus container shares the host CPU,
+#     pkills it explicitly.
+#     The --timeout is DERIVED FROM THE RUN SHAPE (D15.3), not fixed:
+#     duration - faultAt + 30 s slack, so the fault lasts as long as every
+#     other scenario's does. A fixed 120 s left slow_node faulted for only
+#     120 s of the measurement window while kill/partition/packet_loss
+#     persisted to heal() -- a cross-scenario confound baked straight into
+#     the F5 recovery figure, where the scenarios are compared side by
+#     side. It still SELF-ENDS, which is the F28 safety property: if the
+#     campaign JVM dies between inject and heal, the VM un-pins itself.
+#     This golden shows the standard block: 480 - 240 + 30 = 270 s. The consensus container shares the host CPU,
 #     so this throttles the node without touching the data path.
 #     nohup + >/dev/null 2>&1 are LOAD-BEARING (F28): without the stream
 #     redirect the backgrounded process inherits the exec channel's pipes
@@ -60,7 +69,7 @@
 #     SIGTERM that shell on every heal and make the WARN channel pure
 #     noise exactly where loudness is the signal. ---
 [[SLOW_NODE]]
-10.0.0.12:22$ nohup stress-ng --cpu 2 --timeout 120s >/dev/null 2>&1 & echo started
+10.0.0.12:22$ nohup stress-ng --cpu 2 --timeout 270s >/dev/null 2>&1 & echo started
 # heal (best-effort + loud; the --timeout may already have ended it):
 10.0.0.12:22$ pkill -f 'stress-n[g] --cpu 2'
 #

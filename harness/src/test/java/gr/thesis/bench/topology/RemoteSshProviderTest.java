@@ -152,7 +152,7 @@ class RemoteSshProviderTest {
         try (var provider = new RemoteSshProvider(ssh, IPS, Duration.ofSeconds(5))) {
             var nodes = provider.start(SystemUnderTest.PAXOS, 3);
             var rec = new RecordingSshExecutor();
-            var inj = new SshFaultInjector(rec, nodes);
+            var inj = new SshFaultInjector(rec, nodes, 270);
             inj.apply(gr.thesis.bench.core.Scenario.LEADER_KILL, nodes, 1, 0);
             inj.heal();
             assertEquals(List.of("10.0.0.12:22$ docker kill thesis-paxi2"), rec.commands(),

@@ -158,7 +158,7 @@ public final class RemoteRunner {
             var engine = events == null
                     ? new WorkloadEngine(driver, cfg, recorder)
                     : new WorkloadEngine(driver, cfg, recorder, events);
-            var injector = new SshFaultInjector(ssh, nodes);
+            var injector = new SshFaultInjector(ssh, nodes, slowNodeSeconds(spec));
             AtomicReference<Exception> injectionFailure = new AtomicReference<>();
             Thread faultThread = faultRun
                     ? faultThread(spec, driver, injector, nodes, events, injectionFailure)
@@ -334,6 +334,22 @@ public final class RemoteRunner {
                 : 4_000_000;
         return (int) Math.min(4_000_000, Math.max(100_000, expected));
     }
+
+    /**
+     * How long slow_node's CPU load runs (D15.3): the rest of the measured
+     * run after the fault, plus slack for the drain. This makes slow_node's
+     * fault duration match every other scenario's — the others persist until
+     * heal(), which the runner calls once the load has ended — so the F5
+     * recovery figure compares scenarios that were faulted for the same
+     * share of their window. Package-private: pinned by test.
+     */
+    static int slowNodeSeconds(Spec spec) {
+        return Math.max(1, spec.durationSecs() - spec.faultAtSecs()) + SLOW_NODE_SLACK_SECS;
+    }
+
+    /** Covers the engine's drain (bounded by the 5 s per-op contract) plus
+     *  teardown, so the load does not lift while the last ops are landing. */
+    static final int SLOW_NODE_SLACK_SECS = 30;
 
     /** Fault forensics (P4.5): full SUT logs beside the CSVs, collected via
      *  the chunked path so size can never truncate them. */

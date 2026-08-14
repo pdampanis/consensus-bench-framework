@@ -155,6 +155,25 @@ class RemoteRunnerTest {
 
     // ---- F70: how the event buffer is sized, and where it stops scaling ----
 
+    // ---- D15.3: slow_node's load lasts as long as the other faults ----
+
+    @Test
+    void slowNodeDurationIsDerivedFromTheRunShapeNotFixed() {
+        // Standard block: 480 - 240 + 30 = 270. Failover block: 360 - 240
+        // + 30 = 150. A FIXED 120 s left slow_node faulted for a shorter
+        // slice of the measurement window than kill/partition/packet_loss,
+        // which persist until heal() — and F5 compares those side by side.
+        var std = new RemoteRunner.Spec(SystemUnderTest.ETCD, Scenario.SLOW_NODE, 3, 300,
+                480, 180, 200, 1024, 0.0, 240, 0, 0, Path.of("results"), "r001",
+                Path.of("inv"), "root");
+        assertEquals(270, RemoteRunner.slowNodeSeconds(std));
+
+        var failover = new RemoteRunner.Spec(SystemUnderTest.ETCD, Scenario.SLOW_NODE, 3, 300,
+                360, 180, 200, 1024, 0.0, 240, 0, 0, Path.of("results"), "r001",
+                Path.of("inv"), "root");
+        assertEquals(150, RemoteRunner.slowNodeSeconds(failover));
+    }
+
     // ---- D14/F53: --loss belongs to PACKET_LOSS and nowhere else ----
 
     @Test

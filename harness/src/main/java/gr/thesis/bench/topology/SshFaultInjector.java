@@ -52,12 +52,31 @@ public final class SshFaultInjector implements FaultInjector {
 
     private final SshExecutor ssh;
     private final List<NodeHandle> cluster;
+    private final int slowNodeSecs;
     /** Undo commands, addressed as (ip, command), replayed LIFO by heal(). */
     private final Deque<String[]> undo = new ArrayDeque<>();
 
-    public SshFaultInjector(SshExecutor ssh, List<NodeHandle> cluster) {
+    /**
+     * @param slowNodeSecs how long the slow_node CPU load runs, DERIVED from
+     *        the run shape by the caller (D15.3): {@code duration - faultAt +
+     *        slack}, so the fault lasts as long as every other scenario's
+     *        does. It was a fixed 120 s, which left slow_node faulted for a
+     *        shorter slice of the measurement window than kill / partition /
+     *        packet_loss — those persist until {@code heal()} — and the F5
+     *        recovery figure compares those scenarios side by side, so the
+     *        asymmetry was a confound in the figure rather than a detail.
+     *        It remains a HARD timeout, which is the F28 safety property: if
+     *        the campaign JVM dies between inject and heal, the VM un-pins
+     *        itself instead of staying loaded forever.
+     */
+    public SshFaultInjector(SshExecutor ssh, List<NodeHandle> cluster, int slowNodeSecs) {
+        if (slowNodeSecs < 1) {
+            throw new IllegalArgumentException(
+                    "slow_node duration must be positive, got " + slowNodeSecs);
+        }
         this.ssh = ssh;
         this.cluster = List.copyOf(cluster);
+        this.slowNodeSecs = slowNodeSecs;
     }
 
     @Override
@@ -109,7 +128,7 @@ public final class SshFaultInjector implements FaultInjector {
         // WARN channel into permanent noise; F31).
         undo.push(new String[]{node.privateIp(), "pkill -f 'stress-n[g] --cpu 2'"});
         ssh.execOrThrow(node.privateIp(), SSH_PORT,
-                backgrounded("stress-ng --cpu 2 --timeout 120s"));
+                backgrounded("stress-ng --cpu 2 --timeout " + slowNodeSecs + "s"));
     }
 
     /** How a long-running fault process is left behind on the node while
