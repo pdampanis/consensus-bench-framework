@@ -31,6 +31,19 @@ import java.util.List;
  *    non-zero undo is WARNed, never silently swallowed (undo commands
  *    legitimately return non-zero when there is nothing to undo, and
  *    tc/iptables/pkill can't distinguish that from a real error at the CLI).
+ *
+ * THREADING (F51): injection runs on the campaign's fault thread while
+ * {@link #heal} runs on the runner's main thread, and the runner heals after
+ * a join that CAN time out — a partition issues five SSH commands, each
+ * bounded at 30 s by SshjExecutor, so apply() may legitimately outlive it.
+ * Every mutating operation therefore holds this object's monitor: heal waits
+ * for an in-flight injection to finish instead of interleaving with it.
+ * Without that, heal deleted a netem qdisc BEFORE tc had added it — the
+ * delete failed as "nothing to undo" (a WARN, by design) and the rule
+ * SURVIVED on the node, silently shaping every later run there. Nothing
+ * downstream catches that: the F29 pre-clean sweeps thesis-* CONTAINERS, not
+ * host tc/iptables state. The undo deque needs no concurrent implementation
+ * because it is only ever touched under this monitor.
  */
 public final class SshFaultInjector implements FaultInjector {
 
@@ -48,7 +61,7 @@ public final class SshFaultInjector implements FaultInjector {
     }
 
     @Override
-    public void kill(NodeHandle node) throws Exception {
+    public synchronized void kill(NodeHandle node) throws Exception {
         // Process death, no undo (a fresh cluster is spun for the next run —
         // Scenario.mutatesCluster()). docker kill, not stop: an abrupt
         // SIGKILL is the fault we mean, not a graceful shutdown.
@@ -56,7 +69,7 @@ public final class SshFaultInjector implements FaultInjector {
     }
 
     @Override
-    public void packetLoss(NodeHandle node, int percent) throws Exception {
+    public synchronized void packetLoss(NodeHandle node, int percent) throws Exception {
         String iface = privateIface(node);
         // Register the undo BEFORE applying: if the add half-succeeds we
         // must still be able to remove the qdisc.
@@ -66,7 +79,7 @@ public final class SshFaultInjector implements FaultInjector {
     }
 
     @Override
-    public void partition(NodeHandle node, List<NodeHandle> from) throws Exception {
+    public synchronized void partition(NodeHandle node, List<NodeHandle> from) throws Exception {
         // Pairwise IP DROP, both directions, per peer — NEVER a subnet rule,
         // so 10.0.0.0/24 (incl. the loadgen) is not blanket-blocked.
         for (NodeHandle peer : from) {
@@ -83,7 +96,7 @@ public final class SshFaultInjector implements FaultInjector {
     }
 
     @Override
-    public void slowNode(NodeHandle node) throws Exception {
+    public synchronized void slowNode(NodeHandle node) throws Exception {
         // HOST stress-ng (cloud-init installs it): the consensus container
         // shares the host CPU, so this throttles the node without touching
         // the data path. Hard --timeout so an aborted run can't pin the VM;
@@ -112,7 +125,7 @@ public final class SshFaultInjector implements FaultInjector {
     }
 
     @Override
-    public void heal() {
+    public synchronized void heal() {
         while (!undo.isEmpty()) {
             String[] cmd = undo.pop();
             try {

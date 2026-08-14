@@ -28,6 +28,87 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class SshFaultInjectorTest {
 
+    /**
+     * Records commands in COMPLETION order (not start order — the F51 race is
+     * about a command being issued while another is still in flight), and
+     * holds whichever command starts with {@code blockOn} until released, so
+     * the interleaving under test is deterministic rather than raced.
+     */
+    private static final class BlockingRecorder implements SshExecutor {
+        private final List<String> done =
+                java.util.Collections.synchronizedList(new ArrayList<>());
+        private final String blockOn;
+        private final java.util.concurrent.CountDownLatch entered =
+                new java.util.concurrent.CountDownLatch(1);
+        private final java.util.concurrent.CountDownLatch release =
+                new java.util.concurrent.CountDownLatch(1);
+
+        BlockingRecorder(String blockOn) { this.blockOn = blockOn; }
+
+        @Override public ExecResult exec(String host, int port, String command) throws Exception {
+            if (command.startsWith(blockOn)) {
+                entered.countDown();
+                release.await();
+            }
+            done.add(command);
+            return command.startsWith("ip -o route get")
+                    ? new ExecResult(0, "10.0.0.12 dev eth1 src 10.0.0.11 uid 0", "")
+                    : new ExecResult(0, "", "");
+        }
+
+        @Override public void close() { }
+
+        int indexOf(String prefix) {
+            synchronized (done) {
+                for (int i = 0; i < done.size(); i++) {
+                    if (done.get(i).startsWith(prefix)) return i;
+                }
+            }
+            return -1;
+        }
+    }
+
+    @Test
+    void healMustNotUndoAFaultThatHasNotBeenAppliedYet() throws Exception {
+        // F51: undo entries are pushed by the FAULT thread and popped by the
+        // MAIN thread in heal(), with nothing coordinating them, and
+        // RemoteRunner heals unconditionally after a join that CAN time out
+        // (partition issues five SSH commands, each bounded at 30 s by
+        // SshjExecutor, so apply() can legitimately outlive the 30 s join).
+        // Interleaved, heal() deletes the netem qdisc BEFORE tc has added it —
+        // the delete fails as "nothing to undo" (a WARN, by design) and the
+        // rule then SURVIVES on the node. Nothing catches it afterwards: the
+        // F29 pre-clean sweeps thesis-* CONTAINERS, never host tc/iptables
+        // state, so the leaked rule silently shapes every later run on that VM.
+        var ssh = new BlockingRecorder("sudo tc qdisc add");
+        var injector = new SshFaultInjector(ssh, CLUSTER);
+
+        Thread injecting = new Thread(() -> {
+            try {
+                injector.packetLoss(CLUSTER.get(LEADER), 5);
+            } catch (Exception e) {
+                throw new AssertionError("injection failed", e);
+            }
+        }, "test-fault-injector");
+        injecting.start();
+        assertTrue(ssh.entered.await(5, java.util.concurrent.TimeUnit.SECONDS),
+                "the tc add command should be in flight");
+
+        Thread healing = new Thread(injector::heal, "test-healer");
+        healing.start();
+        healing.join(1_500);          // unsynchronised, heal races ahead and finishes here
+        ssh.release.countDown();      // let the in-flight add complete
+        injecting.join(5_000);
+        healing.join(5_000);
+
+        int add = ssh.indexOf("sudo tc qdisc add");
+        int del = ssh.indexOf("sudo tc qdisc del");
+        assertTrue(add >= 0 && del >= 0, "both tc commands must run: " + ssh.done);
+        assertTrue(add < del,
+                "heal undid the qdisc before it was applied — the netem rule survives on the"
+                        + " node and poisons every later run (order was " + ssh.done + ")");
+    }
+
     private static final List<NodeHandle> CLUSTER = List.of(
             new NodeHandle(0, "thesis-etcd1", "10.0.0.11", "10.0.0.11"),
             new NodeHandle(1, "thesis-etcd2", "10.0.0.12", "10.0.0.12"),
