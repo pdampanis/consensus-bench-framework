@@ -102,19 +102,50 @@ decision*, not a missing collector.
          └─ when the branch is done → §7 merge runbook → main
 ```
 
-**Worktrees.** Two Claude sessions worked this repo concurrently on
-2026-08-14 and shared ONE checkout, where the failure mode is a *silent lost
-update*, not a merge conflict. They are now isolated:
+### Where the work lives — VERIFY THIS, do not trust it
 
-| Worktree | Branch | Role |
-|---|---|---|
-| `~/Downloads/consensus-bench-thesis` | `seventh-review-tier1` | the original session; **idle since 2026-08-14**, fully contained in the branch below |
-| `~/Downloads/cbt-eighth` | `eighth-review-tier1` | **where all current work lives** |
+Work on this project has lived on more than one branch and worktree at once,
+so the first question of any session is "am I looking at all of it?".
+**Answer it by executing, not by reading the table below** — the table is a
+snapshot with a date on it, git is the truth:
 
-Git refuses one branch in two worktrees, which is why the *mid-increment*
-session kept its path and the other moved. If a third session is needed:
+```bash
+git worktree list                     # checkouts and their branches
+git branch -vv --all                  # every branch, local and remote
+for b in $(git for-each-ref --format='%(refname:short)' refs/heads); do
+  printf '%-28s %s ahead of main\n' "$b" "$(git rev-list --count origin/main..$b)"
+done                                  # unmerged work on OTHER branches
+```
+
+If what you find disagrees with this table, **git wins — then fix the table.**
+A stale coordination map is worse than none, because it is trusted.
+
+**Snapshot, 2026-08-15:**
+
+| Worktree | Branch | Ahead of `main` | What is on it |
+|---|---|---|---|
+| `~/Downloads/cbt-eighth` | `eighth-review-tier1` | **28** | **All current work.** The eighth read-through (F70–F76), decisions D12–D15, the S0–S5 increments, the full validity layer, the doc consolidation |
+| `~/Downloads/consensus-bench-thesis` | `seventh-review-tier1` | 7 | The seventh review (F50–F69) — **idle since 2026-08-14 and a strict SUBSET of the branch above**, so it needs no separate merge. Kept only as an independent copy until the merge lands |
+
+**Expected state after §7's merge:** one worktree, on `main`, and both
+branches deleted. If you are reading this and `git worktree list` still shows
+two, the merge has not happened yet — it is queue item §6 #1–#3.
+
+**Why two existed at all:** two Claude sessions worked concurrently on
+2026-08-14 sharing ONE checkout, where the failure mode is a *silent lost
+update* (a whole-file overwrite), not a merge conflict git could catch. Git
+refuses one branch in two worktrees, so the *mid-increment* session kept its
+path and the other moved. A third concurrent session gets
 `git worktree add ../cbt-<topic> -b <topic>` — never a second session in an
 existing checkout.
+
+### Handing over mid-increment
+
+If a session stops in the middle of something, **record it here** before
+stopping: what is in flight, on which branch and worktree, what was verified,
+and what the next step was. The alternative is the next session re-deriving
+it from commit messages — or redoing it. Nothing is in flight as of
+2026-08-15; the tree is clean on both worktrees and every branch is pushed.
 
 **Build:**
 ```bash

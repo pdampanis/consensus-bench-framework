@@ -35,6 +35,24 @@ See [SSH_SETUP.md](SSH_SETUP.md) for switch instructions.
 
 ---
 
+## Before anything: find out what exists
+
+This repo has carried work on **two branches in two worktrees at the same
+time**. Any doc that lists them is a snapshot; these commands are the truth:
+
+```bash
+git worktree list                     # checkouts and their branches
+git branch -vv --all                  # every branch, local and remote
+for b in $(git for-each-ref --format='%(refname:short)' refs/heads); do
+  printf '%-28s %s ahead of main\n' "$b" "$(git rev-list --count origin/main..$b)"
+done                                  # unmerged work on OTHER branches
+```
+
+The last one is the important one: it answers "is there work I am not looking
+at?", which is how the seventh/eighth containment relationship was
+established in the first place. `PROJECT_STATE.md` §3 records the current
+answer and says plainly that git overrides it.
+
 ## Branches — what we actually use
 
 **There is no `master`.** The integration branch is **`main`** (also

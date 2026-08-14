@@ -4,6 +4,26 @@
 > DIFFERENT project (Release Note Generator) — **ignore that file here.**
 > That is this file's main job; the rest is a pointer.
 
+## Orient first (30 seconds, before reading anything)
+
+The docs describe the repo; **git is the repo.** Run this before trusting any
+table, including the ones in PROJECT_STATE:
+
+```bash
+git worktree list                       # which checkouts exist, on which branches
+git branch -vv --all                    # every branch, local and remote
+git status --short                      # uncommitted work HERE
+git log --oneline origin/main..HEAD     # what this branch has that main lacks
+for b in $(git for-each-ref --format='%(refname:short)' refs/heads); do
+  printf '%-28s %s ahead of main\n' "$b" "$(git rev-list --count origin/main..$b)"
+done                                    # unmerged work on OTHER branches
+```
+
+Work on this project has lived on **more than one branch and worktree at
+once**, so "am I looking at all of it?" is a real question with a cheap
+answer. If what you find disagrees with a doc, **git wins** — and fix the
+doc, because a stale coordination table is worse than none.
+
 ## Read first, and only this
 
 **`docs/PROJECT_STATE.md` is the SINGLE DRIVING DOCUMENT.** Decisions, open
@@ -71,6 +91,13 @@ is no CI and no backup.
 each other's uncommitted edits silently — not as a merge conflict, but as a
 whole-file overwrite. A second concurrent session gets its own worktree:
 `git worktree add ../cbt-<topic> -b <topic>`.
+
+**Which work is on which branch is recorded in `PROJECT_STATE.md` §3** — but
+that table is a SNAPSHOT, so verify it with the orientation commands above
+and correct it when it drifts. **If you end a session mid-increment, say so
+in §3**: what is in flight, on which branch and worktree, and what the next
+step was. The alternative is the next session re-deriving it from commit
+messages, or worse, redoing it.
 
 The 9-item merge gate is in `docs/GIT_WORKFLOW.md`; the step-by-step runbook
 to `main` is `docs/PROJECT_STATE.md` §7.
