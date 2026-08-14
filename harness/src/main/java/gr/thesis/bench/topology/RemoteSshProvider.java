@@ -51,6 +51,15 @@ public final class RemoteSshProvider implements ClusterProvider {
     static final String PAXI_CONFIG_PATH = "/root/thesis-paxi-config.json";
     static final String PRECLEAN_CMD =
             "docker ps -aq --filter name=thesis- | xargs -r docker rm -f";
+    /** Resolve the iface toward a peer inline, so the sweep needs no extra
+     *  round trip and no output parsing — and never assumes eth0 (on Hetzner
+     *  the public and private NICs differ). Same rule the injector applies
+     *  when it ADDS the qdisc. */
+    static String ifaceToward(String peerIp) {
+        return "$(ip -o route get " + peerIp
+                + " | awk '{for(i=1;i<=NF;i++) if($i==\"dev\") print $(i+1)}')";
+    }
+    static final String STRESS_PATTERN = "pkill -f 'stress-n[g] --cpu 2'";
     /** Fixed KRaft cluster id (the image auto-formats storage from it) —
      *  the SAME verified constant KraftMultiBrokerFormationTest used.
      *  Deterministic on purpose: state is container-local (no volume), so
@@ -134,6 +143,7 @@ public final class RemoteSshProvider implements ClusterProvider {
         for (String ip : nodeIps) {
             ssh.execOrThrow(ip, SSH_PORT, PRECLEAN_CMD);
         }
+        sweepHostFaultState();
 
         if (system == SystemUnderTest.ETCD) {
             startEtcd(clusterSize);
@@ -150,6 +160,60 @@ public final class RemoteSshProvider implements ClusterProvider {
         }
         log.debug("phase: wait-healthy done — endpoints {}", endpoints);
         return List.copyOf(nodes);
+    }
+
+    /**
+     * F69 — clear HOST-level fault state on every provisioned node before a
+     * run starts. The container sweep above cannot reach it: a netem qdisc,
+     * an iptables DROP rule and a stress-ng load all OUTLIVE the campaign
+     * JVM, so a run killed between inject and {@code heal()} — OOM, Ctrl-C,
+     * SSH transport loss, power — leaves the next run silently shaped. F29
+     * closed exactly this class for containers; this is the host half.
+     *
+     * <p>Scope is deliberately only what this harness creates: the qdisc on
+     * the resolved PRIVATE iface, DROP rules named by exact peer IP (an
+     * {@code iptables -F} flush would remove anything else on the box), and
+     * the exact stress-ng pattern. Runs on EVERY provisioned node, not just
+     * cluster members, for the same reason F29's sweep does: a D8 size-down
+     * leaves state on nodes outside the new cluster.
+     *
+     * <p>Exit-code semantics, MEASURED on ubuntu-24.04 rather than assumed
+     * (infra/probes/host-fault-tools-probe.sh): with nothing to undo,
+     * {@code tc qdisc del} exits 2, {@code iptables -D} exits 1 and
+     * {@code pkill} exits 1. So on a healthy node EVERY command here is
+     * expected to fail, and failure is SILENT. A ZERO exit is the alarm —
+     * it proves state survived a crashed run, which also puts that run's
+     * data in question, so it is WARNed with the node and the command. This
+     * inverts {@link SshFaultInjector#heal}'s convention on purpose: there
+     * the fault is known to have been applied, so non-zero is the surprise.
+     * Neither uses {@code || true}; that would discard the one bit that
+     * distinguishes the two cases.
+     */
+    private void sweepHostFaultState() throws Exception {
+        for (String ip : nodeIps) {
+            List<String> peers = nodeIps.stream().filter(o -> !o.equals(ip)).toList();
+            if (peers.isEmpty()) {
+                continue; // single provisioned node: no peer to route toward
+            }
+            sweepOne(ip, "sudo tc qdisc del dev " + ifaceToward(peers.get(0)) + " root");
+            for (String peer : peers) {
+                sweepOne(ip, "sudo iptables -D INPUT -s " + peer + " -j DROP");
+                sweepOne(ip, "sudo iptables -D OUTPUT -d " + peer + " -j DROP");
+            }
+            sweepOne(ip, STRESS_PATTERN);
+        }
+    }
+
+    /** One sweep command: silent when there was nothing to undo (the normal
+     *  case), LOUD when there was. Never throws — a box we cannot sweep is
+     *  reported, not a reason to abandon the block. */
+    private void sweepOne(String ip, String command) throws Exception {
+        SshExecutor.ExecResult r = ssh.exec(ip, SSH_PORT, command);
+        if (r.exitCode() == 0) {
+            log.warn("PRE-CLEAN FOUND LEAKED FAULT STATE on {} — `{}` succeeded, meaning a"
+                    + " previous run died between inject and heal. It is cleaned now, but"
+                    + " THAT run's data is suspect: check its validity.json.", ip, command);
+        }
     }
 
     private void startEtcd(int clusterSize) throws Exception {

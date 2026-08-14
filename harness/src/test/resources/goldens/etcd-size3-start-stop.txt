@@ -11,7 +11,22 @@
 # run (7→5/3) leaves stale members on nodes outside the new cluster;
 # either way a stale SUT eats CPU on a measurement box. Empty match ⇒
 # xargs -r runs nothing ⇒ exit 0; a real removal failure is non-zero
-# (never `|| true`). Health = curl ON the node against localhost (host
+# (never `|| true`).
+# The sweep then clears HOST-level fault state (F69), which the container
+# sweep above cannot reach: a netem qdisc, the harness's own iptables DROP
+# rules, and a stress-ng load all OUTLIVE the campaign JVM, so a run killed
+# between inject and heal leaves the next run silently shaped. Scope is
+# deliberate — only what this harness creates: the qdisc on the PRIVATE
+# iface (resolved, never assumed eth0), DROP rules named by exact peer IP
+# (an `iptables -F` flush would take out anything else on the box), and the
+# exact stress-ng pattern. Exit-code semantics, MEASURED on ubuntu-24.04
+# (infra/probes/host-fault-tools-probe.sh): with nothing to undo `tc qdisc
+# del` exits 2, `iptables -D` exits 1, `pkill` exits 1 — so on a healthy
+# node EVERY line here is expected to fail, and that is silent. A ZERO exit
+# means state really did survive a crashed run: the provider WARNs, because
+# that also puts the PREVIOUS run's data in question. This is the inverse
+# of heal()'s convention, and deliberately so — there the fault is known to
+# have been applied, so non-zero is the surprise. Health = curl ON the node against localhost (host
 # networking), retried by the provider until quorum answers; teardown
 # removes every container this cluster started. --listen-metrics-urls
 # :2381 is the M5.2 Prometheus scrape target (prometheus.yml etcd job;
@@ -21,6 +36,24 @@
 10.0.0.11:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
 10.0.0.12:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
 10.0.0.13:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
+10.0.0.11:22$ sudo tc qdisc del dev $(ip -o route get 10.0.0.12 | awk '{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1)}') root
+10.0.0.11:22$ sudo iptables -D INPUT -s 10.0.0.12 -j DROP
+10.0.0.11:22$ sudo iptables -D OUTPUT -d 10.0.0.12 -j DROP
+10.0.0.11:22$ sudo iptables -D INPUT -s 10.0.0.13 -j DROP
+10.0.0.11:22$ sudo iptables -D OUTPUT -d 10.0.0.13 -j DROP
+10.0.0.11:22$ pkill -f 'stress-n[g] --cpu 2'
+10.0.0.12:22$ sudo tc qdisc del dev $(ip -o route get 10.0.0.11 | awk '{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1)}') root
+10.0.0.12:22$ sudo iptables -D INPUT -s 10.0.0.11 -j DROP
+10.0.0.12:22$ sudo iptables -D OUTPUT -d 10.0.0.11 -j DROP
+10.0.0.12:22$ sudo iptables -D INPUT -s 10.0.0.13 -j DROP
+10.0.0.12:22$ sudo iptables -D OUTPUT -d 10.0.0.13 -j DROP
+10.0.0.12:22$ pkill -f 'stress-n[g] --cpu 2'
+10.0.0.13:22$ sudo tc qdisc del dev $(ip -o route get 10.0.0.11 | awk '{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1)}') root
+10.0.0.13:22$ sudo iptables -D INPUT -s 10.0.0.11 -j DROP
+10.0.0.13:22$ sudo iptables -D OUTPUT -d 10.0.0.11 -j DROP
+10.0.0.13:22$ sudo iptables -D INPUT -s 10.0.0.12 -j DROP
+10.0.0.13:22$ sudo iptables -D OUTPUT -d 10.0.0.12 -j DROP
+10.0.0.13:22$ pkill -f 'stress-n[g] --cpu 2'
 10.0.0.11:22$ docker run -d --name thesis-etcd1 --network host quay.io/coreos/etcd@sha256:5a65b4c67dea6e835c2812cf2fdea064f494c68b509fab939b12c0fa1fa423bb etcd --name etcd1 --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://10.0.0.11:2379 --listen-metrics-urls http://0.0.0.0:2381 --listen-peer-urls http://0.0.0.0:2380 --initial-advertise-peer-urls http://10.0.0.11:2380 --initial-cluster etcd1=http://10.0.0.11:2380,etcd2=http://10.0.0.12:2380,etcd3=http://10.0.0.13:2380 --initial-cluster-state new --initial-cluster-token thesis-bench
 10.0.0.12:22$ docker run -d --name thesis-etcd2 --network host quay.io/coreos/etcd@sha256:5a65b4c67dea6e835c2812cf2fdea064f494c68b509fab939b12c0fa1fa423bb etcd --name etcd2 --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://10.0.0.12:2379 --listen-metrics-urls http://0.0.0.0:2381 --listen-peer-urls http://0.0.0.0:2380 --initial-advertise-peer-urls http://10.0.0.12:2380 --initial-cluster etcd1=http://10.0.0.11:2380,etcd2=http://10.0.0.12:2380,etcd3=http://10.0.0.13:2380 --initial-cluster-state new --initial-cluster-token thesis-bench
 10.0.0.13:22$ docker run -d --name thesis-etcd3 --network host quay.io/coreos/etcd@sha256:5a65b4c67dea6e835c2812cf2fdea064f494c68b509fab939b12c0fa1fa423bb etcd --name etcd3 --listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://10.0.0.13:2379 --listen-metrics-urls http://0.0.0.0:2381 --listen-peer-urls http://0.0.0.0:2380 --initial-advertise-peer-urls http://10.0.0.13:2380 --initial-cluster etcd1=http://10.0.0.11:2380,etcd2=http://10.0.0.12:2380,etcd3=http://10.0.0.13:2380 --initial-cluster-state new --initial-cluster-token thesis-bench

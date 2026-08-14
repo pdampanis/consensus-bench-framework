@@ -5,12 +5,15 @@ import gr.thesis.bench.core.SystemUnderTest;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -452,5 +455,62 @@ class RemoteSshProviderTest {
                 () -> provider.start(SystemUnderTest.ETCD, 3));
         assertTrue(e.getMessage().contains("10.0.0.11"),
                 "the unhealthy node must be NAMED: " + e.getMessage());
+    }
+
+    // ---- F69: the sweep is silent on a clean box and LOUD on a dirty one ----
+    // Goldens pin the command TEXT; they structurally cannot pin what the
+    // provider DOES with the exit code, which is the whole point of the
+    // measured asymmetry (infra/probes/host-fault-tools-probe.sh).
+
+    /** Wraps the golden recorder, answering every SWEEP command with a
+     *  chosen exit code (RecordingSshExecutor is final, so: composition). */
+    private static SshExecutor sweepAnswering(int sweepExit) {
+        var inner = healthyRecorder();
+        return new SshExecutor() {
+            @Override public ExecResult exec(String host, int port, String command)
+                    throws Exception {
+                ExecResult base = inner.exec(host, port, command);
+                boolean isSweep = command.startsWith("sudo tc qdisc del")
+                        || command.startsWith("sudo iptables -D")
+                        || command.startsWith("pkill -f");
+                return isSweep ? new ExecResult(sweepExit, "", "") : base;
+            }
+            @Override public void close() { }
+        };
+    }
+
+    private static String captureStderrOfStart(SshExecutor ssh) throws Exception {
+        PrintStream realErr = System.err;
+        var captured = new ByteArrayOutputStream();
+        System.setErr(new PrintStream(captured));
+        try (var p = new RemoteSshProvider(ssh, IPS, Duration.ofSeconds(5))) {
+            p.start(SystemUnderTest.ETCD, 3);
+        } catch (Exception ignored) {
+            // health gating is not what this test is about
+        } finally {
+            System.setErr(realErr);
+        }
+        return captured.toString();
+    }
+
+    @Test
+    void aCleanNodeSweepsSilently() throws Exception {
+        // MEASURED: with nothing to undo, tc exits 2 and iptables/pkill exit
+        // 1. That is the NORMAL case, so warning on it would make the channel
+        // pure noise — the F31 lesson, where a heal WARN fired every run.
+        assertFalse(captureStderrOfStart(sweepAnswering(1)).contains("LEAKED FAULT STATE"),
+                "a healthy node must not produce a leak warning");
+    }
+
+    @Test
+    void aSucceedingUndoMeansStateLeakedAndIsShoutedAbout() throws Exception {
+        // Exit 0 from an undo at PRE-CLEAN time proves the state was really
+        // there — i.e. a previous run died between inject and heal. It is
+        // cleaned either way, but it must be visible, because that run's
+        // data is suspect too.
+        String err = captureStderrOfStart(sweepAnswering(0));
+        assertTrue(err.contains("LEAKED FAULT STATE"), err);
+        assertTrue(err.contains("validity.json"),
+                "the warning must point at what to go and check: " + err);
     }
 }
