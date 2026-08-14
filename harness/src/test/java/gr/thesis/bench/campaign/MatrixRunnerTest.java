@@ -320,4 +320,23 @@ class MatrixRunnerTest {
             mapper.readTree(line);   // must parse, every line
         }
     }
+
+    @Test
+    void everyCellOfTheBlockIsGradedOnceItsRunsAreDone(@TempDir Path out) throws Exception {
+        // The grade rates a CELL (a body of evidence, n=5), and this is the
+        // only place that knows the block's cell structure — a run does not
+        // know its siblings. Keeping it here also keeps ONE implementation of
+        // the rules; deriving them again in analyse.py would be two languages
+        // drifting on the definition of how far a number can be trusted.
+        MatrixRunner.Block b = MatrixRunner.block(SystemUnderTest.ETCD, 3,
+                List.of(Scenario.BASELINE), List.of(300L), List.of(0.0), 2, 42,
+                out, Path.of("inv"), "root");
+        MatrixRunner.run(b, spec -> { }, false);   // cells "run" but write nothing
+
+        String grades = Files.readString(out.resolve("etcd/grades.csv"));
+        assertTrue(grades.startsWith("cell,grade,n_valid,n_void,reasons"), grades);
+        // Nothing was written, so nothing can be graded above VOID — the
+        // F50/F70 principle at cell scope.
+        assertTrue(grades.contains("VOID"), grades);
+    }
 }

@@ -325,10 +325,72 @@ public final class MatrixRunner {
                 journal(b.out(), cell, "failed", cellStart, e.toString());
             }
         }
+        if (!dryRun) {
+            gradeCells(b);
+        }
         log.info("block {} done: {} ran, {} skipped (resume), {} failed{}",
                 b.system(), ran, skipped, failed,
                 failed > 0 ? " — see campaign-log.jsonl, rerun those cells" : "");
         return new Summary(ran, skipped, failed);
+    }
+
+    /**
+     * Grade every CELL of the block once its runs are done (D13/S4.3), into
+     * {@code <out>/<system>/grades.csv}.
+     *
+     * <p>This lives here because a CELL is the unit GRADE rates (a body of
+     * evidence, n=5) and this is the only place that knows the block's cell
+     * structure — a run does not know its siblings. Doing it here also keeps
+     * ONE implementation of the rules: the alternative was to re-derive them
+     * in analyse.py, which is two languages drifting apart on the definition
+     * of how far a number can be trusted.
+     */
+    static void gradeCells(Block b) throws IOException {
+        // Group by everything except the repetition: that IS the cell.
+        var cells = new java.util.LinkedHashMap<String, List<RemoteRunner.Spec>>();
+        for (RemoteRunner.Spec spec : specs(b)) {
+            String key = spec.scenario().name().toLowerCase()
+                    + "|size" + spec.clusterSize()
+                    + "|c" + spec.conflictRatio()
+                    + "|loss" + spec.packetLossPercent()
+                    + "|rate" + spec.ratePerSec();
+            cells.computeIfAbsent(key, k -> new ArrayList<>()).add(spec);
+        }
+
+        StringBuilder csv = new StringBuilder("cell,grade,n_valid,n_void,reasons\n");
+        for (var e : cells.entrySet()) {
+            List<gr.thesis.bench.validity.ValidityChecker.Report> reports = new ArrayList<>();
+            int voidRuns = 0;
+            for (RemoteRunner.Spec spec : e.getValue()) {
+                Path dir = new CsvResultsWriter.RunIdentity(spec.system(), spec.scenario(),
+                        spec.clusterSize(), spec.conflictRatio(), spec.packetLossPercent(),
+                        spec.runId()).dir(spec.out());
+                if (!Files.exists(dir.resolve("manifest.json"))) {
+                    continue; // never ran; imprecision, counted by absence
+                }
+                // A run that could not evidence its own claim is not a
+                // failing measurement, it is an ABSENT one (F50/F70).
+                if (!Files.readString(dir.resolve("manifest.json"))
+                        .contains("\"status\": \"complete\"")) {
+                    voidRuns++;
+                    continue;
+                }
+                try {
+                    reports.add(gr.thesis.bench.validity.ValidityChecker.check(dir));
+                } catch (Exception ex) {
+                    log.warn("cell {} — run {} is ungradeable: {}", e.getKey(), dir, ex.toString());
+                    voidRuns++;
+                }
+            }
+            var grade = gr.thesis.bench.validity.ConfidenceGrade.of(reports, voidRuns);
+            csv.append(e.getKey()).append(',').append(grade.level()).append(',')
+               .append(reports.size()).append(',').append(voidRuns).append(",\"")
+               .append(String.join("; ", grade.reasons()).replace('"', '\'')).append("\"\n");
+        }
+        Path file = b.out().resolve(b.system().name().toLowerCase()).resolve("grades.csv");
+        Files.createDirectories(file.getParent());
+        Files.writeString(file, csv.toString());
+        log.info("cell grades -> {}", file);
     }
 
     /** One JSON line per failed cell — greppable, appendable, never lost. */

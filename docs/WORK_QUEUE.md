@@ -79,8 +79,8 @@ worth more than any single increment below.
 | ~~**16**~~ | P7 | **DONE** — **S4.1 — the journal** | Chaos-Toolkit-shaped per-simulation record; every cell, not just failures | | **75%** |
 | ~~**17**~~ | P7 | **DONE — hard gate satisfied first (9/11 gates now evaluate)** — **S4.3 — confidence grade (D13/GRADE)** | Per **cell**, ordinal, with named downgrade reasons | **HARD GATE: must not ship before #6, #8, #13, #14** | **60%** |
 | **18** | P7 | **S4.2 — the report** | Generated `report.md` per simulation | Lowest value here. Delete if unread after the pilot | **55%** |
-| **19** | P8 | **S5.1 / F54 — analyse.py fails closed** | Missing `environment`/`duration_secs` ⇒ exclude-and-list | ⚠ **OWNED BY THE OTHER SESSION** (its increment 4). Do not duplicate | **85%** |
-| **20** | P8 | **S5.2 — analysis consumes the new record** | Reads `validity.json`, excludes on grade, stops dropping `null` failovers silently | Depends on #6, #17 | **80%** |
+| ~~**19**~~ | P8 | **DONE (taken over — the other session stayed idle after the worktree split)** — **S5.1 / F54 — analyse.py fails closed** | Missing `environment`/`duration_secs` ⇒ exclude-and-list | ⚠ **OWNED BY THE OTHER SESSION** (its increment 4). Do not duplicate | **85%** |
+| ~~**20**~~ | P8 | **DONE** — **S5.2 — analysis consumes the new record** | Reads `validity.json`, excludes on grade, stops dropping `null` failovers silently | Depends on #6, #17 | **80%** |
 | **21** | P8 | **S5.3 / M6.4 — analysis v2** | Pooled `.hlog` histograms, Holm–Bonferroni, ECDFs, the 8 figures | Largest single build in the queue | **50%** |
 | **22** | P9 | **Per-system remote smokes** | One short cell per system on Phase-A infra | | **45%** |
 | **23** | P9 | **G3 / M6.1 cross-validation** | Harness vs native tools, ≤15% or explained | Parity historically swung 0.2×–2.8× on laptops (F27/F68) | **40%** |
