@@ -7,6 +7,7 @@ import gr.thesis.bench.results.CsvResultsWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -162,6 +163,78 @@ public final class MatrixRunner {
         return out;
     }
 
+    /**
+     * Serialize the resolved simulation to {@code <out>/<system>/simulation.json}
+     * (D12's publishable half). Local paths, the inventory file and the SSH
+     * user are deliberately EXCLUDED: a simulation is the EXPERIMENT, not the
+     * machine that ran it, and a spec carrying someone's home directory is
+     * neither citable nor comparable across reruns.
+     *
+     * <p>Fails CLOSED when a DIFFERENT spec already sits there. That is what
+     * links a cell to its spec without threading a hash through every
+     * manifest: the link is structural (cells live under the spec's
+     * directory), and it is only trustworthy if the file cannot be quietly
+     * replaced beneath results it does not describe. Re-running the SAME
+     * block writes identical bytes, so resume is unaffected — which is the
+     * behaviour to preserve, because resume is a rerun of the same command.
+     */
+    public static void writeSimulationSpec(Block b) throws IOException {
+        Path dir = b.out().resolve(b.system().name().toLowerCase());
+        Files.createDirectories(dir);
+        Path file = dir.resolve("simulation.json");
+        String json = simulationJson(b);
+        if (Files.exists(file)) {
+            String existing = Files.readString(file);
+            if (!existing.equals(json)) {
+                throw new IllegalStateException(file + " already describes a DIFFERENT"
+                        + " simulation. The cells under it were produced by that one, so"
+                        + " overwriting it would leave them describing an experiment that"
+                        + " never ran. Use a fresh --out, or delete the tree deliberately."
+                        + "\n--- on disk ---\n" + existing + "\n--- would write ---\n" + json);
+            }
+            return;
+        }
+        Files.writeString(file, json);
+        log.info("simulation spec -> {}", file);
+    }
+
+    /** Insertion-ordered by hand rather than reflected, so the published
+     *  artifact's field order is a decision and not a refactor away from
+     *  changing. */
+    static String simulationJson(Block b) {
+        return """
+                {
+                  "system": "%s",
+                  "cluster_size": %d,
+                  "scenarios": [%s],
+                  "rates_ops_s": [%s],
+                  "conflict_ratios": [%s],
+                  "loss_percents": [%s],
+                  "repetitions": %d,
+                  "seed": %d,
+                  "duration_secs": %d,
+                  "warmup_secs": %d,
+                  "fault_at_secs": %d,
+                  "window": %d,
+                  "value_size_bytes": %d,
+                  "rotate_leaderless_target": %b,
+                  "harness_version": "%s"
+                }
+                """.formatted(
+                b.system().name().toLowerCase(), b.clusterSize(),
+                b.scenarios().stream().map(x -> "\"" + x.name().toLowerCase() + "\"")
+                        .collect(java.util.stream.Collectors.joining(", ")),
+                b.rates().stream().map(String::valueOf)
+                        .collect(java.util.stream.Collectors.joining(", ")),
+                b.conflicts().stream().map(String::valueOf)
+                        .collect(java.util.stream.Collectors.joining(", ")),
+                b.lossPercents().stream().map(String::valueOf)
+                        .collect(java.util.stream.Collectors.joining(", ")),
+                b.repetitions(), b.seed(), b.durationSecs(), b.warmupSecs(),
+                b.faultAtSecs(), b.window(), b.valueSizeBytes(),
+                b.rotateLeaderlessTarget(), CsvResultsWriter.harnessVersion());
+    }
+
     /** A cell is complete when its manifest says so — the resume check. */
     static boolean alreadyComplete(RemoteRunner.Spec spec) {
         Path manifest = new CsvResultsWriter.RunIdentity(spec.system(), spec.scenario(),
@@ -181,6 +254,10 @@ public final class MatrixRunner {
 
     public static Summary run(Block b, CellRunner runner, boolean dryRun) throws Exception {
         List<RemoteRunner.Spec> specs = specs(b);
+        if (!dryRun) {
+            // Before any cell runs: the spec that produced them, on disk.
+            writeSimulationSpec(b);
+        }
         log.info("block {} size={}: {} cells, seed={} (order is reproducible){}",
                 b.system(), b.clusterSize(), specs.size(), b.seed(),
                 dryRun ? " — DRY RUN, executing nothing" : "");

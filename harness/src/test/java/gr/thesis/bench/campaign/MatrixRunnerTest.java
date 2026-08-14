@@ -15,6 +15,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -206,5 +208,70 @@ class MatrixRunnerTest {
         assertEquals(2, dirs.size(),
                 "the two severities must not share a directory — that is the D14"
                         + " overwrite this increment exists to prevent: " + dirs);
+    }
+
+    // ---- D12: the simulation is a typed constant, PUBLISHED as JSON ----
+
+    @Test
+    void theResolvedSimulationIsWrittenAndIsStableAcrossReruns(@TempDir Path out)
+            throws Exception {
+        var b = Simulations.standard(SystemUnderTest.ETCD, 3, List.of(300L, 600L), 42,
+                out, Path.of("deploy/inventory.env"), "root");
+        MatrixRunner.writeSimulationSpec(b);
+        Path spec = out.resolve("etcd/simulation.json");
+        assertTrue(Files.exists(spec));
+        String first = Files.readString(spec);
+
+        // Rerunning the same block must be a no-op, because resume IS a
+        // rerun of the same command.
+        MatrixRunner.writeSimulationSpec(b);
+        assertEquals(first, Files.readString(spec));
+
+        assertTrue(first.contains("\"system\": \"etcd\""), first);
+        assertTrue(first.contains("\"loss_percents\": [5, 30]"), first);
+        assertTrue(first.contains("\"seed\": 42"), first);
+    }
+
+    @Test
+    void theSpecCarriesNoLocalPathsBecauseItIsTheEXPERIMENTNotTheMachine(@TempDir Path out)
+            throws Exception {
+        var b = Simulations.standard(SystemUnderTest.ETCD, 3, List.of(300L), 42,
+                out, Path.of("/home/somebody/deploy/inventory.env"), "someuser");
+        String json = MatrixRunner.simulationJson(b);
+        assertFalse(json.contains("/home/somebody"), json);
+        assertFalse(json.contains("someuser"), json);
+        assertFalse(json.contains(out.toString()), "the output directory is not part of"
+                + " the experiment either: " + json);
+    }
+
+    @Test
+    void aDifferentSimulationMayNotOverwriteOneThatAlreadyDescribesResults(@TempDir Path out)
+            throws Exception {
+        var a = Simulations.standard(SystemUnderTest.ETCD, 3, List.of(300L), 42,
+                out, Path.of("inv"), "root");
+        MatrixRunner.writeSimulationSpec(a);
+        var different = Simulations.standard(SystemUnderTest.ETCD, 3, List.of(900L), 42,
+                out, Path.of("inv"), "root");
+
+        // The cell->spec link is STRUCTURAL (cells live under the spec's
+        // directory), which is only trustworthy if the spec cannot be
+        // silently replaced beneath results it does not describe.
+        var e = assertThrows(IllegalStateException.class,
+                () -> MatrixRunner.writeSimulationSpec(different));
+        assertTrue(e.getMessage().contains("DIFFERENT"), e.getMessage());
+    }
+
+    @Test
+    void namedSimulationsAreSelectableAndAConflictSweepRefusesNonPaxiSystems(@TempDir Path out) {
+        assertEquals(List.of("standard", "failover", "conflict-sweep"),
+                List.copyOf(Simulations.byName().keySet()));
+        assertThrows(IllegalArgumentException.class,
+                () -> Simulations.conflictSweep(SystemUnderTest.ETCD, List.of(300L), 42,
+                        out, Path.of("inv"), "root"),
+                "the conflict ratio is a D7 Paxi-pair factor; sweeping it elsewhere would"
+                        + " silently trigger the c-path segment on a system that ignores it");
+        var cs = Simulations.conflictSweep(SystemUnderTest.EPAXOS, List.of(300L), 42,
+                out, Path.of("inv"), "root");
+        assertEquals(List.of(0.0, 0.02, 0.10), cs.conflicts());
     }
 }
