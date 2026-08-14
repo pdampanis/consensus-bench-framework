@@ -189,10 +189,22 @@ code fix and one methodological upgrade:
    covers the rest of the run **and still self-ends**, preserving the F28
    safety property that an aborted run cannot pin the VM.
 4. **Failover trials use the RUNBOOK's shape: 180 s warmup + 180 s
-   measurement, fault at +60** (F71). It yields 120 s of post-fault
-   observation against the code's 60 s, satisfies methodology's ±60 s window
-   with room after it, and is ~5 h CHEAPER across the campaign. The code's
-   180+300/fault-at-+240 shape was never a decision, only a default.
+   measurement, fault at +60** (F71). **Corrected 2026-08-14, same day, on
+   re-derivation** — the reasoning first offered for this decision was
+   inverted and is recorded here rather than quietly fixed. `faultAtSecs` is
+   absolute from RUN start (the fault thread sleeps *after*
+   `awaitEngineStart`, so warmup is included), which means **both shapes
+   inject at the same instant, t = 240 s = 60 s into the measurement
+   window.** The real difference is post-fault observation, and it runs the
+   other way: the code's 480 s run observes **240 s** after the fault, the
+   runbook's 360 s run observes **120 s**. The decision stands, on its
+   actual merits: 120 s is **twice** the ±60 s recovery window methodology
+   §2/§4.3 requires, ample for sub-second Raft re-election and equally
+   conclusive for the preregistered paxi wedge (an unrecovered 120 s is not
+   made more unrecovered by another 120 s) — and it is ~2 min cheaper per
+   trial, which across ≥30 trials × 7 systems is ~7 h of cluster time. The
+   code's 480 s shape was never a decision, only the standard block default
+   inherited by a scenario that did not need it.
 5. **EPaxos targeting: deterministic replica 0 for the n=5 fault cells,
    seeded rotation across replicas for the ≥30 failover trials** (F73 — the
    methodological upgrade). Cells stay individually reproducible (methodology

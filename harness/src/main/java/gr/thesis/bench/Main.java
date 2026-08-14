@@ -151,6 +151,10 @@ public final class Main {
                 // refused elsewhere; the Spec re-checks both.
                 scenario == Scenario.PACKET_LOSS
                         ? Integer.parseInt(requireArg(a, "loss", scenario)) : 0,
+                // A single remote-run cell always uses the DOCUMENTED
+                // replica 0 for leaderless systems; rotation belongs to the
+                // >=30-trial failover block (D15.5), which campaign-run owns.
+                0,
                 Path.of(a.getOrDefault("out", "results")),
                 runId,
                 Path.of(a.getOrDefault("inventory", "deploy/inventory.env")),

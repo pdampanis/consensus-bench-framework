@@ -56,7 +56,8 @@ public final class MatrixRunner {
     public record Block(SystemUnderTest system, int clusterSize, List<Scenario> scenarios,
                         List<Long> rates, List<Double> conflicts, List<Integer> lossPercents,
                         int repetitions, long seed,
-                        int durationSecs, int warmupSecs, int window, int valueSizeBytes,
+                        int durationSecs, int warmupSecs, int faultAtSecs, int window,
+                        int valueSizeBytes, boolean rotateLeaderlessTarget,
                         Path out, Path inventoryFile, String sshUser) {
         public Block {
             if (scenarios.isEmpty() || rates.isEmpty() || conflicts.isEmpty()
@@ -78,14 +79,42 @@ public final class MatrixRunner {
      *  would void the preregistration. */
     public static final List<Integer> DEFAULT_LOSS_PERCENTS = List.of(5, 30);
 
-    /** Campaign-default block (runbook §3 durations, F21 valsize 1024). */
+    /** Campaign-default block: 180 s warmup + 300 s measurement, fault 60 s
+     *  into the measurement window (runbook §3, F21 valsize 1024). */
     public static Block block(SystemUnderTest system, int clusterSize,
                               List<Scenario> scenarios, List<Long> rates,
                               List<Double> conflicts, int repetitions, long seed,
                               Path out, Path inventoryFile, String sshUser) {
         return new Block(system, clusterSize, scenarios, rates, conflicts,
                 DEFAULT_LOSS_PERCENTS, repetitions,
-                seed, 480, 180, 200, 1024, out, inventoryFile, sshUser);
+                seed, 480, 180, 240, 200, 1024, false, out, inventoryFile, sshUser);
+    }
+
+    /**
+     * The failover-distribution block (D15.4, runbook §3): 180 s warmup +
+     * 180 s measurement with the fault 60 s in, repeated >=30 times, because
+     * a DISTRIBUTION rather than a mean is the object of interest for F4.
+     *
+     * <p>Both shapes inject at the same absolute instant (t = 240 s);
+     * {@code faultAtSecs} counts from RUN start, warmup included. What
+     * differs is post-fault observation — 120 s here against the standard
+     * block's 240 s — and 120 s is twice the ±60 s recovery window
+     * methodology §4.3 asks for, ample for sub-second Raft re-election and
+     * equally conclusive for the preregistered paxi wedge. At ~2 min saved
+     * per trial that is ~7 h of cluster time across the campaign.
+     *
+     * <p>Leaderless targeting ROTATES here and only here (D15.5): the n=5
+     * fault cells keep replica 0 so each cell is reproducible from its
+     * config_hash, while these trials sweep every replica so the
+     * distribution TESTS the leaderless-symmetry assumption instead of
+     * asserting it.
+     */
+    public static Block failoverBlock(SystemUnderTest system, int clusterSize, long rate,
+                                      int repetitions, long seed,
+                                      Path out, Path inventoryFile, String sshUser) {
+        return new Block(system, clusterSize, List.of(Scenario.LEADER_KILL),
+                List.of(rate), List.of(0.0), DEFAULT_LOSS_PERCENTS, repetitions,
+                seed, 360, 180, 240, 200, 1024, true, out, inventoryFile, sshUser);
     }
 
     /** The seam the tests drive; production passes RemoteRunner::run. */
@@ -111,10 +140,19 @@ public final class MatrixRunner {
                         for (int rep = 1; rep <= b.repetitions(); rep++) {
                             String runId = (rate > 0 ? "rate" + rate : "sat")
                                     + String.format("r%02d", rep);
+                            // D15.5: plain modulo rotation, not a seeded
+                            // random draw. Both are reproducible, but at 30
+                            // trials over 3 replicas this gives EXACTLY 10
+                            // each while a random draw gives something like
+                            // 15/8/7 — and the whole point of rotating is to
+                            // test the symmetry assumption, which an
+                            // unbalanced sample tests worse.
+                            int leaderless = b.rotateLeaderlessTarget()
+                                    ? (rep - 1) % b.clusterSize() : 0;
                             out.add(new RemoteRunner.Spec(b.system(), scenario, b.clusterSize(),
                                     rate, b.durationSecs(), b.warmupSecs(), b.window(),
-                                    b.valueSizeBytes(), conflict, b.warmupSecs() + 60, loss,
-                                    b.out(), runId, b.inventoryFile(), b.sshUser()));
+                                    b.valueSizeBytes(), conflict, b.faultAtSecs(), loss,
+                                    leaderless, b.out(), runId, b.inventoryFile(), b.sshUser()));
                         }
                     }
                 }

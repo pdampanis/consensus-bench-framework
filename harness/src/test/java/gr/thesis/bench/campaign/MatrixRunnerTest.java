@@ -120,6 +120,57 @@ class MatrixRunnerTest {
         assertEquals(0, s.ran() + s.skipped() + s.failed());
     }
 
+    // ---- D15.4: failover trials get the runbook's shape, not the default ----
+
+    @Test
+    void failoverBlockUsesTheRunbookShapeAndTheStandardBlockDoesNot(@TempDir Path out) {
+        var std = MatrixRunner.block(SystemUnderTest.ETCD, 3, List.of(Scenario.LEADER_KILL),
+                List.of(300L), List.of(0.0), 1, 42, out, Path.of("inv"), "root");
+        var fail = MatrixRunner.failoverBlock(SystemUnderTest.ETCD, 3, 300L, 30, 42,
+                out, Path.of("inv"), "root");
+
+        // Both inject at the SAME absolute instant — 60 s into measurement.
+        // The difference is how long we watch afterwards, and the runbook's
+        // 120 s is twice the ±60 s recovery window §4.3 asks for.
+        assertEquals(240, std.faultAtSecs());
+        assertEquals(240, fail.faultAtSecs());
+        assertEquals(480, std.durationSecs());
+        assertEquals(360, fail.durationSecs(), "runbook §3: 180 warmup + 180 measurement");
+        assertEquals(30, fail.repetitions());
+    }
+
+    @Test
+    void everySpecCarriesTheBlocksFaultTime(@TempDir Path out) {
+        var fail = MatrixRunner.failoverBlock(SystemUnderTest.ETCD, 3, 300L, 3, 42,
+                out, Path.of("inv"), "root");
+        // The fault time used to be recomputed as warmup+60 inside specs(),
+        // so a block could not express any other shape (F71).
+        assertTrue(MatrixRunner.specs(fail).stream().allMatch(s -> s.faultAtSecs() == 240));
+    }
+
+    // ---- D15.5: leaderless targeting — fixed for cells, rotated for trials ----
+
+    @Test
+    void failoverTrialsRotateTheLeaderlessTargetAndCellsDoNot(@TempDir Path out) {
+        var cells = MatrixRunner.block(SystemUnderTest.EPAXOS, 3, List.of(Scenario.LEADER_KILL),
+                List.of(300L), List.of(0.0), 5, 42, out, Path.of("inv"), "root");
+        assertTrue(MatrixRunner.specs(cells).stream()
+                        .allMatch(s -> s.leaderlessTargetIndex() == 0),
+                "n=5 cells stay on replica 0 so each cell is reproducible from its hash");
+
+        var trials = MatrixRunner.failoverBlock(SystemUnderTest.EPAXOS, 3, 300L, 30, 42,
+                out, Path.of("inv"), "root");
+        var counts = new java.util.TreeMap<Integer, Integer>();
+        for (var s : MatrixRunner.specs(trials)) {
+            counts.merge(s.leaderlessTargetIndex(), 1, Integer::sum);
+        }
+        // 30 trials over 3 replicas: EXACTLY 10 each. A seeded random draw
+        // would also be reproducible but unbalanced (e.g. 15/8/7), and the
+        // point of rotating is to test the symmetry assumption — an
+        // unbalanced sample tests it worse.
+        assertEquals(java.util.Map.of(0, 10, 1, 10, 2, 10), counts, counts.toString());
+    }
+
     // ---- D14/F53: severity is a swept factor, and only for packet_loss ----
 
     @Test

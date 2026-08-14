@@ -72,10 +72,21 @@ public final class RemoteRunner {
     private static final long FAULT_JOIN_MILLIS = 30_000;
 
     /** Everything one cell needs. Constructed by Main from CLI args. */
+    /**
+     * @param leaderlessTargetIndex which replica a leader-sensitive fault
+     *        hits on the systems that HAVE no leader to detect (EPaxos is
+     *        leaderless by design; CometBFT's proposer rotates every height).
+     *        D15.5: 0 for the n=5 fault cells so each cell is reproducible
+     *        from its config_hash, and rotated across replicas for the >=30
+     *        failover trials so the distribution TESTS the symmetry
+     *        assumption rather than asserting it. Ignored for every system
+     *        that reports a real leader — those always target the DETECTED
+     *        one (F13/F19).
+     */
     public record Spec(SystemUnderTest system, Scenario scenario, int clusterSize,
                        long ratePerSec, int durationSecs, int warmupSecs, int window,
                        int valueSizeBytes, double conflictRatio, int faultAtSecs,
-                       int packetLossPercent, Path out, String runId,
+                       int packetLossPercent, int leaderlessTargetIndex, Path out, String runId,
                        Path inventoryFile, String sshUser) {
         public Spec {
             // Fault scenarios only (F48): BASELINE never starts a fault
@@ -101,6 +112,11 @@ public final class RemoteRunner {
             } else if (packetLossPercent != 0) {
                 throw new IllegalArgumentException(
                         scenario + " takes no --loss, got " + packetLossPercent);
+            }
+            if (leaderlessTargetIndex < 0 || leaderlessTargetIndex >= clusterSize) {
+                throw new IllegalArgumentException("leaderlessTargetIndex "
+                        + leaderlessTargetIndex + " is outside the cluster (size "
+                        + clusterSize + ")");
             }
         }
     }
@@ -209,7 +225,8 @@ public final class RemoteRunner {
             try {
                 awaitEngineStart(events, ENGINE_START_WAIT);
                 Thread.sleep(spec.faultAtSecs() * 1000L);
-                int target = faultTargetIndex(spec.system(), driver);
+                int target = faultTargetIndex(spec.system(), driver,
+                        spec.leaderlessTargetIndex());
                 log.info("phase: fault inject — {} on node index {} ({})",
                         spec.scenario(), target, nodes.get(target).containerName());
                 injector.apply(spec.scenario(), nodes, target, spec.packetLossPercent());
@@ -259,8 +276,15 @@ public final class RemoteRunner {
      * kill an arbitrary node — the v6 class).
      */
     static int faultTargetIndex(SystemUnderTest system, ConsensusDriver driver) throws Exception {
+        return faultTargetIndex(system, driver, 0);
+    }
+
+    /** @param leaderlessTargetIndex used ONLY where no leader exists to detect
+     *  (D15.5); every other system must still name its DETECTED leader. */
+    static int faultTargetIndex(SystemUnderTest system, ConsensusDriver driver,
+                                int leaderlessTargetIndex) throws Exception {
         if (system == SystemUnderTest.EPAXOS || system == SystemUnderTest.TENDERMINT) {
-            return 0;
+            return leaderlessTargetIndex;
         }
         return driver.currentLeaderIndex().orElseThrow(() -> new IllegalStateException(
                 system + " reports no leader at injection time (election in progress?)"
