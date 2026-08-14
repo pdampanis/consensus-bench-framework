@@ -43,6 +43,8 @@ class CsvResultsWriterTest {
 
     private static final CsvResultsWriter.RunIdentity ID =
             new CsvResultsWriter.RunIdentity(SystemUnderTest.ETCD, Scenario.BASELINE, 1, 0.0, "t1");
+    private static final CsvResultsWriter.RunIdentity FAULT_ID =
+            new CsvResultsWriter.RunIdentity(SystemUnderTest.ETCD, Scenario.LEADER_KILL, 3, 0.0, "t1");
     private static final WorkloadEngine.Config CFG =
             new WorkloadEngine.Config(10, 2, 100, 64, 256, 0.0);
     private static final String IMG = "quay.io/coreos/etcd@sha256:5a65b4c6test";
@@ -249,5 +251,56 @@ class CsvResultsWriterTest {
         assertTrue(manifest(ID).contains("\"fault_injected_at_ms\": 25"), manifest(ID));
         assertTrue(manifest(ID).contains("\"failover_ms\": null"),
                 "no recovery -> null, never a fabricated number: " + manifest(ID));
+    }
+
+    // ---- F50: a fault run whose fault never fired is not a fault result ----
+    // The mark is stamped only after FaultInjector.apply() RETURNS, so
+    // "mark present" <=> "the fault demonstrably fired". A fault-scenario run
+    // that cannot show a mark is void as that scenario, however clean its
+    // measurement looks — and the manifest is where every downstream layer
+    // (campaign resume, ValidityChecker, analyse.py) learns that.
+
+    @Test
+    void faultScenarioWithoutAMarkMayNotClaimComplete() throws IOException {
+        // The engine started the log; the fault thread never stamped it
+        // (injection threw, or stalled past the runner's join). The
+        // measurement itself is pristine — which is precisely why an honest
+        // status is the only thing standing between it and the leader_kill
+        // figures.
+        var events = new EventLog(16);
+        events.start(0);
+        events.append(10_000_000L, true);
+        var rec = new LatencyRecorder();
+        for (int i = 0; i < 100; i++) rec.record(1_000, true);
+        writeRun(FAULT_ID, new WorkloadEngine.Result(tenGoodSeconds(), rec, 0, events), CFG);
+
+        assertTrue(manifest(FAULT_ID).contains("\"fault_injected_at_ms\": null"), manifest(FAULT_ID));
+        assertTrue(manifest(FAULT_ID).contains("\"status\": \"failed\""),
+                "an unmarked fault run must not claim complete: " + manifest(FAULT_ID));
+    }
+
+    @Test
+    void faultScenarioWithNoEventLogAtAllIsAlsoFailed() throws IOException {
+        // The baseline-shaped Result (no EventLog) can never evidence a fault.
+        writeRun(FAULT_ID, result(tenGoodSeconds(), 0, 100), CFG);
+        assertTrue(manifest(FAULT_ID).contains("\"status\": \"failed\""),
+                "no event log means no fault evidence: " + manifest(FAULT_ID));
+    }
+
+    @Test
+    void faultScenarioWithAMarkStillCompletes() throws IOException {
+        // The guard against over-correcting: a fault that DID fire is a
+        // perfectly good fault result.
+        var events = new EventLog(16);
+        events.start(0);
+        events.append(10_000_000L, true);
+        events.faultInjectedAt(25_000_000L);
+        events.append(95_000_000L, true);
+        var rec = new LatencyRecorder();
+        for (int i = 0; i < 100; i++) rec.record(1_000, true);
+        writeRun(FAULT_ID, new WorkloadEngine.Result(tenGoodSeconds(), rec, 0, events), CFG);
+
+        assertTrue(manifest(FAULT_ID).contains("\"status\": \"complete\""),
+                "a marked fault run is valid data: " + manifest(FAULT_ID));
     }
 }

@@ -123,16 +123,29 @@ public final class CsvResultsWriter {
         for (long c : r.committedPerSecond()) committedTotal += c;
         long attempts = committedTotal + r.errors();
         double errorRate = attempts == 0 ? 0.0 : r.errors() / (double) attempts;
-        String status = (opsAfterWarmup > 0 && errorRate <= 0.5) ? "complete" : "failed";
 
         // Fault instrumentation (P1.4): explicit nulls for baseline runs —
         // an absent measurement is null, never zero.
         String faultAt = "null", failover = "null";
-        if (r.events() != null && r.events().faultMarkMillis().isPresent()) {
+        boolean faultFired = r.events() != null && r.events().faultMarkMillis().isPresent();
+        if (faultFired) {
             faultAt = Long.toString(r.events().faultMarkMillis().getAsLong());
             failover = r.events().failoverMillis().isPresent()
                     ? Long.toString(r.events().failoverMillis().getAsLong()) : "null";
         }
+
+        // F50: a fault-scenario run that cannot evidence its fault is VOID as
+        // that scenario, however clean the measurement looks. The mark is
+        // stamped only after FaultInjector.apply() RETURNS, so "mark present"
+        // <=> "the fault demonstrably fired"; its absence means the injection
+        // threw, or stalled past the runner's join, and what was actually
+        // measured is an undisturbed cluster wearing a leader_kill label.
+        // Recording that here — rather than in the caller — is what makes the
+        // campaign's resume check, the ValidityChecker and analyse.py all read
+        // one truth, and keeps the trap disarmed for any future caller.
+        boolean faultNeverFired = id.scenario() != Scenario.BASELINE && !faultFired;
+        String status = (opsAfterWarmup > 0 && errorRate <= 0.5 && !faultNeverFired)
+                ? "complete" : "failed";
 
         String manifest = """
                 {
