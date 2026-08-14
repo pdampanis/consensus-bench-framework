@@ -161,6 +161,45 @@ implemented with it:** loss percentage becomes part of run identity — two
 results path and the same `config_hash`, which is the v6 path-collision
 class (see `SIMULATION_AND_RULES_ANALYSIS.md` §6, S1.1).
 
+**D15 — Fault semantics, targeting and run shape are settled as follows**
+*(decided 2026-08-14 in one sitting, resolving F55, F56, F57, F71, F73)*.
+Five divergences between what the docs preregistered and what the code
+implements. In every case the **implementation was better reasoned and
+carries its justification in-code**, so the docs move — with one genuine
+code fix and one methodological upgrade:
+
+1. **`network_partition` is pairwise node-IP DROP, never full isolation**
+   (F55). The loadgen→leader path is preserved deliberately: observing the
+   isolated leader IS the measurement. **The preregistered PREDICTION was
+   also wrong** and is rewritten with it — `METRICS_AND_SOURCES.md` claimed
+   "throughput continues at a lower level (one fewer replication target)",
+   but isolating the *leader* means it cannot commit at all, so clients on
+   the old leader fail until the survivors elect a new one. Rewriting a
+   prediction is only legitimate **before** data exists (HARKing — Nosek et
+   al. 2018); it is being done now, before any run, and that timing is the
+   point.
+2. **`slow_node` is host `stress-ng --cpu 2`, not Pumba or `yes`** (F56).
+   cloud-init installs it, it is bounded, and it throttles the node without
+   touching the data path.
+3. **`slow_node`'s duration is derived from the run shape** (F57 — the one
+   real code fix). A fixed `--timeout 120s` left slow_node faulted for ~120 s
+   of the measurement window while every other fault persisted to `heal()`
+   (~240 s+) — a cross-scenario confound baked into the F5 recovery figure.
+   The timeout is now sized as `duration − faultAt + slack`, so the fault
+   covers the rest of the run **and still self-ends**, preserving the F28
+   safety property that an aborted run cannot pin the VM.
+4. **Failover trials use the RUNBOOK's shape: 180 s warmup + 180 s
+   measurement, fault at +60** (F71). It yields 120 s of post-fault
+   observation against the code's 60 s, satisfies methodology's ±60 s window
+   with room after it, and is ~5 h CHEAPER across the campaign. The code's
+   180+300/fault-at-+240 shape was never a decision, only a default.
+5. **EPaxos targeting: deterministic replica 0 for the n=5 fault cells,
+   seeded rotation across replicas for the ≥30 failover trials** (F73 — the
+   methodological upgrade). Cells stay individually reproducible (methodology
+   §1), while the failover distribution now **tests** the leaderless-symmetry
+   assumption instead of asserting it. Same rule for CometBFT, whose proposer
+   rotates by design.
+
 ---
 
 ## 2. Target architecture

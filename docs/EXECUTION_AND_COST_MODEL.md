@@ -145,11 +145,13 @@ contingency-inclusive figure below. Well inside noise; the per-system and
 phase tables that follow are stated at the pre-D14 11.2 h basis and should
 be read with this delta applied.
 
-*F71 open (see PENDING_TASKS):* the failover row assumes the 8-minute trial
-shape (180 warmup + 180 measurement) that `CAMPAIGN_RUNBOOK.md` §3
-specifies — **`campaign-run` cannot currently express it** and runs those
-trials at 10 minutes. If the code shape is the one kept, add ~1 h per
-system block here.
+*F71 RESOLVED 2026-08-14 (D15.4):* the failover row's 8-minute trial shape
+(180 warmup + 180 measurement, fault at +60) is **confirmed as correct** —
+it gives 120 s of post-fault observation against the code's 60 s and
+satisfies methodology's ±60 s window with room after it. This table is
+therefore right and the CODE is what changes; `campaign-run` cannot express
+this shape today, which is the plumbing half of D15.4. Net effect on the
+budget: none here, and ~5 h CHEAPER than the shape the code currently runs.
 
 **D7 conflict addendum** (Paxos and EPaxos only): per extra c-point
 (2%, 10%): re-search 30 + saturation 50 + sweep 150 = 230 min. Two points →

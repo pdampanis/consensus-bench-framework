@@ -218,7 +218,27 @@ a second traffic class with 20 ms resolution.)
 No fault injected. Measures steady-state performance. This is the primary comparison point.
 
 ### leader_kill
-Kill the consensus leader (or proposer/primary). Measures failover behavior: does throughput recover, and how fast? Expected: throughput drops to zero briefly, then recovers after election. Exception: EPaxos (no leader; kills a random replica instead).
+Kill the consensus leader (or proposer/primary), detected at injection time
+(F13/F19 — never a guessed index). Measures failover behavior: does
+throughput recover, and how fast? Expected: throughput drops to zero
+briefly, then recovers after election.
+
+**Targeting for the leaderless/rotating systems (D15.5, decided
+2026-08-14).** EPaxos has no leader and CometBFT's proposer rotates every
+height, so there is nothing to detect. Rather than "a random replica" (the
+earlier wording) or replica 0 forever, the rule is split by purpose:
+
+- **n = 5 fault cells → deterministic replica 0.** The cell stays
+  individually reproducible from its `config_hash`, as methodology §1
+  requires.
+- **≥ 30 failover trials → seeded rotation across replicas**, derived from
+  the block seed, so the order is reproducible. This makes the failover
+  distribution *test* the leaderless-symmetry assumption instead of
+  asserting it — if position matters, the ECDF will show it.
+
+**Paxos exception (F26, unchanged):** stock paxi has no failure detector, so
+a hard leader kill is a preregistered liveness WEDGE with no failover point
+— a documented absence, never a fabricated recovery time.
 
 ### double_kill
 Kill 2 nodes simultaneously. For 3-node CFT clusters (KRaft, ZK, etcd, Paxos, EPaxos): 2 of 3 dead means no quorum (need ⌈(3+1)/2⌉ = 2, but only 1 remains). Expected: zero throughput, cluster is unavailable. For 4-node BFT clusters (CometBFT, HotStuff): 2 of 4 dead means only 2 remain, below the BFT liveness threshold of 3f+1−f = 3. Expected: zero throughput.
@@ -256,10 +276,56 @@ rules deliberately preserve loadgen→leader. The two faults are therefore not
 a severity continuum of one another.
 
 ### network_partition
-100% packet loss on one node (full isolation). For CFT systems: the remaining 2 of 3 still form a quorum. For BFT: 3 of 4 remain, still above 2f+1. Expected: throughput continues at a lower level (one fewer replication target), but no unavailability.
+**Mechanism (D15.1, corrected 2026-08-14).** Pairwise `iptables` DROP rules
+between the LEADER and each other node's private IP, in both directions —
+**never a subnet block and never full isolation**. The loadgen→leader path
+is preserved deliberately: observing the partitioned leader *is* the
+measurement, and blocking the subnet would also cut the instrument off from
+the thing it measures.
+
+**Preregistered expectation (REWRITTEN 2026-08-14, before any run).** The
+previous prediction — "throughput continues at a lower level (one fewer
+replication target), but no unavailability" — was **wrong**, and describes
+partitioning a *follower*, not the leader. Isolating the leader from its
+peers means it can no longer reach quorum, so:
+
+- **CFT (etcd, KRaft, Kafka+ZK, Paxos):** writes issued to the isolated
+  leader FAIL (it cannot commit), while the surviving 2 of 3 elect a new
+  leader and resume. Expect a throughput gap on the order of the election
+  timeout, then recovery — qualitatively similar to `leader_kill`, but with
+  the old leader still running (and, for Raft, stepping down on its own
+  once it misses heartbeats). The distinguishing observation vs
+  `leader_kill` is that the isolated node stays *alive*, so a system with a
+  weak failure detector may behave very differently here than under a kill.
+- **Paxos (paxi):** the F26 wedge applies for the same reason it applies to
+  `leader_kill` — no failure detector, no re-election.
+- **BFT (CometBFT, HotStuff) at n=4:** 3 of 4 remain, above the 2f+1
+  liveness threshold, so the chain should continue; expect elevated round
+  numbers while the partitioned validator's votes are missing.
+
+The honest note this correction earns: the earlier text is why
+preregistration has to be *checked* against the implementation, not just
+written. Changing it now is legitimate precisely because no data exists yet
+(HARKing — Nosek et al. 2018, methodology §3).
 
 ### slow_node
-CPU stress on one node (Pumba stress or background `yes > /dev/null` for HotStuff). Models an asymmetrically degraded node. Expected: throughput drops slightly if the slow node is the leader; less impact if it is a follower.
+**Mechanism (D15.2/D15.3).** HOST-level `stress-ng --cpu 2` on the target
+node (cloud-init installs it) — **not** Pumba and not `yes > /dev/null`. The
+consensus container shares the host CPU, so this throttles the node without
+touching the data path. The process is backgrounded with `nohup` and stream
+redirection (F28: without the redirect sshd holds the exec channel open and
+the injection itself stalls), and its `--timeout` is **derived from the run
+shape** so the fault lasts as long as every other scenario's while still
+self-ending if the campaign JVM dies (D15.3 — a fixed 120 s left slow_node
+faulted for a shorter slice of the measurement window than the others, a
+confound in the F5 recovery figure).
+
+**Preregistered expectation:** throughput drops moderately when the slow
+node is the leader (it is on the critical path of every commit); markedly
+less when it is a follower, since a majority quorum can commit without the
+slowest replica. Systems whose commit path waits on *all* replicas rather
+than a majority should degrade more — that contrast is the point of the
+scenario.
 
 ---
 

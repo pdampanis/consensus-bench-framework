@@ -60,7 +60,7 @@ worth more than any single increment below.
 
 | # | Band | Increment | Items | Blocks / unblocks | Conf. |
 |---|------|-----------|-------|-------------------|-------|
-| **1** | P0 | **Decision batch** (no code) | F52 error-rate threshold · F55–F57 + F73 fault semantics · F68 parity-gate disposition · F71 run-shape (runbook vs code) · F69 exact sweep commands | Unblocks #3, #6, and removes 5 "OPEN — author" rows | **95%** |
+| ~~**1**~~ | P0 | ~~**Decision batch**~~ **DONE 2026-08-14** | All seven decided in one sitting — F52 (baseline-only 1% gate) · F55–F57 (docs move; slow_node timeout is a real fix) · F68 (widen to 0.1x–10x, stay in verify) · F71 (runbook shape wins) · F73 (deterministic cells + seeded rotation for failover) · F69 (scoped sweep). Recorded as **MASTER_PLAN D15**; the partition PREDICTION was rewritten too, before any data exists | — |
 | **2** | P1 | **S1.1 — severity into Block AND run identity** | D14 plumbing: loss list in `Block`, `loss_percent` into manifest + `configHash`, severity into `RunIdentity`, golden updated | Pre-G2 (touches golden). Without the identity half, D14 makes data *worse* | **80%** |
 | **3** | P1 | **S0.2 / F69 — host fault sweep** | `tc qdisc del` / scoped `iptables -D` / `pkill` into remote pre-clean; goldens first as spec | Pre-G2 (touches goldens). Blocked on #1's B5 | **45%** |
 | **4** | P2 | **G2 golden read-through** (author, no code) | All 7 goldens vs their header checklists; sign-off line in PENDING_TASKS | **Blocks everything billed.** Must follow #2 and #3 | **90%** |
@@ -143,6 +143,7 @@ refused with reasons in `SIMULATION_AND_RULES_ANALYSIS.md` §3 and §7.
 
 ## The one-line answer to "what now"
 
-**#1 — the decision batch.** It costs no execution time, removes five
-"OPEN — author" rows from the ledger, and unblocks #3. Everything else in
-P1–P2 is either waiting on it or waiting on the goldens being final.
+~~**#1 — the decision batch.**~~ **DONE 2026-08-14** — all seven decided,
+recorded as MASTER_PLAN **D15** (+ D14 earlier). **Now: #2 (S1.1)**, which
+has absorbed D15.4's run shape and D15.5's targeting, followed by #3 (F69's
+scoped sweep). Both touch goldens, so both land before the G2 read-through.
