@@ -36,6 +36,11 @@ class ValidityCheckerTest {
 
     private static String manifest(long rate, int warmup, int duration, String scenario,
                                    String faultAtMs) {
+        return manifest(rate, warmup, duration, scenario, faultAtMs, 0.0);
+    }
+
+    private static String manifest(long rate, int warmup, int duration, String scenario,
+                                   String faultAtMs, double errorRate) {
         return "{\n"
                 + "  \"system\": \"etcd\",\n"
                 + "  \"scenario\": \"" + scenario + "\",\n"
@@ -43,8 +48,20 @@ class ValidityCheckerTest {
                 + "  \"rate_ops_s\": " + rate + ",\n"
                 + "  \"warmup_secs\": " + warmup + ",\n"
                 + "  \"duration_secs\": " + duration + ",\n"
+                + "  \"error_rate\": " + errorRate + ",\n"
                 + "  \"fault_injected_at_ms\": " + (faultAtMs == null ? "null" : faultAtMs) + "\n"
                 + "}\n";
+    }
+
+    /** A run dir with a chosen scenario and error rate, steady at `rate`. */
+    private static void runWithErrorRate(Path dir, String scenario, double errorRate,
+                                         String faultAtMs) throws IOException {
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"),
+                manifest(100, 2, 6, scenario, faultAtMs, errorRate));
+        StringBuilder tp = new StringBuilder();
+        for (int t = 0; t < 6; t++) tp.append(t).append(",100\n");
+        Files.writeString(dir.resolve("throughput.csv"), tp.toString());
     }
 
     private static void metric(Path dir, String name, String rows) throws IOException {
@@ -315,5 +332,67 @@ class ValidityCheckerTest {
         baseline(root.resolve("etcd/baseline/size3/r03"), 100, new int[]{100, 100, 100, 100, 100, 100});
         assertEquals(2, ValidityChecker.checkTree(root),
                 "the corrupt run counts as not-valid; the runs after it are still checked");
+    }
+
+    // ---- F52: error_rate was written by the writer and gated by NOBODY ----
+    // status tolerates up to 50% failures and rate_adherence SKIPs for
+    // saturation runs, so a baseline that failed 49% of its operations
+    // reported valid: true. The gate is BASELINE-ONLY by decision (D15/F52):
+    // fault runs are SUPPOSED to error, and gating them would exclude exactly
+    // the preregistered failure evidence — the F26 paxi wedge and the
+    // DOUBLE_KILL liveness demo (ledger note N1).
+
+    @Test
+    void baselineThatFailedHalfItsOperationsIsNotValid(@TempDir Path dir) throws IOException {
+        runWithErrorRate(dir, "baseline", 0.49, null);
+        Report r = ValidityChecker.check(dir);
+        assertEquals(State.FAIL, stateOf(r, "baseline_error_rate"),
+                "a baseline losing 49% of its ops is not a steady-state measurement");
+        assertFalse(r.valid(), "a FAILed gate makes the run invalid");
+    }
+
+    @Test
+    void cleanBaselinePassesTheErrorGate(@TempDir Path dir) throws IOException {
+        runWithErrorRate(dir, "baseline", 0.0, null);
+        Report r = ValidityChecker.check(dir);
+        assertEquals(State.PASS, stateOf(r, "baseline_error_rate"));
+        assertTrue(r.valid());
+    }
+
+    @Test
+    void aBaselineJustUnderTheThresholdStillPasses(@TempDir Path dir) throws IOException {
+        // The boundary is worth pinning: 1% is PROVISIONAL until M6.2 fixes
+        // it from pilot variance, and it was chosen from measured evidence
+        // (M0: 0 errors; the CometBFT G1 acceptance: <1%).
+        runWithErrorRate(dir, "baseline", 0.009, null);
+        assertEquals(State.PASS, stateOf(ValidityChecker.check(dir), "baseline_error_rate"));
+    }
+
+    @Test
+    void faultRunsSkipTheErrorGateBecauseTheyAreMeantToError(@TempDir Path dir) throws IOException {
+        runWithErrorRate(dir, "leader_kill", 0.49, "3000");
+        Report r = ValidityChecker.check(dir);
+        assertEquals(State.SKIP, stateOf(r, "baseline_error_rate"),
+                "gating fault runs on error rate would exclude the preregistered"
+                        + " paxi wedge and the double_kill liveness demo (N1)");
+    }
+
+    @Test
+    void aManifestWithNoErrorRateFieldFailsRatherThanPasses(@TempDir Path dir) throws IOException {
+        // The §4 meta-rule applied to a manifest field: a v1 manifest that
+        // never recorded error_rate must not be waved through as if it had
+        // recorded zero. Absent is not zero — the same rule the writer
+        // follows for the fault fields (F70).
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"), "{\n"
+                + "  \"system\": \"etcd\",\n  \"scenario\": \"baseline\",\n"
+                + "  \"started_at\": \"2026-08-03T14:00:00Z\",\n  \"rate_ops_s\": 100,\n"
+                + "  \"warmup_secs\": 2,\n  \"duration_secs\": 6\n}\n");
+        StringBuilder tp = new StringBuilder();
+        for (int t = 0; t < 6; t++) tp.append(t).append(",100\n");
+        Files.writeString(dir.resolve("throughput.csv"), tp.toString());
+
+        assertEquals(State.FAIL, stateOf(ValidityChecker.check(dir), "baseline_error_rate"),
+                "a missing error_rate is an unmeasured error rate, not a zero one");
     }
 }

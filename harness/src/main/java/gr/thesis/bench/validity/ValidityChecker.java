@@ -60,6 +60,12 @@ public final class ValidityChecker {
     static final double STEAL_MAX = 0.01;
     /** Gate 1: fixed-rate runs must achieve ≥99% of target (§4.1). */
     static final double RATE_ADHERENCE_MIN = 0.99;
+    /** Gate 1d (F52/D15): a BASELINE run's whole-run failure fraction ceiling.
+     *  PROVISIONAL until M6.2, and chosen from measured evidence rather than
+     *  taste — M0 recorded 0 errors and the CometBFT G1 acceptance ran under
+     *  1%. Fault scenarios are exempt BY DESIGN; see {@link
+     *  #gateBaselineErrorRate}. */
+    static final double BASELINE_ERROR_RATE_MAX = 0.01;
     /** Gate 5: warmup-tail vs measurement-head throughput agreement
      *  (PROVISIONAL — M6.2 fixes it from pilot variance). */
     static final double CONVERGENCE_MAX_REL_DIFF = 0.20;
@@ -98,6 +104,7 @@ public final class ValidityChecker {
         List<GateResult> gates = new ArrayList<>();
 
         gates.add(gateRateAdherence(runDir, manifest, system));
+        gates.add(gateBaselineErrorRate(manifest));
         // Gate 1's window-ceiling half needs the harness's OWN inflight
         // gauge (bench_inflight_current, M5.3) — metrics/ presence cannot
         // decide it, because an empty harness series before M5.3 exists
@@ -185,6 +192,52 @@ public final class ValidityChecker {
                 : GateResult.fail("rate_adherence",
                         String.format("achieved only %.1f%% of target (%.1f/%d) — client-bound?",
                                 ratio * 100, mean, target));
+    }
+
+    /**
+     * Gate 1d (F52): the manifest's own `error_rate`, gated at last. The
+     * writer computed it from the first commit onward and NOTHING consulted
+     * it — `status` tolerates up to 50% failures and `rate_adherence` SKIPs
+     * for saturation runs, so a baseline that failed 49% of its operations
+     * reported `valid: true`.
+     *
+     * <p>BASELINE ONLY, by decision (D15/F52). Fault scenarios are SUPPOSED
+     * to error: the preregistered paxi wedge (F26) fails every write at the
+     * 5 s driver bound by design, and DOUBLE_KILL is an intentional
+     * liveness-loss demonstration. Gating those on error rate would throw
+     * away precisely the evidence they exist to produce (ledger note N1).
+     * The fault-side question — are the errors CONCENTRATED around the fault
+     * mark, or spread across the run like a broken client? — is a better
+     * gate and a different one; it needs EventLog analysis and is not in
+     * scope here.
+     *
+     * <p>A missing `error_rate` FAILs rather than passes: an unmeasured
+     * error rate is not a zero one. That is the §4 meta-rule applied to a
+     * manifest field, and the same absent-is-not-zero discipline the writer
+     * follows for the fault fields.
+     */
+    private static GateResult gateBaselineErrorRate(JsonNode m) {
+        String scenario = m.path("scenario").asText("");
+        if (!"baseline".equals(scenario)) {
+            return GateResult.skip("baseline_error_rate",
+                    "'" + scenario + "' is a fault scenario — errors are the expected"
+                            + " observation, not a defect (D15/F52)");
+        }
+        JsonNode er = m.get("error_rate");
+        if (er == null || er.isNull() || !er.isNumber()) {
+            return GateResult.fail("baseline_error_rate",
+                    "manifest carries no numeric error_rate — an unmeasured error rate is"
+                            + " not a zero one (§4 meta-rule)");
+        }
+        double rate = er.asDouble();
+        return rate < BASELINE_ERROR_RATE_MAX
+                ? GateResult.pass("baseline_error_rate",
+                        String.format("%.2f%% of ops failed (< %.0f%%)",
+                                rate * 100, BASELINE_ERROR_RATE_MAX * 100))
+                : GateResult.fail("baseline_error_rate",
+                        String.format("%.2f%% of ops failed on a BASELINE run (>= %.0f%%) —"
+                                        + " this is not a steady-state measurement",
+                                rate * 100, BASELINE_ERROR_RATE_MAX * 100));
     }
 
     /** Gate 5 (§4.5): warmup-tail vs measurement-head throughput must agree
