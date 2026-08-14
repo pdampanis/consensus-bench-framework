@@ -104,6 +104,49 @@ validity threat on consensus nodes was inconsistent — steal on the loadgen
 corrupts tails undetectably. Cost delta ≈ €0.05/h (noise). A loadgen
 CPU-steal check joins the validity gates (methodology §4.1).
 
+**D12 — A simulation is a typed Java record, published as JSON** *(decided
+2026-08-14)*. One experiment definition = a named constant in the harness,
+not a parsed config file. The rebuild's founding lesson is that typed Java
+makes the v6 string-surgery bug class inexpressible at compile time; a YAML
+simulation file would reintroduce exactly that, and buy a parser, a schema,
+and a new failure mode for a benefit ("rerun without rebuilding") nobody has
+needed. Instead the runner **serializes the fully resolved spec** to
+`simulation.json` in the results tree and folds its hash into every manifest
+— so the thesis appendix still gets a publishable, citable artifact, and a
+mistyped scenario is still a compile error. Same discipline as the goldens:
+the written text is the reviewable spec. Rejected: file-driven specs
+(OpenMessaging/YCSB model) — reconsider only if the pilot needs threshold or
+shape changes faster than a ~30 s rebuild allows. Detail:
+`SIMULATION_AND_RULES_ANALYSIS.md` §4.
+
+**D13 — Result confidence is an ORDINAL grade mechanizing methodology §6,
+never a numeric score** *(decided 2026-08-14)*. Each cell carries a grade
+derived from the existing four claim gates (effect estimated with a CI
+excluding the null; mechanistically consistent; directionally consistent
+with published results; survives its caveats) **plus validity-gate
+coverage**: A = every applicable gate evaluated and PASS; B = as A with ≥1
+SKIP, which the grade NAMES; C = a gate FAILed or n incomplete → reportable
+as an observation, never as a conclusion; VOID = the run cannot evidence
+what it claims (the F50/F70 class). The grade is shorthand for *which
+criteria were met* and always ships with that list. A 0–100 score was
+rejected: it invites false precision and cannot be defended in a viva.
+Load-bearing constraint: **the grade may not ship before the gates actually
+evaluate** — measured 2026-08-14 at 1 of 10.
+
+**D14 — Packet-loss severity is a workload factor, swept at 5% and 30%**
+*(decided 2026-08-14, resolving F53)*. The percentage was preregistered at
+5% in `METRICS_AND_SOURCES.md` and hardcoded at 30% in `MatrixRunner` and
+the golden. Rather than pick one, severity becomes a first-class factor like
+D7's conflict ratio: 5% tests the preregistered "modest degradation,
+continued availability" prediction, 30% probes where degradation becomes
+qualitative. Both points must be preregistered with their expected direction
+BEFORE the campaign runs. Cost: +5 runs per system (~+50 min, ≈ +€0.25),
+which is noise against the ~€61 campaign. **Consequence that must be
+implemented with it:** loss percentage becomes part of run identity — two
+`packet_loss` cells at different severities currently resolve to the SAME
+results path and the same `config_hash`, which is the v6 path-collision
+class (see `SIMULATION_AND_RULES_ANALYSIS.md` §6, S1.1).
+
 ---
 
 ## 2. Target architecture

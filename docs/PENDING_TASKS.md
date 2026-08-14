@@ -1,6 +1,7 @@
 # Pending Tasks — Prioritized Backlog + Status Ledger
 
-**Last updated: 2026-07-21.** Companion to `IMPLEMENTATION_PLAN.md`
+**Last updated: 2026-08-14** (seventh review F50–F69, then the eighth
+read-through F70–F74 — both sections near the bottom). Companion to `IMPLEMENTATION_PLAN.md`
 (milestone-ordered M0→M6). This file is **priority-ordered for the current
 push** and doubles as the handoff ledger: a fresh session should be able to
 read this file plus `PROJECT_STATE.md` and know exactly what is done (with
@@ -829,7 +830,7 @@ one increment at a time, TDD red→green with the red shown, a green
 | F51 | `SshFaultInjector.undo` is a plain `ArrayDeque` pushed by the fault thread and popped by the main thread in `heal()`, which `RemoteRunner` calls unconditionally after a `join(30_000)` that may time out — a lost undo entry leaves a live netem qdisc / iptables DROP poisoning every later run on that VM (the stationarity violation F29 exists to prevent) | **CLOSED** (increment 3, TDD) — every mutating operation now holds the injector's monitor, so `heal()` WAITS for an in-flight injection instead of interleaving with it. The red was deterministic (a latch holding `tc qdisc add` in flight, commands recorded in COMPLETION order): heal issued `tc qdisc del` BEFORE the add — recorded order `[ip -o route get, tc qdisc del, tc qdisc add]` — so the delete failed as "nothing to undo" (a WARN by design) and the netem rule SURVIVED. Serializing dominates a concurrent deque, which would have stopped collection corruption but still allowed the interleave; the `ArrayDeque` stays, guarded |
 | **F69** | **No sweep undoes HOST-level fault state.** Host fault undo exists ONLY inside `heal()` (verified: `tc qdisc del` / `iptables -D` / `pkill` appear nowhere else in main), and `PRECLEAN_CMD` removes `thesis-*` CONTAINERS only. So if the campaign JVM dies between inject and heal — OOM, Ctrl-C, SSH transport loss, power — the netem qdisc / iptables DROP / stress-ng SURVIVES, and the next `start()` sweeps containers while the fault silently shapes every later run on that VM. F29 closed exactly this class for containers; the host half was never covered. F51's fix removes the *in-process* race but cannot help a dead process | **OPEN** — NEXT-9 |
 | F52 | `error_rate` is computed and written but consulted by NO validity gate; `status` tolerates 50% failures, and `rate_adherence` SKIPs for saturation runs — so a baseline where 49% of ops failed reports `valid: true`. §4's gate 2 (durability) is the intended home and is a documented SKIP pending P2.6, but a manifest-only error-rate gate needs no Prometheus | **OPEN** — needs a threshold + scope decision (fault runs SHOULD error) |
-| F53 | packet-loss percent is hardcoded 30 in `MatrixRunner` (not a `Block` field, so a block cannot vary it), absent from the manifest AND from `config_hash` — two `packet_loss` cells at different percentages hash identically, so §1's "any cell individually reproducible" fails for that scenario. `METRICS_AND_SOURCES.md:229` preregisters **5%** and predicts "modest degradation" | **OPEN** — value decision (5 / 30 / sweep) then plumbing |
+| F53 | packet-loss percent is hardcoded 30 in `MatrixRunner` (not a `Block` field, so a block cannot vary it), absent from the manifest AND from `config_hash` — two `packet_loss` cells at different percentages hash identically, so §1's "any cell individually reproducible" fails for that scenario. `METRICS_AND_SOURCES.md:229` preregisters **5%** and predicts "modest degradation" | **DECIDED 2026-08-14 (author): SWEEP BOTH 5% AND 30%** — severity becomes a workload factor like D7's conflict ratio (**D14**; methodology §1 now lists six factors, both expectations preregistered in METRICS_AND_SOURCES before any run). Plumbing OPEN as S1.1. **Implement the identity half in the SAME increment or the decision makes things worse:** `RunIdentity.dir()` is `<system>/<scenario>/size<N>[/c<pct>]/<runId>`, so a 5% and a 30% `packet_loss` cell resolve to the SAME directory and the same `config_hash` — sweeping severity without adding it to run identity converts a hidden ambiguity into an active overwrite, i.e. the exact v6 path-collision class `RunIdentity`'s own javadoc claims is inexpressible. Cost of the sweep: +5 runs/system ≈ +50 min ≈ +€0.25 |
 | F54 | `analyse.py`'s honesty rules fail OPEN on fields a v1 manifest lacks: missing `environment` ≠ "local" so laptop runs are INCLUDED (verified: the committed M0 tree analyses as 2 included / 0 excluded), and missing `duration_secs` keeps the drain tail, reporting 229.9 ops/s for a run that achieved 306.5 | **OPEN** — increment 4 |
 | F55–F57 | Methodology/semantics needing an author call: `METRICS_AND_SOURCES.md` describes partition as "full isolation" (impl preserves the loadgen→leader path BY DESIGN) and slow_node as Pumba/`yes` (impl is host `stress-ng`); fault DURATIONS differ across scenarios (slow_node self-ends at 120 s, others persist to `heal()` — 120/300 vs 240/300 measured seconds faulted); `packet_loss` netem shapes the measurement path too, while partition explicitly does not | **OPEN — decisions** |
 | F58–F67 | Hygiene: HotStuff manifest hardcodes `status: complete` and omits `harness_version`/`config_hash`/`error_rate` (safe only while `runHotStuff` refuses non-BASELINE — becomes load-bearing at NEXT-4); F21 runId validation guards only `remote-run`; ValidityChecker javadoc claims an `instance` column it discards; `SshFaultInjector` SSHes to `privateIp()` where `host()` is the documented management address; `SshjExecutor` leaks a client on a lost putIfAbsent race; **export_queries.txt has 23 queries, README/PENDING_TASKS/LOCAL_TESTING still say 22** (F40 added `clock_offset`; LOCAL_TESTING states it as EXPECTED OUTPUT, so following that doc now shows a false failure); MEASUREMENT_DIAGRAMS header says 66 tests, line 194 says 170; README CLI list omits `campaign-run`; `collectSutLogs` skips KAFKA_ZK's colocated ZK containers; stray un-expanded brace dir under `bench/` | **OPEN — cheap** |
@@ -837,7 +838,63 @@ one increment at a time, TDD red→green with the red shown, a green
 
 ---
 
+## 2026-08-14 (continuation) eighth read-through — findings F70–F74
+
+**Protocol:** a second full code+docs pass over the SAME day's tree,
+including the then-uncommitted F51 increment. Re-verified by execution
+FIRST: `mvn21 clean verify` → **`Tests run: 177, Failures: 0, Errors: 0`,
+BUILD SUCCESS, 5:06 min** (176 committed + the new F51 test), on Docker
+29.6.2 with all seven images present. `KafkaPerfTestParityTest` (F68)
+PASSED this run — consistent with "load-dependent gate", not "broken".
+Two ledger items were reproduced rather than trusted: F54 (`analyse.py
+harness/results` → 2 included / 0 excluded, reporting 229.9 ops/s for the
+run PROJECT_STATE records at 306.6) and the F58–F67 query count
+(`export_queries.txt` has **23** non-comment lines). No code changed in
+this pass — findings only.
+
+| # | Finding | Status |
+|---|---------|--------|
+| **F70** | **The failover measurement can void itself silently, and nothing catches it — the F50 class, one layer down.** `EventLog.dropped()` has NO production caller (grep: two tests only); it is absent from the manifest and consulted by no validity gate, although its own javadoc says "dropped > 0 must fail validity". `RemoteRunner.eventCapacity` caps the buffer at **4,000,000** (the fixed roof for saturation runs). PROVEN BY EXECUTION (standalone `EventLog`, campaign shape — duration 480, fault at 240 s, ~17k ops/s): `dropped = 81000`, `fault_injected_at_ms = 240000`, **`failover_ms = empty`** where ground truth was 900 ms. Downstream that reads as *"the fault fired and the system never recovered"* — the F26 paxi-wedge signature, manufactured by instrument overflow; `status` stays `complete` because the F50 rule only requires the MARK, which is present, and `analyse.py` drops `None` failovers with no exclusion line. Thresholds at campaign defaults: tail-drop above ~8.3k ops/s, the buffer passes the MARK ITSELF above ~16.7k ops/s. Net effect on F4: the ECDF loses exactly the highest-throughput trials, silently | **OPEN** — NEXT-10. Cheapest honest fix: `events_dropped` into the manifest + a validity gate (drops>0 ⇒ FAIL, or ⇒ failover unreportable); better: size the buffer from the prior sat block's measured throughput instead of a constant |
+| **F71** | **`campaign-run` cannot express the runbook's failover-trial run shape.** `MatrixRunner.block()` hardcodes `durationSecs=480, warmupSecs=180, window=200, valueSizeBytes=1024`, and `Main.campaignRun`'s `requireKnownKeys` accepts no `duration`/`warmup`/`window`/`valsize`/`fault-at`/`loss` key. `CAMPAIGN_RUNBOOK.md` §3 specifies failover trials as **180 warmup + 180 measurement, fault at +60 (≈8 min)**; the code runs them at 180 + 300 with the fault at +240 (≈10 min). So either the runbook's budget table is wrong or the `Block` needs the knob — and today the operator has no way to choose. Same root as F53 (`loss` hardcoded 30) but wider: every per-scenario run-shape input is welded shut | **OPEN** — decide which shape is correct, then plumb (one `Block` field per differing input, or a per-scenario shape record) |
+| **F72** | **`Scenario.mutatesCluster()` enforces nothing.** No production caller anywhere (grep: only its own declaration and two comments). The invariant IS honored — `RemoteRunner.run` constructs a fresh provider and calls `start()` for EVERY cell — but by unconditional recycling, not by the type system, contrary to `DATA_ANALYSIS_METHODOLOGY.md` §1 ("enforced in the harness type system, not by discipline") and `Scenario`'s own javadoc ("the campaign runner MUST recycle"). Nothing compile-time or runtime would stop a later "skip the recycle for baseline reps to save 2 min/run" from reintroducing v6's C4 | **OPEN — cheap.** Either make the claim true (assert/branch on it where the cluster is reused) or correct the two doc sentences to say "by unconditional per-cell recycling" |
+| **F73** | **A fourth fault-semantics divergence, belonging with F55–F57.** `METRICS_AND_SOURCES.md` §leader_kill says EPaxos "kills a **random** replica instead"; `RemoteRunner.faultTargetIndex` uses **deterministic replica 0** (documented in-code as equivalent-by-symmetry). For a leaderless protocol, random-target vs fixed-target is a real methodological choice — a fixed target cannot surface position-dependent effects, a random target costs reproducibility — not a wording slip | **OPEN — decision**, batch it with F55–F57 |
+| **F76** | **A `mvn21 clean verify` reported BUILD SUCCESS having run only 90 tests across 15 classes — skipping the very test that covered the change being gated.** Observed 2026-08-14 by the concurrent review session while gating increment 3 (F51); it held the commit rather than claim the green, re-ran, and got a complete 177/34. **It did not reproduce and the cause is unknown — deliberately not invented.** Recorded here because it existed only in that session's scrollback, and because of what it implies: the project's entire verification discipline rests on "a green `verify` means the suite ran", and this is one observed counter-example. A build that exits 0 having run half the suite would retroactively weaken every green-gate claim in the history, including the G1 sign-off. Related in spirit to F68 (a gate that goes red on unrelated load) — both are gate-integrity problems, in opposite directions | **OPEN — watch.** Mitigation already adopted by that session and now written into `GIT_WORKFLOW.md` gate 1: **read the count from Maven's own `Tests run:` summary line, never from arithmetic over report files**, and treat a suspiciously fast `verify` (baseline ≈5 min) as a failed gate until the count is confirmed. If it recurs, capture `target/surefire-reports/` and the full log BEFORE re-running — a re-run is what destroyed the evidence the first time |
+| **F75** | **Two declared dependencies are shaded into the 77 MB uber-jar and used by nothing.** `picocli 4.7.6` appears in `src/` only inside a comment (`Main.java:23`, "M1.3 replaces this with picocli"); `micrometer-registry-prometheus 1.14.5` appears in `src/` **not at all** — that is M5.3's :9400 registry, still listed as open work. So the two milestones nearest to "declarative CLI" and "in-flight self-metrics" are each already paid for in build weight and supply-chain surface, with zero benefit taken | **OPEN — cheap.** Either spend them (M1.3 / M5.3) or drop them from the pom until they are spent. Called out because the plan in `SIMULATION_AND_RULES_ANALYSIS.md` §6 depends on both |
+| **F74** | Hygiene, extending F58–F67: `SystemUnderTest.allContainerNames` and `isByzantine` have **zero callers** (dead API); `SystemUnderTest.containerName` is used only by `LocalDockerProvider` (yields `etcd1`, while `RemoteSshProvider` builds `thesis-etcd1` on its own path). Doc staleness beyond the items already listed: `LOCAL_TESTING.md:35` pins 170 tests (HEAD 176, tree 177) and `:430` states 22 queries as EXPECTED OUTPUT; `MEASUREMENT_DIAGRAMS.md` says 66 in its header and 170 at line 194; `HOW_TO_CONTINUE.md` still dates itself 2026-07-21 / 170 green; this file's own line 3 says "Last updated: 2026-07-21"; README's status block and caveats predate F50/F51 entirely. CORRECTION to F58–F67: the "stray un-expanded brace dir" is real but **untracked and empty** (`git ls-files` clean) — a local `mkdir -p` artifact, not a repo defect | **OPEN — cheap** |
+
+---
+
+## Simulation control, rules, and result confidence
+
+The author's request of 2026-08-14 — full control of each simulation's
+rules, per-simulation results with what-happened evidence, false-positive
+attribution, a confidence level, in-flight collection, and offline analysis
+tooling — is analysed and planned in **`docs/SIMULATION_AND_RULES_ANALYSIS.md`**
+(analysis + plan, NO code, per instruction). Summary of its conclusions:
+no framework is adopted (Gatling, Drools, Jepsen, Chaos Toolkit all
+surveyed and refused, with reasons); four *artifacts* are copied instead;
+two author decisions are open — **D12** (simulation specs as typed Java
+records + serialized `simulation.json`, recommended, vs a parsed YAML file)
+and **D13** (confidence as an ordinal grade mechanizing methodology §6,
+recommended, vs a numeric score, refused). Its increments S0–S5 fold
+M1.3/M5.3/M5.4/P4.5/M6.4 into the same spine; S0 (F69 + F70) is recommended
+BEFORE the G2 read-through because both touch goldens or the manifest.
+Load-bearing constraint recorded there: the confidence grade must not ship
+before the validity gates actually evaluate — measured today at **1 of 10**.
+
 ## Immediate next increments (LLM-ready specs)
+
+**NEXT-10 — F70: make an overflowed EventLog unable to pose as a
+measurement (increment 6).** Red first: a run whose buffer fills before
+the fault mark currently writes `fault_injected_at_ms` set,
+`failover_ms: null`, `status: complete` — pin that as the failing
+expectation. Then the writer/gate decision (author's call, because it
+sets what a missing failover MEANS): `events_dropped` becomes a manifest
+field, and either `CsvResultsWriter` refuses `complete` when drops > 0 on
+a fault run, or `ValidityChecker` gains a `event_log_integrity` gate that
+FAILs on drops > 0. Both keep the F50 discipline — one truth, read by
+resume, validity and analysis. Sizing the buffer from a measured
+saturation input is the follow-on, not the fix.
 
 **NEXT-6 — F50b/c. DONE (increment 2, TDD red→green, 176 green.)**
 

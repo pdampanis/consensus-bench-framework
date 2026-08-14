@@ -134,9 +134,22 @@ trial = 180 s + 180 s + recycle ≈ **8 min**.
 | Saturation search (closed-loop sweep) | ~1 × 30 | 30 |
 | Saturation, n=5 | 5 × 10 | 50 |
 | Rate sweep 25/50/75% × n=5 | 15 × 10 | 150 |
-| Faults: packet_loss, partition, slow_node, double_kill × n=5 | 20 × 10 | 200 |
+| Faults: packet_loss **×2 severities (D14: 5% and 30%)**, partition, slow_node, double_kill × n=5 | 25 × 10 | 250 |
 | Failover: leader_kill ≥30 trials | 30 × 8 | 240 |
-| **Block total** | **71 runs** | **670 ≈ 11.2 h** |
+| **Block total** | **76 runs** | **720 ≈ 12.0 h** |
+
+*D14 delta (2026-08-14):* sweeping packet-loss severity adds 5 runs
+(~50 min, ≈ **+€0.25**) per system block — so per-system hours move 11.2 →
+12.0, and the campaign total moves ~+6 h / **≈ +€2** against the ~€61
+contingency-inclusive figure below. Well inside noise; the per-system and
+phase tables that follow are stated at the pre-D14 11.2 h basis and should
+be read with this delta applied.
+
+*F71 open (see PENDING_TASKS):* the failover row assumes the 8-minute trial
+shape (180 warmup + 180 measurement) that `CAMPAIGN_RUNBOOK.md` §3
+specifies — **`campaign-run` cannot currently express it** and runs those
+trials at 10 minutes. If the code shape is the one kept, add ~1 h per
+system block here.
 
 **D7 conflict addendum** (Paxos and EPaxos only): per extra c-point
 (2%, 10%): re-search 30 + saturation 50 + sweep 150 = 230 min. Two points →

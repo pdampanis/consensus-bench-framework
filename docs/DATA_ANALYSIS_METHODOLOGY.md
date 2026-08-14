@@ -8,10 +8,15 @@ into the thesis methodology chapter with light editing.
 
 ## 1. Experimental design
 
-The experiment is a factorial matrix over five factors: **system** (KRaft,
+The experiment is a factorial matrix over six factors: **system** (KRaft,
 Kafka+ZK, etcd, Tendermint/CometBFT, Paxos, EPaxos, HotStuff), **scenario**
 (baseline, leader_kill, double_kill, packet_loss, network_partition,
-slow_node), **load mode** (saturation search; fixed-rate sweep at roughly
+slow_node), **fault severity** where the fault has a magnitude — currently
+packet_loss, swept at **5% and 30%** (D14): 5% tests the preregistered
+"modest degradation, continued availability" prediction and 30% probes where
+degradation turns qualitative; severity is part of run identity, so the two
+points are distinct cells with distinct configuration hashes, never merged —
+**load mode** (saturation search; fixed-rate sweep at roughly
 25/50/75% of the measured saturation point), **cluster size** (default
 3 CFT / 4 BFT; a scalability subset {3,5,7} for the Raft implementations,
 run on 7 provisioned nodes), and **command-conflict ratio** (0/2/10%, applied

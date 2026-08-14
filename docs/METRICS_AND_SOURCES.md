@@ -226,12 +226,34 @@ Kill 2 nodes simultaneously. For 3-node CFT clusters (KRaft, ZK, etcd, Paxos, EP
 This scenario validates that the system correctly becomes unavailable when quorum is lost, rather than proceeding unsafely.
 
 ### packet_loss
-Random packet loss (5% default; the percentage is a parameter per F13) on one
-node's network interface via netem — executor (hand-rolled `tc` vs Pumba)
-decided at P3.3, bound by the golden tests. The remaining quorum is
-unaffected. Expected: modest throughput degradation (retransmissions, higher
-latency) but continued availability. Systems with longer retry timeouts may
-show larger drops.
+Random packet loss on the leader's PRIVATE network interface via netem
+(hand-rolled `tc`, iface resolved at runtime from `ip -o route get <peer>` —
+never an assumed eth0; bound by the golden tests). The remaining quorum is
+unaffected.
+
+**Severity is swept at two points (D14, decided 2026-08-14 — F53).** Both
+expectations are preregistered here BEFORE the campaign runs; changing a
+prediction after seeing data would void the preregistration.
+
+- **5%** — expected: *modest* throughput degradation (retransmissions,
+  higher latency) with **continued availability** and no leader change.
+  Systems with longer retry timeouts show larger drops. This is the point
+  that tests whether the protocols degrade gracefully.
+- **30%** — expected: degradation turns **qualitative**, not merely larger.
+  Preregistered directions: for Raft/ZAB (etcd, KRaft, Kafka+ZK) heartbeat
+  loss at this rate is expected to approach or cross the election timeout,
+  so leader changes become plausible and the run may look like an
+  intermittent `leader_kill`; for CometBFT, expect rounds ≫ height (proposer
+  timeouts) rather than a clean throughput drop; for Paxi, expect the F26
+  no-failure-detector property to dominate. A leader change at 30% is a
+  RESULT, not a failed run — but gate 3's witness must corroborate it, and
+  the deviation must be attributed (measurement artifact vs implementation
+  vs genuine protocol behaviour) per §7.
+
+Note the documented asymmetry with `network_partition` (F55–F57): netem
+shapes the interface carrying the measurement path too, while the partition
+rules deliberately preserve loadgen→leader. The two faults are therefore not
+a severity continuum of one another.
 
 ### network_partition
 100% packet loss on one node (full isolation). For CFT systems: the remaining 2 of 3 still form a quorum. For BFT: 3 of 4 remain, still above 2f+1. Expected: throughput continues at a lower level (one fewer replication target), but no unavailability.

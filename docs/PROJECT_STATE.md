@@ -5,7 +5,54 @@ It is written for a fresh Claude session with no memory of prior turns.
 When something here conflicts with an older file, this document wins; update
 it at the end of every working session.
 
-Last updated: 2026-08-14 — **seventh hard review (F50–F68; ledger in
+> **IN FLIGHT — read before starting work (2026-08-14).**
+> Branch **`seventh-review-tier1`**, HEAD `08d0a80`, **5 commits ahead of
+> `origin/main` and NOT PUSHED**. Two Claude sessions worked this repo the
+> same day, sharing ONE working tree:
+> * **Session A ("Comprehensive code and documentation review")** — owns the
+>   seventh review (F50–F69). Closed F50a, F50b/c, F51 as increments 1–3, all
+>   committed. **It was mid-flight on increment 4 = F54 / NEXT-8**
+>   (`analyse.py` must fail closed on v1 manifests; no decisions needed). It
+>   also has two items waiting on the author: **F52** (error-rate threshold
+>   decision) and **F69** (the exact host-sweep commands, which touch the
+>   FINAL goldens). It reported **F76** (see ledger) and did not resolve it.
+> * **Session B (this one)** — eighth read-through, F70–F76, plus the
+>   simulation/rules analysis and decisions D12–D14. **Changed no code.**
+>
+> Overlap to respect: both sessions edit `PENDING_TASKS.md` and this file.
+> The hazard is a silent lost update, not a merge conflict — see
+> `GIT_WORKFLOW.md` §"Concurrent sessions". Whoever resumes increment 4
+> should re-read both docs before editing rather than trusting context.
+> Nothing in session B blocks increment 4: `analysis/analyse.py` was not
+> touched by it.
+
+Last updated: 2026-08-14 — **eighth read-through (F70–F76; ledger in
+PENDING_TASKS §"2026-08-14 (continuation)").** Suite re-verified by
+execution on the tree that is now HEAD `08d0a80` (the F51 increment,
+committed as `b0f790d` during the session): `mvn21 clean verify` →
+**177/177 green, BUILD SUCCESS, 5:06** — 176 committed + the F51 test. The
+headline finding is **F70**, the F50 class one layer down: `EventLog`'s
+4,000,000-event buffer silently drops past capacity, `dropped()` is read
+by NO production code, and a saturation fault run that overflows before
+the mark writes `fault_injected_at_ms` set + `failover_ms: null` +
+`status: complete` — indistinguishable from "the system never recovered"
+(proven by execution: dropped=81000, failover empty where ground truth
+was 900 ms). Also open: **F71** (`campaign-run` cannot express the
+runbook's failover-trial run shape — every per-scenario input is welded
+into `MatrixRunner.block()`), **F72** (`mutatesCluster()` enforces
+nothing; the invariant holds by unconditional recycling, not by the type
+system the methodology claims), **F73** (EPaxos target: docs say random
+replica, code says deterministic replica 0), **F74** (dead API + doc
+staleness), **F75** (picocli + micrometer declared, shaded, used by
+nothing). No code changed in that pass. Same session, the author asked for
+full control of each simulation's rules + per-simulation evidence +
+confidence grading: analysed and planned in
+**`docs/SIMULATION_AND_RULES_ANALYSIS.md`** (no code, by instruction) —
+no framework adopted, two decisions open (**D12** spec format, **D13**
+confidence anchor). Measured there and worth repeating here: with M5.4
+unwired, **`ValidityChecker` runs 1 of its 10 gates and still reports
+`valid: true`**, and no campaign run writes a `validity.json` at all.
+Prior update, 2026-08-14 — **seventh hard review (F50–F68; ledger in
 PENDING_TASKS §"2026-08-14").** HEAD 9e9fbdd re-verified by execution
 FIRST (`mvn21 clean verify` green, 170/170 — the documented count
 confirmed). The review's headline is **F50**, the v6 reclassification
@@ -662,6 +709,24 @@ gap (P4.5), and the destroy-then-analyze-locally protocol:
 - **No Ansible** — Terraform owns infra state, cloud-init owns first-boot substrate,
   the harness's RemoteSshProvider owns dynamic orchestration (typed Java + golden
   tests). A third automation language adds risk where v6 died. (CAMPAIGN_RUNBOOK §6.)
+- **D12 — a simulation is a typed Java record, PUBLISHED as JSON.** Named
+  constants in the harness, not a parsed config file (a YAML spec would
+  reintroduce the v6 stringly-typed class); the runner serializes the
+  resolved spec to `simulation.json` and hashes it into every manifest, so
+  the thesis still gets a citable artifact. **No framework adopted** —
+  Gatling, Drools, Jepsen and Chaos Toolkit were surveyed and refused with
+  reasons; four *artifacts* are copied instead. (MASTER_PLAN D12,
+  SIMULATION_AND_RULES_ANALYSIS §3–§4.)
+- **D13 — result confidence is an ORDINAL grade mechanizing methodology §6,
+  never a numeric score** (A / B-with-named-SKIPs / C-observation-only /
+  VOID). Load-bearing constraint: the grade may not ship before the validity
+  gates actually evaluate — measured 2026-08-14 at **1 of 10**.
+  (MASTER_PLAN D13.)
+- **D14 — packet-loss severity is a workload factor, swept at 5% AND 30%**
+  (resolves F53; both expectations preregistered in METRICS_AND_SOURCES
+  before the campaign). Severity joins run identity — without that, the two
+  points collide on one results path and one config_hash, which is the v6
+  collision class. (MASTER_PLAN D14, methodology §1.)
 
 ## 7. Known honest limitations (carry into the thesis)
 

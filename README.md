@@ -103,6 +103,8 @@ consensus-bench-thesis/
     ├── MASTER_PLAN.md              decisions D1–D11 + architecture
     ├── CAMPAIGN_RUNBOOK.md         topology, phases, cost, retrieval protocol
     ├── EXECUTION_AND_COST_MODEL.md one-system-at-a-time model, per-system cost
+    ├── SIMULATION_AND_RULES_ANALYSIS.md  simulation specs, rules-as-data, per-simulation
+    │                               journal/report, confidence grading — analysis + plan (no code)
     ├── HOW_TO_CONTINUE.md          ← the one-page map: ladder + numbered next steps
     ├── PER_ALGORITHM_TEST_GUIDE.md per-algorithm tests/debug/benchmark checklists
     ├── OBSERVABILITY_AND_EXPECTATIONS.md  preregistered per-algo baselines + corpus anchors
