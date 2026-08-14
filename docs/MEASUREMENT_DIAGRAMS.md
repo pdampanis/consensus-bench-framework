@@ -3,7 +3,7 @@
 One diagram set for the engine core and one per consensus system: topology,
 commit path, what a completed `write()` *means*, how it is tested, how it is
 measured, where the numbers land, and why they are reliable. Written from the
-live code (2026-07-15, suite 66 tests green) and the corpus papers the design
+live code (2026-08-14, suite 204 tests green) and the corpus papers the design
 mirrors (Paxi SIGMOD'19 workload model, HotStuff PODC'19 rate method, Tene on
 coordinated omission, Hoefler & Belli SC'15 reporting rules). Authority order
 unchanged: **live code > plan + methodology > this file**.
@@ -191,7 +191,7 @@ than average-in broken runs (no silent outlier removal, ever).
 
 ```
 ┌──────────────────────────────── laptop ────────────────────────────────────┐
-│  mvn21 clean verify (170 tests)          java -jar … local-run (etcd only) │
+│  mvn21 clean verify (204 tests)          java -jar … local-run (etcd only) │
 │        │                                        │                          │
 │        ▼                                        ▼                          │
 │  LocalDockerProvider (Testcontainers): digest-pinned images, one Docker    │

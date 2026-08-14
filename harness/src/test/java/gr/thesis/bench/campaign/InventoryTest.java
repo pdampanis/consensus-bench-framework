@@ -63,4 +63,30 @@ class InventoryTest {
         assertTrue(e.getMessage().contains("PRIVATE_NODE2"), e.getMessage());
         assertTrue(e.getMessage().contains("inventory.env"), e.getMessage());
     }
+
+    @Test
+    void theObsVmIsOptionalBecauseTheCanaryHasNone(@TempDir Path dir) throws Exception {
+        // Terraform emits PRIVATE_OBS for a full phase, but P3.4's canary is
+        // two VMs with no obs stack. Absent must mean "no metrics export",
+        // which the ValidityChecker already surfaces as a loud SKIP — not a
+        // parse failure over infrastructure the run was never given.
+        Path f = dir.resolve("inv.env");
+        Files.writeString(f, """
+                CONSENSUS_NODE_COUNT=1
+                PRIVATE_NODE1=10.0.0.11
+                PRIVATE_LOADGEN=10.0.0.20
+                SSH_KEY=/tmp/k
+                """);
+        assertTrue(Inventory.parse(f).obsPrivateIp().isEmpty());
+
+        Path g = dir.resolve("inv2.env");
+        Files.writeString(g, """
+                CONSENSUS_NODE_COUNT=1
+                PRIVATE_NODE1=10.0.0.11
+                PRIVATE_LOADGEN=10.0.0.20
+                PRIVATE_OBS=10.0.0.21
+                SSH_KEY=/tmp/k
+                """);
+        assertEquals("10.0.0.21", Inventory.parse(g).obsPrivateIp().orElseThrow());
+    }
 }

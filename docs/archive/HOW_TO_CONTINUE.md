@@ -1,4 +1,16 @@
+# ARCHIVED 2026-08-15
+
+> Folded into PROJECT_STATE §3 and §6.
+> **The driver is `docs/PROJECT_STATE.md`.**
+
+---
+
 # HOW TO CONTINUE — one page, low noise
+
+> **Prioritized cross-front queue with confidence scores:**
+> **`WORK_QUEUE.md`** — 28 items in 10 priority bands, grouped into
+> increments. That file is the "what next" answer; this page is the
+> conceptual map. When the two disagree on ORDER, WORK_QUEUE wins.
 
 State date: 2026-07-21 (sixth review F39–F49 closed; suite **170 green**,
 per-increment gates). The seven goldens are FINAL text for G2 — the M5.2

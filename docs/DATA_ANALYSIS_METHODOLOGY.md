@@ -8,10 +8,15 @@ into the thesis methodology chapter with light editing.
 
 ## 1. Experimental design
 
-The experiment is a factorial matrix over five factors: **system** (KRaft,
+The experiment is a factorial matrix over six factors: **system** (KRaft,
 Kafka+ZK, etcd, Tendermint/CometBFT, Paxos, EPaxos, HotStuff), **scenario**
 (baseline, leader_kill, double_kill, packet_loss, network_partition,
-slow_node), **load mode** (saturation search; fixed-rate sweep at roughly
+slow_node), **fault severity** where the fault has a magnitude — currently
+packet_loss, swept at **5% and 30%** (D14): 5% tests the preregistered
+"modest degradation, continued availability" prediction and 30% probes where
+degradation turns qualitative; severity is part of run identity, so the two
+points are distinct cells with distinct configuration hashes, never merged —
+**load mode** (saturation search; fixed-rate sweep at roughly
 25/50/75% of the measured saturation point), **cluster size** (default
 3 CFT / 4 BFT; a scalability subset {3,5,7} for the Raft implementations,
 run on 7 provisioned nodes), and **command-conflict ratio** (0/2/10%, applied
@@ -40,8 +45,15 @@ jitter is a validity threat like any other.
 Three design controls protect against confounds. First, run order is
 randomized within each system block, so time-correlated environmental drift
 does not systematically favor one scenario. Second, every scenario that
-mutates the cluster gets a fresh cluster per repetition — enforced in the
-harness type system, not by discipline. Third, each run's manifest pins the
+mutates the cluster gets a fresh cluster per repetition — enforced
+STRUCTURALLY rather than by discipline, though not, as this sentence once
+claimed, by the type system: `RemoteRunner` constructs a fresh provider and
+calls `start()` for EVERY cell unconditionally, which is stronger than
+`Scenario.mutatesCluster()` requires (F72, corrected 2026-08-14 — the flag
+itself has no production caller and documents intent rather than enforcing
+it). The guarantee is therefore real, but it lives in the runner's control
+flow, and anyone optimising "skip the recycle for baseline reps" would face
+no compile-time or runtime objection. Third, each run's manifest pins the
 image digests, harness version, and configuration hash, making any cell
 individually reproducible.
 
@@ -123,7 +135,21 @@ never bare means; state everything needed to reproduce), Kalibera & Jones on
 rigorous benchmarking with repetition-level variance, Jain's classic text
 for experimental design, Tene on coordinated omission (the HdrHistogram
 rationale), and the Paxi/PaxiBFT/HotStuff papers for the domain-specific
-methodology this design mirrors.
+methodology this design mirrors. Two further anchors added 2026-08-14:
+**Nosek et al., *The preregistration revolution*, PNAS 2018;115(11):2600–2606**
+— the standard source for the practice §1/§7 already follow under another
+name. Its argument is precisely ours: preregistration separates *prediction*
+from *postdiction*, constrains researcher degrees of freedom, and guards
+against **HARKing** (hypothesising after results are known) and p-hacking.
+That is what makes expected-vs-observed with deviation attribution a method
+rather than a habit, and it is why a preregistered prediction may not be
+revised after seeing the data (see D14's two packet-loss points, both fixed
+before any run). And **Guyatt et al., GRADE, BMJ 2008;336:924–926** — the
+parent scheme for D13's ordinal confidence grade: a body of evidence rated
+on ordinal levels, downgraded for *named* reasons (imprecision,
+inconsistency, indirectness, risk of bias), never a numeric score. GRADE's
+unit is a body of evidence, so the grade attaches to a **cell** (n = 5),
+never to a single run.
 
 ## 4. Validity checks — automated, per run
 

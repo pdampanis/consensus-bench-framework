@@ -36,6 +36,11 @@ class ValidityCheckerTest {
 
     private static String manifest(long rate, int warmup, int duration, String scenario,
                                    String faultAtMs) {
+        return manifest(rate, warmup, duration, scenario, faultAtMs, 0.0);
+    }
+
+    private static String manifest(long rate, int warmup, int duration, String scenario,
+                                   String faultAtMs, double errorRate) {
         return "{\n"
                 + "  \"system\": \"etcd\",\n"
                 + "  \"scenario\": \"" + scenario + "\",\n"
@@ -43,8 +48,20 @@ class ValidityCheckerTest {
                 + "  \"rate_ops_s\": " + rate + ",\n"
                 + "  \"warmup_secs\": " + warmup + ",\n"
                 + "  \"duration_secs\": " + duration + ",\n"
+                + "  \"error_rate\": " + errorRate + ",\n"
                 + "  \"fault_injected_at_ms\": " + (faultAtMs == null ? "null" : faultAtMs) + "\n"
                 + "}\n";
+    }
+
+    /** A run dir with a chosen scenario and error rate, steady at `rate`. */
+    private static void runWithErrorRate(Path dir, String scenario, double errorRate,
+                                         String faultAtMs) throws IOException {
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"),
+                manifest(100, 2, 6, scenario, faultAtMs, errorRate));
+        StringBuilder tp = new StringBuilder();
+        for (int t = 0; t < 6; t++) tp.append(t).append(",100\n");
+        Files.writeString(dir.resolve("throughput.csv"), tp.toString());
     }
 
     private static void metric(Path dir, String name, String rows) throws IOException {
@@ -139,6 +156,25 @@ class ValidityCheckerTest {
         metric(dir, "node_up", "1000,10.0.0.11,1\n");
         Report r = ValidityChecker.check(dir);
         assertEquals(State.SKIP, stateOf(r, "fault_ground_truth"), "no fault injected — N/A");
+    }
+
+    @Test
+    void faultRunWithoutAMarkFailsRatherThanPosingAsBaseline(@TempDir Path dir) throws IOException {
+        // F50: the injection threw (or stalled past the runner's join), so no
+        // mark was ever stamped — but the manifest still says leader_kill.
+        // Reading ONLY the mark makes the gate answer "baseline run — N/A",
+        // which is the wrong answer to the right question: the run is void as
+        // a fault cell, and this gate is the last layer that can say so.
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"),
+                manifest(100, 2, 6, "leader_kill", null));
+        Files.writeString(dir.resolve("throughput.csv"),
+                "0,100\n1,100\n2,100\n3,100\n4,100\n5,100\n");
+
+        Report r = ValidityChecker.check(dir);
+        assertEquals(State.FAIL, stateOf(r, "fault_ground_truth"),
+                "a fault run carrying no injection mark is not a baseline run");
+        assertFalse(r.valid(), "and it must not come out valid");
     }
 
     @Test
@@ -241,17 +277,21 @@ class ValidityCheckerTest {
     }
 
     @Test
-    void paxiFaultRunSkipsGroundTruthNamingTheMissingInstrumentation(@TempDir Path dir) throws IOException {
+    void paxiWithNoEventsAuditStillSkipsRatherThanGuessing(@TempDir Path dir) throws IOException {
         // Paxi exposes NO server-side metrics (documented §2/§7 limitation)
-        // and the preregistered F26 wedge has no leader change BY DESIGN —
-        // an evaluated FAIL would misread both. Honest SKIP, loud reason.
+        // and the preregistered F26 wedge has no leader change BY DESIGN — an
+        // evaluated FAIL would misread both. Until P4.5 this SKIPped naming
+        // the events audit as the FUTURE source; the audit now exists, so the
+        // SKIP narrowed to the case where it was not collected for this cell.
+        // The behaviour changed because the dependency landed, which is the
+        // right reason for a test to change.
         faultRun(dir, "paxos");
         metric(dir, "node_up", "1000,10.0.0.11,1\n");
         Report r = ValidityChecker.check(dir);
         assertEquals(State.SKIP, stateOf(r, "fault_ground_truth"));
         assertTrue(r.gates().stream().anyMatch(g -> g.gate().equals("fault_ground_truth")
-                        && g.detail().contains("P4.5")),
-                "the SKIP must name the future corroboration source (docker-events, P4.5)");
+                        && g.detail().contains("no events/ audit")),
+                "the SKIP must say WHY nothing could corroborate it");
     }
 
     // ---- F42: HotStuff runs must not fail gates they structurally
@@ -296,5 +336,233 @@ class ValidityCheckerTest {
         baseline(root.resolve("etcd/baseline/size3/r03"), 100, new int[]{100, 100, 100, 100, 100, 100});
         assertEquals(2, ValidityChecker.checkTree(root),
                 "the corrupt run counts as not-valid; the runs after it are still checked");
+    }
+
+    // ---- F52: error_rate was written by the writer and gated by NOBODY ----
+    // status tolerates up to 50% failures and rate_adherence SKIPs for
+    // saturation runs, so a baseline that failed 49% of its operations
+    // reported valid: true. The gate is BASELINE-ONLY by decision (D15/F52):
+    // fault runs are SUPPOSED to error, and gating them would exclude exactly
+    // the preregistered failure evidence — the F26 paxi wedge and the
+    // DOUBLE_KILL liveness demo (ledger note N1).
+
+    @Test
+    void baselineThatFailedHalfItsOperationsIsNotValid(@TempDir Path dir) throws IOException {
+        runWithErrorRate(dir, "baseline", 0.49, null);
+        Report r = ValidityChecker.check(dir);
+        assertEquals(State.FAIL, stateOf(r, "baseline_error_rate"),
+                "a baseline losing 49% of its ops is not a steady-state measurement");
+        assertFalse(r.valid(), "a FAILed gate makes the run invalid");
+    }
+
+    @Test
+    void cleanBaselinePassesTheErrorGate(@TempDir Path dir) throws IOException {
+        runWithErrorRate(dir, "baseline", 0.0, null);
+        Report r = ValidityChecker.check(dir);
+        assertEquals(State.PASS, stateOf(r, "baseline_error_rate"));
+        assertTrue(r.valid());
+    }
+
+    @Test
+    void aBaselineJustUnderTheThresholdStillPasses(@TempDir Path dir) throws IOException {
+        // The boundary is worth pinning: 1% is PROVISIONAL until M6.2 fixes
+        // it from pilot variance, and it was chosen from measured evidence
+        // (M0: 0 errors; the CometBFT G1 acceptance: <1%).
+        runWithErrorRate(dir, "baseline", 0.009, null);
+        assertEquals(State.PASS, stateOf(ValidityChecker.check(dir), "baseline_error_rate"));
+    }
+
+    @Test
+    void faultRunsSkipTheErrorGateBecauseTheyAreMeantToError(@TempDir Path dir) throws IOException {
+        runWithErrorRate(dir, "leader_kill", 0.49, "3000");
+        Report r = ValidityChecker.check(dir);
+        assertEquals(State.SKIP, stateOf(r, "baseline_error_rate"),
+                "gating fault runs on error rate would exclude the preregistered"
+                        + " paxi wedge and the double_kill liveness demo (N1)");
+    }
+
+    @Test
+    void aManifestWithNoErrorRateFieldFailsRatherThanPasses(@TempDir Path dir) throws IOException {
+        // The §4 meta-rule applied to a manifest field: a v1 manifest that
+        // never recorded error_rate must not be waved through as if it had
+        // recorded zero. Absent is not zero — the same rule the writer
+        // follows for the fault fields (F70).
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"), "{\n"
+                + "  \"system\": \"etcd\",\n  \"scenario\": \"baseline\",\n"
+                + "  \"started_at\": \"2026-08-03T14:00:00Z\",\n  \"rate_ops_s\": 100,\n"
+                + "  \"warmup_secs\": 2,\n  \"duration_secs\": 6\n}\n");
+        StringBuilder tp = new StringBuilder();
+        for (int t = 0; t < 6; t++) tp.append(t).append(",100\n");
+        Files.writeString(dir.resolve("throughput.csv"), tp.toString());
+
+        assertEquals(State.FAIL, stateOf(ValidityChecker.check(dir), "baseline_error_rate"),
+                "a missing error_rate is an unmeasured error rate, not a zero one");
+    }
+
+    // ---- S2.1a/S2.2: the RULE ships with the verdict ----
+
+    @Test
+    void everyGateTheCheckerEmitsHasADeclaredRuleAndViceVersa(@TempDir Path dir)
+            throws IOException {
+        // The F40 drift class in a new costume: a rule with no gate is dead
+        // text, and a gate with no rule writes a verdict nobody can audit.
+        // Pinning both directions is what stops them separating.
+        baseline(dir, 100, new int[]{100, 100, 100, 100, 100, 100});
+        var emitted = ValidityChecker.check(dir).gates().stream()
+                .map(GateResult::gate).collect(java.util.stream.Collectors.toSet());
+        assertEquals(emitted, ValidityChecker.GATE_SPECS.keySet(),
+                "declared rules and emitted gates must be the same set");
+        ValidityChecker.GATE_SPECS.forEach((gate, spec) -> {
+            assertFalse(spec.reference().isBlank(), gate + " must cite its methodology §");
+            assertFalse(spec.falsePositives().isBlank(),
+                    gate + " must say what would make a FAIL a false positive");
+        });
+    }
+
+    @Test
+    void theVerdictCarriesTheThresholdThatJudgedIt(@TempDir Path dir) throws IOException {
+        // M6.2 retunes every PROVISIONAL threshold from pilot variance, so
+        // runs either side of that are judged by different numbers. Without
+        // the value in the verdict, nobody can tell which judged this one.
+        baseline(dir, 100, new int[]{100, 100, 100, 100, 100, 100});
+        ValidityChecker.check(dir);
+        String v = Files.readString(dir.resolve("validity.json"));
+        assertTrue(v.contains("\"threshold\": \"achieved/target >= 0.99\""), v);
+        assertTrue(v.contains("\"reference\": \"§4.1\""), v);
+    }
+
+    @Test
+    void onlyAFailCarriesItsFalsePositiveTriage(@TempDir Path dir) throws IOException {
+        runWithErrorRate(dir, "baseline", 0.49, null);
+        ValidityChecker.check(dir);
+        String v = Files.readString(dir.resolve("validity.json"));
+        assertTrue(v.contains("check_before_believing"),
+                "a FAILed gate must say what to rule out first: " + v);
+        // A PASS does not: attaching triage to every green gate would bury
+        // the one line a reader has to act on.
+        long occurrences = v.lines().filter(l -> l.contains("check_before_believing")).count();
+        assertEquals(1, occurrences, v);
+    }
+
+    @Test
+    void aQuoteInAGateDetailCannotBreakTheReportJson(@TempDir Path dir) throws IOException {
+        // The report is assembled by hand like the manifest, so F21's class
+        // applies: unescaped text emits broken JSON that every downstream
+        // reader then fails on. gate 3's FAIL detail quotes the scenario.
+        runWithErrorRate(dir, "leader_kill", 0.0, null);
+        ValidityChecker.check(dir);
+        String v = Files.readString(dir.resolve("validity.json"));
+        new com.fasterxml.jackson.databind.ObjectMapper().readTree(v); // must parse
+        assertTrue(v.contains("fault_ground_truth"), v);
+    }
+
+    // ---- M5.3/S3.3: window_headroom is an EVALUATED gate at last ----
+
+    @Test
+    void aPinnedInFlightWindowMeansTheCLIENTWasTheCeiling(@TempDir Path dir) throws IOException {
+        // Little's Law: at full occupancy the reported number is
+        // window/latency, which is a fact about the harness. This project met
+        // that confusion twice (P2.2c, P2.3) and diagnosed it by hand both
+        // times.
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"), "{\n"
+                + "  \"system\": \"etcd\",\n  \"scenario\": \"baseline\",\n"
+                + "  \"started_at\": \"2026-08-03T14:00:00Z\",\n  \"rate_ops_s\": 100,\n"
+                + "  \"warmup_secs\": 2,\n  \"duration_secs\": 6,\n  \"window\": 64,\n"
+                + "  \"error_rate\": 0.0\n}\n");
+        StringBuilder tp = new StringBuilder();
+        for (int t = 0; t < 6; t++) tp.append(t).append(",100\n");
+        Files.writeString(dir.resolve("throughput.csv"), tp.toString());
+        metric(dir, "harness_inflight", "1000,loadgen,20\n1005,loadgen,63\n");
+
+        assertEquals(State.FAIL, stateOf(ValidityChecker.check(dir), "window_headroom"),
+                "63 of 64 is 98% occupancy — window-bound, not system-bound");
+    }
+
+    @Test
+    void aRunWithHeadroomPassesAndSaturationSkips(@TempDir Path dir) throws IOException {
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"), "{\n"
+                + "  \"system\": \"etcd\",\n  \"scenario\": \"baseline\",\n"
+                + "  \"started_at\": \"2026-08-03T14:00:00Z\",\n  \"rate_ops_s\": 100,\n"
+                + "  \"warmup_secs\": 2,\n  \"duration_secs\": 6,\n  \"window\": 64,\n"
+                + "  \"error_rate\": 0.0\n}\n");
+        StringBuilder tp = new StringBuilder();
+        for (int t = 0; t < 6; t++) tp.append(t).append(",100\n");
+        Files.writeString(dir.resolve("throughput.csv"), tp.toString());
+        metric(dir, "harness_inflight", "1000,loadgen,8\n1005,loadgen,12\n");
+        assertEquals(State.PASS, stateOf(ValidityChecker.check(dir), "window_headroom"));
+
+        // Saturation PINS the window BY METHOD (Paxi's procedure) — gating it
+        // there would fail every run that did what it was told.
+        baseline(dir, 0, new int[]{500, 500, 500, 500, 500, 500});
+        metric(dir, "harness_inflight", "1000,loadgen,64\n");
+        assertEquals(State.SKIP, stateOf(ValidityChecker.check(dir), "window_headroom"));
+    }
+
+    // ---- S3.4/P4.5: the docker-events audit closes two gates ----
+
+    private static void events(Path dir, String lines) throws IOException {
+        Path e = dir.resolve("events");
+        Files.createDirectories(e);
+        Files.writeString(e.resolve("10.0.0.11.txt"), lines);
+    }
+
+    @Test
+    void aBaselineThatKilledAContainerBrokeStationarity(@TempDir Path dir) throws IOException {
+        baseline(dir, 100, new int[]{100, 100, 100, 100, 100, 100});
+        events(dir, "1723600000 thesis-etcd1 die\n");
+        assertEquals(State.FAIL, stateOf(ValidityChecker.check(dir), "container_restarts"),
+                "a baseline measured a cluster that changed under it");
+    }
+
+    @Test
+    void aQuietBaselinePassesTheRestartGate(@TempDir Path dir) throws IOException {
+        baseline(dir, 100, new int[]{100, 100, 100, 100, 100, 100});
+        events(dir, "1723600000 thesis-etcd1 health_status\n");
+        assertEquals(State.PASS, stateOf(ValidityChecker.check(dir), "container_restarts"));
+    }
+
+    @Test
+    void aFaultRunIsEXPECTEDToShowAKillAndFailsWhenItDoesNot(@TempDir Path dir)
+            throws IOException {
+        // The reason this gate could not simply count events: a fault run's
+        // own kill is BY DESIGN, so counting would fail exactly the runs the
+        // campaign exists to produce. Read against the scenario, the same
+        // audit becomes evidence instead of an alarm.
+        runWithErrorRate(dir, "leader_kill", 0.0, "3000");
+        events(dir, "1723600000 thesis-etcd2 die\n");
+        assertEquals(State.PASS, stateOf(ValidityChecker.check(dir), "container_restarts"));
+
+        events(dir, "1723600000 thesis-etcd2 health_status\n");
+        assertEquals(State.FAIL, stateOf(ValidityChecker.check(dir), "container_restarts"),
+                "no container died in a kill run — the fault did not land");
+    }
+
+    @Test
+    void paxiAndHotstuffFinallyHaveAKillWitness(@TempDir Path dir) throws IOException {
+        // F41 deferred this to P4.5. These two expose NO server metrics at
+        // all, so the events audit is not a fallback for them — it is the
+        // only possible ground truth, and for a kill it is a better one than
+        // any gauge because it observes the process dying rather than
+        // inferring it from a counter.
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"), "{\n"
+                + "  \"system\": \"paxos\",\n  \"scenario\": \"leader_kill\",\n"
+                + "  \"started_at\": \"2026-08-03T14:00:00Z\",\n  \"rate_ops_s\": 100,\n"
+                + "  \"warmup_secs\": 2,\n  \"duration_secs\": 6,\n  \"window\": 64,\n"
+                + "  \"error_rate\": 0.0,\n  \"fault_injected_at_ms\": 3000\n}\n");
+        StringBuilder tp = new StringBuilder();
+        for (int t = 0; t < 6; t++) tp.append(t).append(",100\n");
+        Files.writeString(dir.resolve("throughput.csv"), tp.toString());
+
+        events(dir, "1723600000 thesis-paxi2 die\n");
+        assertEquals(State.PASS, stateOf(ValidityChecker.check(dir), "fault_ground_truth"),
+                "the audit IS paxi's ground truth — it has nothing else");
+
+        events(dir, "1723600000 thesis-paxi2 health_status\n");
+        assertEquals(State.FAIL, stateOf(ValidityChecker.check(dir), "fault_ground_truth"),
+                "nothing died, so the fault did not land where the run claims");
     }
 }

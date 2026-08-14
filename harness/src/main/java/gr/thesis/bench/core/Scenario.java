@@ -1,8 +1,16 @@
 package gr.thesis.bench.core;
 
-/** Fault scenarios. Restart semantics are part of the type, fixing v6's C4
- *  (fault runs reusing a corrupted cluster) by construction: the campaign
- *  runner MUST recycle the cluster when mutatesCluster() is true. */
+/**
+ * Fault scenarios, each declaring whether it mutates the cluster — v6's C4
+ * was fault runs reusing a corrupted cluster.
+ *
+ * <p>HONEST SCOPE (F72, 2026-08-14): this flag DOCUMENTS the requirement, it
+ * does not enforce it — nothing in production reads it. The invariant holds
+ * anyway, and more strongly than the flag asks: {@code RemoteRunner} builds a
+ * fresh provider and calls {@code start()} for EVERY cell, mutating or not.
+ * Kept because it states the rule at the point a reader meets the scenarios,
+ * and because any future path that DOES reuse a cluster has to consult it.
+ */
 public enum Scenario {
     BASELINE          (false),
     LEADER_KILL       (true),

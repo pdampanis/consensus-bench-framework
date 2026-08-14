@@ -66,12 +66,50 @@ def load_runs(root: Path, include_local: bool):
         if run["status"] != "complete":
             yield run, f"status={run['status']}"
             continue
+        # F54: absence is not permission. A v1 manifest lacking `environment`
+        # is not thereby "not local" — and the committed M0 tree, which IS
+        # laptop data, sailed straight in on exactly that reading.
+        if run["environment"] is None:
+            yield run, ("manifest declares no environment — cannot confirm this is not "
+                        "laptop data, and laptop numbers are never thesis data")
+            continue
         if run["environment"] == "local" and not include_local:
             yield run, "environment=local (laptop numbers are never thesis data)"
             continue
+        # Same rule for the run window: without duration_secs the drain tail
+        # is kept, which understates throughput (measured: 229.9 ops/s
+        # reported for a run that achieved 306.5).
+        if run["duration_secs"] is None:
+            yield run, ("manifest declares no duration_secs — the drain tail cannot be "
+                        "trimmed, so the throughput would be understated")
+            continue
+        # S5.2: the verdict is part of the record. A run nobody validity-checked
+        # has not been shown to satisfy §4, so it cannot headline a figure.
+        verdict = read_validity(d)
+        if verdict is None:
+            yield run, "no validity.json — the run was never checked against §4"
+            continue
+        if not verdict.get("valid", False):
+            failed = [g["gate"] for g in verdict.get("gates", [])
+                      if g.get("state") == "FAIL"]
+            yield run, "validity.json: invalid (" + ", ".join(failed) + ")"
+            continue
+        run["validity_skipped"] = sum(1 for g in verdict.get("gates", [])
+                                      if g.get("state") == "SKIP")
         run["latency_us"] = read_latency(d)
         run["throughput"] = read_throughput(d, run)
         yield run, None
+
+
+def read_validity(run_dir: Path):
+    """validity.json -> dict, or None when the run was never checked."""
+    f = run_dir / "validity.json"
+    if not f.exists():
+        return None
+    try:
+        return json.loads(f.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
 
 
 def read_latency(run_dir: Path):
@@ -128,7 +166,12 @@ def summarize_cell(runs):
     lat_mean = [r["latency_us"]["avg"] for r in runs if r.get("latency_us")]
     p50s = [r["latency_us"]["p50"] for r in runs if r.get("latency_us")]
     p99s = [r["latency_us"]["p99"] for r in runs if r.get("latency_us")]
-    failovers = [r["failover_ms"] for r in runs if r.get("failover_ms") is not None]
+    # F70's downstream half: a fault run whose failover is null was silently
+    # dropped from this list, so an ECDF quietly lost exactly the trials that
+    # did not recover — or whose evidence was lost. Count them instead.
+    fault_runs = [r for r in runs if r.get("scenario") != "baseline"]
+    failovers = [r["failover_ms"] for r in fault_runs if r.get("failover_ms") is not None]
+    unreported = len(fault_runs) - len(failovers)
     row = {"n": len(runs)}
     if tp:
         lo, hi = bootstrap_ci(tp)
@@ -146,6 +189,12 @@ def summarize_cell(runs):
     if failovers:
         row.update(failover_ms_all="|".join(str(int(v)) for v in sorted(failovers)),
                    failover_median_ms=statistics.median(failovers))
+    if fault_runs:
+        # Visible, always: "3 of 5 trials reported a failover" is a different
+        # claim from "the median failover was X", and F4's ECDF must not be
+        # read as the latter when it is the former.
+        row.update(failover_reported_n=len(failovers),
+                   failover_unreported_n=unreported)
     return row
 
 
@@ -224,8 +273,25 @@ def selftest() -> int:
                tps=[999], p50=1, avg=1)      # laptop — must be excluded
         mk_run(root / "etcd/baseline/size3/r04", "etcd", "hetzner", "failed",
                tps=[1], p50=1, avg=1)        # failed — must be excluded
+        # F54: absence is not permission — a manifest that never recorded
+        # its environment cannot be shown to be cluster data, and one with no
+        # duration keeps its drain tail (measured: 229.9 reported for 306.5).
+        mk_run(root / "etcd/baseline/size3/r05", "etcd", None, "complete",
+               tps=[300], p50=1, avg=1)
+        mk_run(root / "etcd/baseline/size3/r06", "etcd", "hetzner", "complete",
+               tps=[300], p50=1, avg=1, duration="MISSING")
+        # S5.2: a run nobody checked against §4 cannot headline a figure.
+        mk_run(root / "etcd/baseline/size3/r07", "etcd", "hetzner", "complete",
+               tps=[300], p50=1, avg=1, validity=None)
+        mk_run(root / "etcd/baseline/size3/r08", "etcd", "hetzner", "complete",
+               tps=[300], p50=1, avg=1, validity="invalid")
+
         stats = analyse(root, out, include_local=False)
-        assert stats == {"included": 2, "excluded": 2, "cells": 1}, stats
+        assert stats == {"included": 2, "excluded": 6, "cells": 1}, stats
+        excl = (out / "excluded.csv").read_text()
+        for expected in ("no environment", "no duration_secs",
+                         "never checked", "validity.json: invalid"):
+            assert expected in excl, (expected, excl)
         cells = list(csv.DictReader((out / "cells.csv").open()))
         assert len(cells) == 1 and cells[0]["n"] == "2"
         assert cells[0]["p50_spread_us"] == "2000|2100", cells[0]
@@ -239,14 +305,22 @@ def selftest() -> int:
     return 0
 
 
-def mk_run(d: Path, system, env, status, tps, p50, avg):
+def mk_run(d: Path, system, env, status, tps, p50, avg,
+           duration=None, validity="valid", scenario="baseline", failover=None):
     d.mkdir(parents=True)
+    if validity is not None:
+        (d / "validity.json").write_text(json.dumps({
+            "valid": validity == "valid",
+            "gates": [{"gate": "rate_adherence", "state":
+                       "PASS" if validity == "valid" else "FAIL"}]}))
     (d / "manifest.json").write_text(json.dumps({
-        "system": system, "scenario": "baseline", "cluster_size": 3,
+        "system": system, "scenario": scenario, "cluster_size": 3,
         "conflict_ratio": 0.0, "rate_ops_s": 300, "run_id": d.name,
         "environment": env, "status": status, "error_rate": 0.0,
-        "failover_ms": None, "ops_after_warmup": sum(tps),
-        "duration_secs": len(tps), "warmup_secs": 0}))
+        "failover_ms": failover, "ops_after_warmup": sum(tps),
+        **({} if duration == "MISSING"
+           else {"duration_secs": len(tps) if duration is None else duration}),
+        "warmup_secs": 0}))
     (d / "throughput.csv").write_text(
         "".join(f"{i},{v}\n" for i, v in enumerate(tps)))
     (d / "latency.csv").write_text(

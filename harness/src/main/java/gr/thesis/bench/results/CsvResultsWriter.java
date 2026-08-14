@@ -26,8 +26,20 @@ import java.time.Instant;
  */
 public final class CsvResultsWriter {
 
+    /**
+     * @param lossPercent packet-loss SEVERITY, which D14 makes a swept
+     *        workload factor (5% and 30%) rather than a hidden constant. It
+     *        is part of cell IDENTITY, not decoration: without it two
+     *        severities of the same scenario resolve to one directory and
+     *        one config_hash, so the second run silently OVERWRITES the
+     *        first and {@code MatrixRunner.alreadyComplete} then skips it —
+     *        the v6 collision class this record exists to make
+     *        inexpressible. Meaningful only for PACKET_LOSS; the 5-arg
+     *        constructor supplies 0 for every other scenario.
+     */
     public record RunIdentity(SystemUnderTest system, Scenario scenario,
-                              int clusterSize, double conflictRatio, String runId) {
+                              int clusterSize, double conflictRatio, int lossPercent,
+                              String runId) {
         public RunIdentity {
             // The ratio becomes a path segment (c<percent>). A non-whole
             // percent would render the same segment as its rounding neighbor
@@ -38,14 +50,47 @@ public final class CsvResultsWriter {
                 throw new IllegalArgumentException(
                         "conflictRatio must be a whole percent in [0,1], got " + conflictRatio);
             }
+            // Severity is required exactly where it means something and
+            // refused everywhere else: an unset PACKET_LOSS severity is the
+            // F53 ambiguity again, and a severity on a leader_kill run would
+            // put a meaningless segment in the results tree.
+            if (scenario == Scenario.PACKET_LOSS) {
+                if (lossPercent < 1 || lossPercent > 100) {
+                    throw new IllegalArgumentException(
+                            "PACKET_LOSS needs a severity in [1,100], got " + lossPercent);
+                }
+            } else if (lossPercent != 0) {
+                throw new IllegalArgumentException(
+                        scenario + " carries no packet-loss severity, got " + lossPercent);
+            }
+            // F21: the manifest is assembled by string formatting, so a runId
+            // containing a quote or backslash would emit BROKEN JSON that
+            // every downstream reader then fails on. Main guards its own
+            // remote-run flag, but campaign-run generates ids itself and was
+            // unguarded — the constraint belongs HERE, on the identity, where
+            // no caller can route around it.
+            if (!runId.matches("[a-z0-9]+")) {
+                throw new IllegalArgumentException(
+                        "runId must be [a-z0-9]+ (it is a path segment and an unescaped"
+                                + " JSON value), got: " + runId);
+            }
+        }
+
+        /** Every non-PACKET_LOSS cell: severity is not applicable. */
+        public RunIdentity(SystemUnderTest system, Scenario scenario,
+                           int clusterSize, double conflictRatio, String runId) {
+            this(system, scenario, clusterSize, conflictRatio, 0, runId);
         }
 
         /**
-         * .../<system>/<scenario>/size<N>[/c<percent>]/<runId>
+         * .../<system>/<scenario>/size<N>[/c<percent>][/loss<percent>]/<runId>
          * The c-segment appears only for conflict runs (c > 0): the five
          * non-Paxi systems never sweep conflict, so their tree (and the
          * committed M0 reference results) keeps its layout; a c>0 run can
          * never collide with a c=0 run because the extra segment differs.
+         * The loss-segment follows exactly that rule for D14's severity
+         * sweep and appears only on PACKET_LOSS cells, so every other
+         * scenario's tree stays byte-identical to before.
          */
         public Path dir(Path root) {
             Path p = root.resolve(system.name().toLowerCase())
@@ -53,6 +98,9 @@ public final class CsvResultsWriter {
                          .resolve("size" + clusterSize);
             if (conflictRatio > 0.0) {
                 p = p.resolve("c" + Math.round(conflictRatio * 100.0));
+            }
+            if (lossPercent > 0) {
+                p = p.resolve("loss" + lossPercent);
             }
             return p.resolve(runId);
         }
@@ -123,16 +171,52 @@ public final class CsvResultsWriter {
         for (long c : r.committedPerSecond()) committedTotal += c;
         long attempts = committedTotal + r.errors();
         double errorRate = attempts == 0 ? 0.0 : r.errors() / (double) attempts;
-        String status = (opsAfterWarmup > 0 && errorRate <= 0.5) ? "complete" : "failed";
 
         // Fault instrumentation (P1.4): explicit nulls for baseline runs —
         // an absent measurement is null, never zero.
         String faultAt = "null", failover = "null";
-        if (r.events() != null && r.events().faultMarkMillis().isPresent()) {
+        boolean faultFired = r.events() != null && r.events().faultMarkMillis().isPresent();
+        boolean failoverResolved = false;
+        if (faultFired) {
             faultAt = Long.toString(r.events().faultMarkMillis().getAsLong());
-            failover = r.events().failoverMillis().isPresent()
+            failoverResolved = r.events().failoverMillis().isPresent();
+            failover = failoverResolved
                     ? Long.toString(r.events().failoverMillis().getAsLong()) : "null";
         }
+        // F70: the EventLog drops silently past capacity and only COUNTS the
+        // drops — a number that, until now, no production code read. It is
+        // written here because it is the single fact that separates two
+        // opposite readings of the same manifest, and null (not 0) when there
+        // was no event log: a baseline run did not measure zero drops, it did
+        // not measure drops at all.
+        String eventsDropped = r.events() == null ? "null" : Long.toString(r.events().dropped());
+
+        // F50: a fault-scenario run that cannot evidence its fault is VOID as
+        // that scenario, however clean the measurement looks. The mark is
+        // stamped only after FaultInjector.apply() RETURNS, so "mark present"
+        // <=> "the fault demonstrably fired"; its absence means the injection
+        // threw, or stalled past the runner's join, and what was actually
+        // measured is an undisturbed cluster wearing a leader_kill label.
+        // Recording that here — rather than in the caller — is what makes the
+        // campaign's resume check, the ValidityChecker and analyse.py all read
+        // one truth, and keeps the trap disarmed for any future caller.
+        boolean faultNeverFired = id.scenario() != Scenario.BASELINE && !faultFired;
+
+        // F70, the same principle one layer down: a fault run whose event
+        // record OVERFLOWED cannot distinguish "the system never recovered"
+        // (a real, preregistered result — the F26 paxi wedge) from "we lost
+        // the commit that proves it did". Both write failover_ms: null.
+        // The rule is deliberately narrow — drops alone do not void a run:
+        // if the recovery commit was recorded BEFORE the buffer filled, the
+        // failover number is real and discarding it would throw away a good
+        // measurement to punish a late overflow. Only the combination
+        // "fault fired + evidence dropped + no failover resolved" is void.
+        boolean faultEvidenceLost = id.scenario() != Scenario.BASELINE
+                && faultFired && !failoverResolved
+                && r.events().dropped() > 0;
+        String status = (opsAfterWarmup > 0 && errorRate <= 0.5
+                && !faultNeverFired && !faultEvidenceLost)
+                ? "complete" : "failed";
 
         String manifest = """
                 {
@@ -155,8 +239,10 @@ public final class CsvResultsWriter {
                   "ops_after_warmup": %d,
                   "errors": %d,
                   "error_rate": %s,
+                  "loss_percent": %s,
                   "fault_injected_at_ms": %s,
                   "failover_ms": %s,
+                  "events_dropped": %s,
                   "status": "%s",
                   "harness": "consensus-bench-java"
                 }
@@ -173,14 +259,19 @@ public final class CsvResultsWriter {
                               cfg.targetRatePerSec(), cfg.maxInFlight(), cfg.valueSizeBytes(),
                               opsAfterWarmup, r.errors(),
                               String.format(java.util.Locale.ROOT, "%.4f", errorRate),
-                              faultAt, failover,
+                              // Absent, not zero, where severity has no meaning.
+                              id.lossPercent() > 0 ? Integer.toString(id.lossPercent()) : "null",
+                              faultAt, failover, eventsDropped,
                               status);
         Files.writeString(dir.resolve("manifest.json"), manifest);
     }
 
     /** Implementation-Version from the shaded jar's manifest; "dev" when
-     *  running from classes (tests, IDE) — an honest tag, not a guess. */
-    private static String harnessVersion() {
+     *  running from classes (tests, IDE) — an honest tag, not a guess.
+     *  Public because HotStuff's manifest is assembled OUTSIDE this class
+     *  (its metrics come from log parsing, not the engine) and was, until
+     *  F58, the only cell shape missing these two reproducibility fields. */
+    public static String harnessVersion() {
         String v = CsvResultsWriter.class.getPackage().getImplementationVersion();
         return v == null ? "dev" : v;
     }
@@ -191,10 +282,14 @@ public final class CsvResultsWriter {
      * reproducible": two runs with the same hash ran the same experiment.
      * Canonical '|'-joined string, so any param change changes the hash.
      */
-    private static String configHash(RunIdentity id, WorkloadEngine.Config cfg, String imageRef) {
+    public static String configHash(RunIdentity id, WorkloadEngine.Config cfg, String imageRef) {
         String canonical = String.join("|",
                 id.system().name(), id.scenario().name(),
                 Integer.toString(id.clusterSize()), Double.toString(id.conflictRatio()),
+                // D14/F53: without severity, a 5% and a 30% packet_loss cell
+                // hash identically and §1's "any cell individually
+                // reproducible" is false for that scenario.
+                Integer.toString(id.lossPercent()),
                 Integer.toString(cfg.durationSecs()), Integer.toString(cfg.warmupSecs()),
                 Long.toString(cfg.targetRatePerSec()), Integer.toString(cfg.maxInFlight()),
                 Integer.toString(cfg.valueSizeBytes()),

@@ -40,7 +40,8 @@ import java.util.List;
  * discipline; PrometheusExporter M5.4 must emit exactly it): one file per
  * query name at {@code metrics/<name>.csv}, header row, then data rows whose
  * FIRST column is {@code t_unix} and LAST column is {@code value}; an
- * {@code instance} column, if present, is carried for per-node checks. Extra
+ * {@code instance} column, if present, is currently IGNORED — the gates are
+ * whole-cluster today; per-node checks would need it and do not exist. Extra
  * label columns between are ignored. This is the runbook §5 shape
  * ({@code t_unix,t_iso,labels…,value}) read tolerantly.
  *
@@ -60,6 +61,16 @@ public final class ValidityChecker {
     static final double STEAL_MAX = 0.01;
     /** Gate 1: fixed-rate runs must achieve ≥99% of target (§4.1). */
     static final double RATE_ADHERENCE_MIN = 0.99;
+    /** Gate 1d (F52/D15): a BASELINE run's whole-run failure fraction ceiling.
+     *  PROVISIONAL until M6.2, and chosen from measured evidence rather than
+     *  taste — M0 recorded 0 errors and the CometBFT G1 acceptance ran under
+     *  1%. Fault scenarios are exempt BY DESIGN; see {@link
+     *  #gateBaselineErrorRate}. */
+    static final double BASELINE_ERROR_RATE_MAX = 0.01;
+    /** Gate 1b (M5.3): a fixed-rate run's in-flight window must not sit
+     *  pinned at its ceiling — above this occupancy the number reported is
+     *  window/latency, not the system's rate. PROVISIONAL until M6.2. */
+    static final double WINDOW_OCCUPANCY_MAX = 0.95;
     /** Gate 5: warmup-tail vs measurement-head throughput agreement
      *  (PROVISIONAL — M6.2 fixes it from pilot variance). */
     static final double CONVERGENCE_MAX_REL_DIFF = 0.20;
@@ -74,7 +85,89 @@ public final class ValidityChecker {
      *  meta-rule with a FALSE "broken retrieval" diagnosis (F40). */
     static final List<String> CONSULTED_METRICS = List.of(
             "loadgen_cpu", "loadgen_cpu_steal", "node_cpu_steal", "clock_offset",
-            "node_up", "etcd_leader_chg", "cmt_rounds", "kafka_urp");
+            "node_up", "etcd_leader_chg", "cmt_rounds", "kafka_urp", "harness_inflight");
+
+    /**
+     * The RULE behind a gate, written into every {@code validity.json}
+     * alongside the verdict (S2.1a/S2.2). Two things a bare PASS/FAIL cannot
+     * tell a reader months later, with the cluster destroyed:
+     *
+     * <p><b>Which threshold judged this run.</b> M6.2's job is to fix every
+     * PROVISIONAL threshold numerically from pilot variance, so runs from
+     * before and after that retune are judged by different numbers. If the
+     * verdict does not carry the value, no one can tell which.
+     *
+     * <p><b>What would make this verdict a FALSE POSITIVE.</b> That knowledge
+     * exists in OBSERVABILITY_AND_EXPECTATIONS.md and was, until now,
+     * unreachable from any verdict — so a red gate said "threshold exceeded"
+     * and the reader had to remember where the catalogue lived. The
+     * change-point-detection literature is blunt about this: a large share of
+     * automatically detected regressions are not actionable, so an automated
+     * verdict that ships without triage guidance trains its reader to ignore
+     * it.
+     *
+     * @param threshold the value in force, or null where the gate is not
+     *                  numeric
+     * @param reference the methodology section that justifies it
+     * @param falsePositives benign causes to rule out BEFORE believing a FAIL
+     */
+    public record GateSpec(String threshold, String reference, String falsePositives) { }
+
+    /** Every gate's rule, in one reviewable place. Pinned by test against the
+     *  gates the checker actually emits — a rule without a gate, or a gate
+     *  without a rule, is the F40 drift class in a new costume. */
+    static final java.util.Map<String, GateSpec> GATE_SPECS = java.util.Map.ofEntries(
+            java.util.Map.entry("rate_adherence", new GateSpec(
+                    "achieved/target >= " + RATE_ADHERENCE_MIN, "§4.1",
+                    "a short warmup or a cold JVM depresses the early window; check that"
+                            + " the run's own convergence gate passed before blaming the"
+                            + " client")),
+            java.util.Map.entry("baseline_error_rate", new GateSpec(
+                    "error_rate < " + BASELINE_ERROR_RATE_MAX + " (PROVISIONAL until M6.2)",
+                    "§4.1 / F52",
+                    "errors concentrated at the very start are connect-time, not"
+                            + " steady-state — check firstError in the run log")),
+            java.util.Map.entry("window_headroom", new GateSpec(
+                    "peak occupancy < " + WINDOW_OCCUPANCY_MAX + " of the window"
+                            + " (PROVISIONAL until M6.2)", "§4.1 / M5.3",
+                    "a window-bound run looks like a slow SYSTEM but is a client ceiling"
+                            + " (Little's Law) — compare window/latency against achieved")),
+            java.util.Map.entry("convergence", new GateSpec(
+                    "|head-tail|/tail <= " + CONVERGENCE_MAX_REL_DIFF + " (PROVISIONAL until M6.2)",
+                    "§4.5",
+                    "a single stalled second in either window skews the comparison; look"
+                            + " at throughput.csv before concluding the run never settled")),
+            java.util.Map.entry("loadgen_cpu", new GateSpec(
+                    "peak < " + LOADGEN_CPU_MAX, "§4.1 / D11",
+                    "a co-tenant on the loadgen (a forgotten collector, an ssh session)"
+                            + " raises this without the instrument being the bottleneck")),
+            java.util.Map.entry("loadgen_steal", new GateSpec(
+                    "peak steal < " + STEAL_MAX, "§4.1 / D11",
+                    "steal on a DEDICATED vCPU means a platform problem, not a benchmark"
+                            + " one — it is grounds to rerun, not to adjust the harness")),
+            java.util.Map.entry("node_cpu_steal", new GateSpec(
+                    "peak steal < " + STEAL_MAX, "§4.4",
+                    "same as loadgen_steal: a hypervisor-side fact about the hour, so"
+                            + " rerun before reading anything into the numbers")),
+            java.util.Map.entry("container_restarts", new GateSpec(
+                    "baseline: zero die/restart events; fault run: at least one",
+                    "§4.4 / P4.5",
+                    "a fault scenario's OWN kill is an expected restart — the audit must"
+                            + " be read against the run's scenario, never in isolation")),
+            java.util.Map.entry("clock_discipline", new GateSpec(
+                    "max |offset| < " + CLOCK_OFFSET_MAX_S + " s", "§4.6",
+                    "chrony steps hard after a VM resumes; a single spike at boot does"
+                            + " not invalidate a window that is otherwise disciplined")),
+            java.util.Map.entry("fault_ground_truth", new GateSpec(
+                    "witness moves within ±" + (FAULT_WINDOW_MS / 1000) + " s of the mark",
+                    "§4.3 / F41",
+                    "node_up cannot witness a `docker kill` — the host node_exporter"
+                            + " survives it. An unmoved witness on paxi/hotstuff is the"
+                            + " documented no-server-metrics limitation, not a targeting"
+                            + " bug; on etcd/kafka/cometbft it IS a reclassify")),
+            java.util.Map.entry("durability", new GateSpec(
+                    "per-system correctness probe passes", "§4.2 / P2.6",
+                    "not implemented — the SKIP is the honest state, not a pass")));
 
     public enum State { PASS, FAIL, SKIP }
 
@@ -98,21 +191,19 @@ public final class ValidityChecker {
         List<GateResult> gates = new ArrayList<>();
 
         gates.add(gateRateAdherence(runDir, manifest, system));
+        gates.add(gateBaselineErrorRate(manifest));
         // Gate 1's window-ceiling half needs the harness's OWN inflight
         // gauge (bench_inflight_current, M5.3) — metrics/ presence cannot
         // decide it, because an empty harness series before M5.3 exists
         // means "not exported yet", not "broken retrieval". Loud SKIP
         // until M5.3 lands; then this becomes an evaluated gate.
-        gates.add(GateResult.skip("window_headroom",
-                "in-flight-window occupancy needs harness self-metrics"
-                        + " (bench_inflight_current, M5.3) — not yet exported"));
+        gates.add(gateWindowHeadroom(runDir, manifest, hasMetrics));
         gates.add(gateConvergence(runDir, manifest, system));
         gates.add(gateLoadgenCpu(runDir, hasMetrics));
         gates.add(gateSteal("loadgen_steal", "loadgen_cpu_steal", runDir, hasMetrics));
         gates.add(gateSteal("node_cpu_steal", "node_cpu_steal", runDir, hasMetrics));
         // Gate 4's second half per methodology §4.4 — no collector yet.
-        gates.add(GateResult.skip("container_restarts",
-                "docker-events restart audit not yet collected (P4.5 open half)"));
+        gates.add(gateContainerRestarts(runDir, manifest));
         gates.add(gateClock(runDir, hasMetrics));
         gates.add(gateFaultGroundTruth(runDir, manifest, system, hasMetrics));
         gates.add(GateResult.skip("durability",
@@ -187,6 +278,102 @@ public final class ValidityChecker {
                                 ratio * 100, mean, target));
     }
 
+    /**
+     * Gate 1b (§4.1, M5.3): the instrument must not be the ceiling. A run
+     * whose in-flight window sits pinned reports {@code window/latency} by
+     * Little's Law — a property of the CLIENT, not of consensus. This
+     * project has met that confusion twice (P2.2c's Kafka parity, P2.3's
+     * CometBFT floor), both diagnosed by hand afterwards. This automates it.
+     *
+     * <p>SATURATION runs SKIP, and not as a convenience: pinning the window
+     * IS how saturation is found (Paxi's method — raise concurrency until
+     * throughput plateaus), so gating it there would fail every run that did
+     * exactly what it was asked to do.
+     */
+    private static GateResult gateWindowHeadroom(Path dir, JsonNode m, boolean hasMetrics)
+            throws IOException {
+        if (m.path("rate_ops_s").asLong(0) <= 0) {
+            return GateResult.skip("window_headroom",
+                    "saturation run — a pinned window is the METHOD here, not a defect");
+        }
+        int window = m.path("window").asInt(0);
+        if (window <= 0) {
+            // Absent FEATURE, not broken retrieval: a v1 manifest predates
+            // the field. SKIP is loud and does not make the run valid — the
+            // report still reads "valid as far as evaluated" — whereas FAIL
+            // would invalidate every historical run for lacking a field the
+            // harness did not write yet.
+            return GateResult.skip("window_headroom",
+                    "manifest declares no in-flight window (pre-M5.3 format) —"
+                            + " occupancy is uncomputable");
+        }
+        if (!hasMetrics) {
+            return GateResult.skip("window_headroom", "no metrics/ dir (M5.4 not run)");
+        }
+        List<double[]> s = metricValues(dir, "harness_inflight");
+        if (s.isEmpty()) {
+            return GateResult.fail("window_headroom",
+                    "metrics/ present but harness_inflight series empty — the harness's own"
+                            + " :9400 endpoint was not scraped (§4 meta-rule)");
+        }
+        double peak = s.stream().mapToDouble(v -> v[1]).max().orElse(0);
+        double occupancy = peak / window;
+        return occupancy < WINDOW_OCCUPANCY_MAX
+                ? GateResult.pass("window_headroom",
+                        String.format("peak occupancy %.0f/%d (%.0f%%)", peak, window,
+                                occupancy * 100))
+                : GateResult.fail("window_headroom",
+                        String.format("window pinned at %.0f/%d (%.0f%%) — this run reports"
+                                        + " window/latency, i.e. the CLIENT's ceiling",
+                                peak, window, occupancy * 100));
+    }
+
+    /**
+     * Gate 1d (F52): the manifest's own `error_rate`, gated at last. The
+     * writer computed it from the first commit onward and NOTHING consulted
+     * it — `status` tolerates up to 50% failures and `rate_adherence` SKIPs
+     * for saturation runs, so a baseline that failed 49% of its operations
+     * reported `valid: true`.
+     *
+     * <p>BASELINE ONLY, by decision (D15/F52). Fault scenarios are SUPPOSED
+     * to error: the preregistered paxi wedge (F26) fails every write at the
+     * 5 s driver bound by design, and DOUBLE_KILL is an intentional
+     * liveness-loss demonstration. Gating those on error rate would throw
+     * away precisely the evidence they exist to produce (ledger note N1).
+     * The fault-side question — are the errors CONCENTRATED around the fault
+     * mark, or spread across the run like a broken client? — is a better
+     * gate and a different one; it needs EventLog analysis and is not in
+     * scope here.
+     *
+     * <p>A missing `error_rate` FAILs rather than passes: an unmeasured
+     * error rate is not a zero one. That is the §4 meta-rule applied to a
+     * manifest field, and the same absent-is-not-zero discipline the writer
+     * follows for the fault fields.
+     */
+    private static GateResult gateBaselineErrorRate(JsonNode m) {
+        String scenario = m.path("scenario").asText("");
+        if (!"baseline".equals(scenario)) {
+            return GateResult.skip("baseline_error_rate",
+                    "'" + scenario + "' is a fault scenario — errors are the expected"
+                            + " observation, not a defect (D15/F52)");
+        }
+        JsonNode er = m.get("error_rate");
+        if (er == null || er.isNull() || !er.isNumber()) {
+            return GateResult.fail("baseline_error_rate",
+                    "manifest carries no numeric error_rate — an unmeasured error rate is"
+                            + " not a zero one (§4 meta-rule)");
+        }
+        double rate = er.asDouble();
+        return rate < BASELINE_ERROR_RATE_MAX
+                ? GateResult.pass("baseline_error_rate",
+                        String.format("%.2f%% of ops failed (< %.0f%%)",
+                                rate * 100, BASELINE_ERROR_RATE_MAX * 100))
+                : GateResult.fail("baseline_error_rate",
+                        String.format("%.2f%% of ops failed on a BASELINE run (>= %.0f%%) —"
+                                        + " this is not a steady-state measurement",
+                                rate * 100, BASELINE_ERROR_RATE_MAX * 100));
+    }
+
     /** Gate 5 (§4.5): warmup-tail vs measurement-head throughput must agree
      *  within the (provisional) threshold — a run still ramping when
      *  measurement began is not at steady state. */
@@ -215,6 +402,58 @@ public final class ValidityChecker {
                 : GateResult.fail("convergence",
                         String.format("tail %.1f vs head %.1f ops/s (%.1f%% > %.0f%%) — still ramping",
                                 tail, head, rel * 100, CONVERGENCE_MAX_REL_DIFF * 100));
+    }
+
+    /**
+     * Gate 4b (§4.4, P4.5): no UNEXPECTED container restart during the run.
+     * A restart means the run measured a different cluster than it believed
+     * it was measuring — the stationarity assumption every comparison rests
+     * on, silently broken.
+     *
+     * <p>"Unexpected" has to be read against the SCENARIO, which is why this
+     * gate could not simply count events: a fault run's own `kill` produces a
+     * die/stop event BY DESIGN, and counting it would fail exactly the runs
+     * the campaign exists to produce. So a BASELINE tolerates no die/kill at
+     * all, while a fault run tolerates them and instead uses their presence
+     * as evidence — which is the same audit doing double duty as gate 3's
+     * kill witness for the systems that have no server metrics (F41).
+     */
+    private static GateResult gateContainerRestarts(Path dir, JsonNode m) throws IOException {
+        Path events = dir.resolve("events");
+        if (!Files.isDirectory(events)) {
+            return GateResult.skip("container_restarts",
+                    "no events/ dir — the docker-events audit did not run for this cell");
+        }
+        List<String> disruptive = new ArrayList<>();
+        try (var walk = Files.list(events)) {
+            for (Path f : (Iterable<Path>) walk::iterator) {
+                for (String line : Files.readAllLines(f)) {
+                    // `die` covers both a kill and a crash; `restart` is
+                    // docker's own restart-policy action. `stop` during
+                    // teardown is expected and is outside the run window.
+                    if (line.contains(" die") || line.contains(" restart")
+                            || line.contains(" oom")) {
+                        disruptive.add(f.getFileName() + ": " + line.strip());
+                    }
+                }
+            }
+        }
+        boolean baseline = "baseline".equals(m.path("scenario").asText(""));
+        if (baseline) {
+            return disruptive.isEmpty()
+                    ? GateResult.pass("container_restarts", "no container died during the run")
+                    : GateResult.fail("container_restarts",
+                            "a BASELINE run must disturb nothing, but "
+                                    + disruptive.size() + " container event(s) say otherwise: "
+                                    + disruptive.get(0));
+        }
+        return disruptive.isEmpty()
+                ? GateResult.fail("container_restarts",
+                        "a fault run with NO container event — the audit corroborates no"
+                                + " kill, so what was measured may be an undisturbed cluster")
+                : GateResult.pass("container_restarts",
+                        disruptive.size() + " container event(s), expected for this scenario: "
+                                + disruptive.get(0));
     }
 
     // ---- gates that need metrics/ (SKIP until M5.4; FAIL on empty series) ----
@@ -282,7 +521,21 @@ public final class ValidityChecker {
                                                    boolean hasMetrics) throws IOException {
         JsonNode mark = m.get("fault_injected_at_ms");
         if (mark == null || mark.isNull()) {
-            return GateResult.skip("fault_ground_truth", "baseline run (no fault injected) — N/A");
+            // F50: an absent mark means one of two OPPOSITE things, and only
+            // the scenario tells them apart — a baseline run has nothing to
+            // corroborate, while a FAULT run with no mark is one whose
+            // injection never fired (it threw, or stalled past the runner's
+            // join). Judging by the mark alone reported the second as
+            // "baseline run — N/A" and waved it through as valid. Anything
+            // not explicitly baseline fails closed here.
+            String scenario = m.path("scenario").asText("");
+            if ("baseline".equals(scenario)) {
+                return GateResult.skip("fault_ground_truth",
+                        "baseline run (no fault injected) — N/A");
+            }
+            return GateResult.fail("fault_ground_truth",
+                    "'" + scenario + "' run carries NO fault mark — the injection never fired"
+                            + " (or stalled); the run is void as a fault cell, not a baseline");
         }
         String witness = switch (system) {
             case "etcd" -> "etcd_leader_chg";
@@ -292,9 +545,32 @@ public final class ValidityChecker {
             default -> "";
         };
         if (witness == null) {
-            return GateResult.skip("fault_ground_truth",
-                    system + " exposes no server-side metrics (documented limitation);"
-                            + " kill corroboration awaits the docker-events audit (P4.5)");
+            // F41 said this had to wait for P4.5; P4.5 is here. paxi and
+            // hotstuff expose no server metrics at all, so the events audit
+            // is their ONLY possible witness — and for a kill it is a better
+            // one than any gauge, because it observes the process dying
+            // rather than inferring it.
+            Path events = dir.resolve("events");
+            if (!Files.isDirectory(events)) {
+                return GateResult.skip("fault_ground_truth",
+                        system + " exposes no server-side metrics, and no events/ audit was"
+                                + " collected for this cell — nothing can corroborate the fault");
+            }
+            long died = 0;
+            try (var walk = Files.list(events)) {
+                for (Path f : (Iterable<Path>) walk::iterator) {
+                    died += Files.readAllLines(f).stream()
+                            .filter(l -> l.contains(" die") || l.contains(" kill")).count();
+                }
+            }
+            return died > 0
+                    ? GateResult.pass("fault_ground_truth",
+                            "corroborated by the docker-events audit (" + died
+                                    + " die/kill event(s)) — " + system + " has no server"
+                                    + " metrics, so this IS its ground truth")
+                    : GateResult.fail("fault_ground_truth",
+                            system + "'s events audit shows no container dying — the fault"
+                                    + " did not land where the run says it did");
         }
         if (witness.isEmpty()) {
             return GateResult.fail("fault_ground_truth",
@@ -352,9 +628,12 @@ public final class ValidityChecker {
         return vals.stream().mapToDouble(Double::doubleValue).toArray();
     }
 
-    /** metrics/<name>.csv → list of (t_unix, value); [] if file absent/empty.
-     *  Header located; value = last column, t_unix = first. */
-    static List<double[]> metricValues(Path dir, String name) throws IOException {
+    /** metrics/&lt;name&gt;.csv → list of (t_unix, value); [] if file absent/empty.
+     *  Header located; value = last column, t_unix = first.
+     *  Public so the PrometheusExporter's own test can assert that what the
+     *  exporter WRITES is what this checker READS — pinning the two halves
+     *  of that contract separately is exactly how they drift apart. */
+    public static List<double[]> metricValues(Path dir, String name) throws IOException {
         Path f = dir.resolve("metrics").resolve(name + ".csv");
         if (!Files.exists(f)) return List.of();
         List<String> lines = Files.readAllLines(f);
@@ -411,6 +690,14 @@ public final class ValidityChecker {
         return s / xs.length;
     }
 
+    /** Minimal JSON string escaping — the report is assembled by hand like
+     *  the manifest, and a quote in a gate detail would otherwise emit
+     *  broken JSON that every downstream reader then fails on (F21's class). */
+    private static String json(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\n", " ").replace("\r", " ");
+    }
+
     private static void writeReport(Path dir, Report r) throws IOException {
         StringBuilder sb = new StringBuilder();
         sb.append("{\n  \"valid\": ").append(r.valid()).append(",\n");
@@ -420,10 +707,21 @@ public final class ValidityChecker {
         sb.append("  \"gates\": [\n");
         for (int i = 0; i < r.gates().size(); i++) {
             GateResult g = r.gates().get(i);
+            GateSpec spec = GATE_SPECS.get(g.gate());
             sb.append("    {\"gate\": \"").append(g.gate())
               .append("\", \"state\": \"").append(g.state())
-              .append("\", \"detail\": \"").append(g.detail().replace("\"", "'"))
-              .append("\"}").append(i < r.gates().size() - 1 ? "," : "").append("\n");
+              .append("\", \"detail\": \"").append(json(g.detail()))
+              .append("\", \"threshold\": ")
+              .append(spec == null || spec.threshold() == null
+                      ? "null" : "\"" + json(spec.threshold()) + "\"")
+              .append(", \"reference\": ")
+              .append(spec == null ? "null" : "\"" + json(spec.reference()) + "\"")
+              // Only a FAIL needs triage guidance; attaching it to every PASS
+              // would bury the one case a reader must act on.
+              .append(g.state() == State.FAIL && spec != null
+                      ? ", \"check_before_believing\": \"" + json(spec.falsePositives()) + "\""
+                      : "")
+              .append("}").append(i < r.gates().size() - 1 ? "," : "").append("\n");
         }
         sb.append("  ]\n}\n");
         Files.writeString(dir.resolve("validity.json"), sb.toString());

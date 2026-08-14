@@ -316,4 +316,28 @@ class WorkloadEngineTest {
         assertEquals(0, r.errors());
         assertTrue(r.firstError() == null, "no errors -> no fabricated cause");
     }
+
+    @Test
+    void selfMetricsExposeOccupancyAndCountersWithoutTouchingTheHotPath() throws Exception {
+        // M5.3: the instrument measures itself. The gauge POLLS values the
+        // engine already maintains — the per-op path gains one LongAdder
+        // increment and nothing else, which is the same trade the error
+        // counter beside it already makes.
+        var driver = FakeDriver.responding(5);
+        var cfg = new WorkloadEngine.Config(2, 0, 200, 32, 64, 0.0);
+        var engine = new WorkloadEngine(driver, cfg, new gr.thesis.bench.core.LatencyRecorder());
+        assertEquals(0, engine.currentInFlight(), "no window before the run starts");
+
+        try (var metrics = gr.thesis.bench.core.HarnessMetrics.start(engine, 32)) {
+            engine.run();
+            String scrape = metrics.scrape();
+            // Exactly the names observability/export_queries.txt declares.
+            assertTrue(scrape.contains("bench_inflight_current"), scrape);
+            assertTrue(scrape.contains("bench_inflight_max"), scrape);
+            assertTrue(scrape.contains("bench_ops_submitted"), scrape);
+            assertTrue(scrape.contains("bench_ops_failed"), scrape);
+        }
+        assertTrue(engine.submittedCount() > 0, "issued ops must be counted");
+        assertEquals(0, engine.currentInFlight(), "the window drains before run() returns");
+    }
 }

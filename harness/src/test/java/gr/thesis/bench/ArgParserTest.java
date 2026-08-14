@@ -7,6 +7,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins the CLI argument contract (P0.1, written red-first):
@@ -78,5 +79,17 @@ class ArgParserTest {
         assertThrows(IllegalArgumentException.class,
                 () -> Main.requireDurationExceedsWarmup(4, 5));
         Main.requireDurationExceedsWarmup(6, 5); // valid: must not throw
+    }
+
+    @Test
+    void campaignRunAcceptsSimulationAndRejectsAnUnknownOne() {
+        // The flag exists (F32's requireKnownKeys would reject it otherwise)…
+        Main.requireKnownKeys(Main.parse(new String[]{"--simulation", "standard"}),
+                java.util.Set.of("simulation"));
+        // …and an unknown NAME must fail closed against the real set, the
+        // same rule F32 applied to unknown KEYS: silently running the default
+        // simulation would produce a whole block of the wrong experiment.
+        assertTrue(gr.thesis.bench.campaign.Simulations.byName().containsKey("standard"));
+        assertFalse(gr.thesis.bench.campaign.Simulations.byName().containsKey("stanadrd"));
     }
 }

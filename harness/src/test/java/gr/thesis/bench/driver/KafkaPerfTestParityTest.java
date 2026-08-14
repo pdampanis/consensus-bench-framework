@@ -27,8 +27,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * client stack with different concurrency semantics — the retired probes
  * were 100–1000x off, and THAT class is what a local regression can catch.
  *
- * Why the band is 3x here and the 15% gate is G3's (measured 2026-07-15,
- * four configurations on one laptop — evidence, not hand-waving):
+ * BAND WIDENED to 0.1x–10x on 2026-08-14 (F68, author's decision). It was
+ * 0.33x–3.0x, which is TIGHTER than the 0.2x–2.8x swing this very javadoc
+ * records observing across four laptop configurations — so the gate was
+ * asserting on the laptop's spare capacity, and it red-lined `clean verify`
+ * twice in one session (0.22x, then 11% expiry errors) at load average ~15,
+ * then passed at 1.86x in isolation on the SAME tree minutes later. A gate
+ * that reds on unrelated background load is the one test that trains its
+ * author to wave a red build through — and IMPLEMENTATION_PLAN's own honest
+ * review names "gates holding under impatience" as the plan's deepest
+ * assumption. 0.1x–10x still catches the 100–1000x class this exists for
+ * (see below) while ignoring load noise; the test therefore stays in the
+ * default `verify` rather than being tagged out, because a test that must be
+ * remembered is a test that will be forgotten, and this one is a G1
+ * regression test. The symmetric ±15% comparison remains G3/M6.1's, on
+ * controlled hardware.
+ *
+ * Why the band is order-of-magnitude here and the 15% gate is G3's
+ * (measured 2026-07-15, four configurations on one laptop — evidence, not
+ * hand-waving):
  *  - 6-partition topic: harness 137k vs oracle 97k (short oracle run: its
  *    3 s aggregate was ramp-dominated), then 87k vs 47k on longer runs —
  *    perf-test's null-key sticky partitioner streams ONE partition at a
@@ -142,10 +159,15 @@ class KafkaPerfTestParityTest {
             System.out.printf(
                     "G1 flaw-B parity (local, order-of-magnitude): harness=%.0f ops/s "
                             + "perf-test=%.0f rec/s ratio=%.2fx%n", harness, oracle, ratio);
-            assertTrue(ratio >= 1.0 / 3 && ratio <= 3.0,
+            assertTrue(ratio >= 0.1 && ratio <= 10.0,
                     ("G1 flaw-B class regression: harness %.0f ops/s vs perf-test %.0f rec/s "
-                            + "(%.2fx) — outside the 3x order-of-magnitude band; the retired "
-                            + "probe class was 100-1000x off").formatted(harness, oracle, ratio));
+                            + "(%.2fx) — outside the 0.1x–10x band (F68). This band is "
+                            + "deliberately an ORDER OF MAGNITUDE: the class it guards is the "
+                            + "retired probe's 100-1000x error, not a 2-3x laptop swing. A "
+                            + "failure here is therefore a real signal — but check "
+                            + "/proc/meminfo Dirty/Writeback and the load average first, and "
+                            + "rerun settled, before suspecting the code")
+                            .formatted(harness, oracle, ratio));
         }
     }
 }

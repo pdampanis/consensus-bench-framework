@@ -111,8 +111,34 @@ class RemoteRunnerTest {
     void faultTimeOutsideTheRunFailsClosedAtConstruction() {
         assertThrows(IllegalArgumentException.class, () -> new RemoteRunner.Spec(
                 SystemUnderTest.ETCD, Scenario.LEADER_KILL, 3, 300, 480, 180, 200, 1024,
-                0.0, 480 /* == duration: fault could never land */, 30,
+                0.0, 480 /* == duration: fault could never land */, 0, 0,
                 Path.of("results"), "r001", Path.of("deploy/inventory.env"), "root"));
+    }
+
+    @Test
+    void engineStartWaitIsBoundedSoAFailedConnectCannotSpinForever() {
+        // F50c: the fault thread waits for the engine to start the EventLog
+        // (F47's alignment fix). If engine.run() dies inside driver.connect(),
+        // start() never comes and the ORIGINAL unbounded loop spun for the
+        // life of the campaign JVM — one leaked daemon thread per failed
+        // fault cell, plus a fixed 30 s join timeout each time. The bound is
+        // a leak-stopper, not a timing gate, so it fails LOUD rather than
+        // returning as if the engine had started.
+        var neverStarted = new gr.thesis.bench.core.EventLog(8);
+        long t0 = System.nanoTime();
+        var e = assertThrows(IllegalStateException.class,
+                () -> RemoteRunner.awaitEngineStart(neverStarted, java.time.Duration.ofMillis(300)));
+        long elapsedMs = (System.nanoTime() - t0) / 1_000_000L;
+
+        assertTrue(e.getMessage().contains("event log"), e.getMessage());
+        assertTrue(elapsedMs < 5_000, "must give up at its bound, waited " + elapsedMs + " ms");
+    }
+
+    @Test
+    void engineStartWaitReturnsOnceTheLogIsStarted() throws Exception {
+        var started = new gr.thesis.bench.core.EventLog(8);
+        started.start(System.nanoTime());
+        RemoteRunner.awaitEngineStart(started, java.time.Duration.ofSeconds(5)); // must not throw
     }
 
     @Test
@@ -122,8 +148,144 @@ class RemoteRunnerTest {
         // starts on BASELINE, so the check validated an input the run never
         // reads. The validation now applies to fault scenarios only.
         var spec = new RemoteRunner.Spec(SystemUnderTest.ETCD, Scenario.BASELINE, 3, 300,
-                200, 180, 200, 1024, 0.0, 240 /* > duration, unused */, 30,
+                200, 180, 200, 1024, 0.0, 240 /* > duration, unused */, 0, 0,
                 Path.of("results"), "r001", Path.of("deploy/inventory.env"), "root");
         assertEquals(Scenario.BASELINE, spec.scenario());
+    }
+
+    // ---- F70: how the event buffer is sized, and where it stops scaling ----
+
+    // ---- D15.3: slow_node's load lasts as long as the other faults ----
+
+    @Test
+    void slowNodeDurationIsDerivedFromTheRunShapeNotFixed() {
+        // Standard block: 480 - 240 + 30 = 270. Failover block: 360 - 240
+        // + 30 = 150. A FIXED 120 s left slow_node faulted for a shorter
+        // slice of the measurement window than kill/partition/packet_loss,
+        // which persist until heal() — and F5 compares those side by side.
+        var std = new RemoteRunner.Spec(SystemUnderTest.ETCD, Scenario.SLOW_NODE, 3, 300,
+                480, 180, 200, 1024, 0.0, 240, 0, 0, Path.of("results"), "r001",
+                Path.of("inv"), "root");
+        assertEquals(270, RemoteRunner.slowNodeSeconds(std));
+
+        var failover = new RemoteRunner.Spec(SystemUnderTest.ETCD, Scenario.SLOW_NODE, 3, 300,
+                360, 180, 200, 1024, 0.0, 240, 0, 0, Path.of("results"), "r001",
+                Path.of("inv"), "root");
+        assertEquals(150, RemoteRunner.slowNodeSeconds(failover));
+    }
+
+    // ---- D14/F53: --loss belongs to PACKET_LOSS and nowhere else ----
+
+    @Test
+    void severityIsRequiredForPacketLossAndRefusedElsewhere() {
+        // Before D14 `--loss` defaulted to 30 for EVERY scenario, so a
+        // leader_kill spec silently carried a severity it never used. Once
+        // severity became part of cell identity that would have written a
+        // `loss30` path segment onto runs that never lost a packet.
+        assertThrows(IllegalArgumentException.class, () -> new RemoteRunner.Spec(
+                SystemUnderTest.ETCD, Scenario.LEADER_KILL, 3, 300, 480, 180, 200, 1024,
+                0.0, 240, 30, 0, Path.of("results"), "r001",
+                Path.of("deploy/inventory.env"), "root"));
+        assertThrows(IllegalArgumentException.class, () -> new RemoteRunner.Spec(
+                SystemUnderTest.ETCD, Scenario.PACKET_LOSS, 3, 300, 480, 180, 200, 1024,
+                0.0, 240, 0, 0, Path.of("results"), "r001",
+                Path.of("deploy/inventory.env"), "root"));
+        // …and the valid shape constructs.
+        var ok = new RemoteRunner.Spec(SystemUnderTest.ETCD, Scenario.PACKET_LOSS, 3, 300,
+                480, 180, 200, 1024, 0.0, 240, 5, 0, Path.of("results"), "r001",
+                Path.of("deploy/inventory.env"), "root");
+        assertEquals(5, ok.packetLossPercent());
+    }
+
+    /** faultAt is derived so the Spec's own F48 guard is always satisfied —
+     *  these tests are about buffer sizing, not about fault timing. */
+    private static RemoteRunner.Spec faultSpec(long rate, int duration) {
+        return new RemoteRunner.Spec(SystemUnderTest.ETCD, Scenario.LEADER_KILL, 3, rate,
+                duration, 180, 200, 1024, 0.0, Math.max(1, duration / 2), 0, 0,
+                Path.of("results"), "r001", Path.of("deploy/inventory.env"), "root");
+    }
+
+    @Test
+    void eventCapacityScalesWithTheRunShapeForRateBoundRuns() {
+        // The buffer is derived, not fixed: rate x duration with 2x slack for
+        // retries and the drain tail, plus the in-flight window.
+        assertEquals(1_000 * 300 * 2 + 200, RemoteRunner.eventCapacity(faultSpec(1_000, 300)));
+        // …and it is floored, so a tiny smoke run still records its events.
+        assertEquals(100_000, RemoteRunner.eventCapacity(faultSpec(10, 10)));
+    }
+
+    @Test
+    void eventCapacityStopsScalingAtTheRoofAndSaturationRunsGetOnlyTheRoof() {
+        // F70's mechanism, pinned so the roof is visible in the suite rather
+        // than buried in a constant. At the campaign shape (duration 480) the
+        // derived size reaches the 4,000,000 roof at ~4,167 ops/s, so every
+        // faster run is capped — and a SATURATION run (rate <= 0) has no rate
+        // to derive from and takes the roof unconditionally.
+        assertEquals(4_000_000, RemoteRunner.eventCapacity(faultSpec(50_000, 480)));
+        assertEquals(4_000_000, RemoteRunner.eventCapacity(faultSpec(0, 480)));
+
+        // Why that matters, stated as arithmetic rather than prose: the
+        // campaign injects at warmup+60 = 240 s, so a run sustaining more
+        // than 4,000,000 / 240 s commits fills the buffer BEFORE the fault
+        // mark. Past that point failoverMillis() can find no qualifying
+        // commit and the manifest would read "fault fired, never recovered".
+        // CsvResultsWriter now refuses to call such a run complete (F70);
+        // sizing the buffer from a measured saturation input is the follow-on.
+        assertTrue(4_000_000 / 240 < 20_000,
+                "a >20k ops/s fault run overflows before the mark — the honest-status"
+                        + " rule in CsvResultsWriter is what stands between that and the"
+                        + " F4 failover ECDF");
+    }
+
+    // ---- S3.2: every run must be validity-checked, or the gates are decor ----
+
+    @Test
+    void writingAResultAlsoWritesItsValidityVerdict(@org.junit.jupiter.api.io.TempDir
+                                                    Path out) throws Exception {
+        // ValidityChecker has been a LIBRARY THAT NOTHING CALLS: neither
+        // RemoteRunner nor MatrixRunner invoked check(), so no campaign run
+        // has ever produced a validity.json. Ten gates that never run are
+        // not gates.
+        var id = new gr.thesis.bench.results.CsvResultsWriter.RunIdentity(
+                SystemUnderTest.ETCD, Scenario.BASELINE, 3, 0.0, "r001");
+        var cfg = new gr.thesis.bench.core.WorkloadEngine.Config(6, 2, 100, 64, 1024, 0.0);
+        var rec = new gr.thesis.bench.core.LatencyRecorder();
+        for (int i = 0; i < 400; i++) rec.record(1_000, true);
+        long[] perSec = {100, 100, 100, 100, 100, 100};
+        var result = new gr.thesis.bench.core.WorkloadEngine.Result(perSec, rec, 0);
+
+        RemoteRunner.writeResultsAndCheck(out, id, result, cfg, "hetzner", "img@sha256:x",
+                java.time.Instant.EPOCH, java.time.Instant.EPOCH.plusSeconds(6));
+
+        Path dir = id.dir(out);
+        assertTrue(java.nio.file.Files.exists(dir.resolve("manifest.json")), "manifest");
+        assertTrue(java.nio.file.Files.exists(dir.resolve("validity.json")),
+                "the run must carry its own verdict beside its numbers");
+        String v = java.nio.file.Files.readString(dir.resolve("validity.json"));
+        assertTrue(v.contains("\"gate\": \"baseline_error_rate\""), v);
+    }
+
+    @Test
+    void anUncheckableRunStillKeepsItsMeasurement(@org.junit.jupiter.api.io.TempDir
+                                                  Path out) throws Exception {
+        // The verdict is a JUDGEMENT of the measurement, not part of it. If
+        // checking blows up, the CSVs and manifest must still be on disk —
+        // losing a measured run because we could not grade it would be the
+        // worst possible trade. checkTree()'s record-and-continue rule,
+        // applied one level down.
+        var id = new gr.thesis.bench.results.CsvResultsWriter.RunIdentity(
+                SystemUnderTest.ETCD, Scenario.BASELINE, 3, 0.0, "r002");
+        var cfg = new gr.thesis.bench.core.WorkloadEngine.Config(6, 2, 100, 64, 1024, 0.0);
+        var rec = new gr.thesis.bench.core.LatencyRecorder();
+        for (int i = 0; i < 400; i++) rec.record(1_000, true);
+        var result = new gr.thesis.bench.core.WorkloadEngine.Result(
+                new long[]{100, 100, 100, 100, 100, 100}, rec, 0);
+        RemoteRunner.writeResultsAndCheck(out, id, result, cfg, "hetzner", null,
+                java.time.Instant.EPOCH, java.time.Instant.EPOCH.plusSeconds(6));
+        // Make the dir unreadable for a re-check and prove the measurement survives.
+        java.nio.file.Files.delete(id.dir(out).resolve("throughput.csv"));
+        RemoteRunner.writeResultsAndCheck(out, id, result, cfg, "hetzner", null,
+                java.time.Instant.EPOCH, java.time.Instant.EPOCH.plusSeconds(6));
+        assertTrue(java.nio.file.Files.exists(id.dir(out).resolve("manifest.json")));
     }
 }

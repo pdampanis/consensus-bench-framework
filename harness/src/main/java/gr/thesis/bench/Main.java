@@ -83,7 +83,8 @@ public final class Main {
      *  are their own block (--scenarios leader_kill --reps 30). */
     private static void campaignRun(Map<String, String> a) throws Exception {
         requireKnownKeys(a, java.util.Set.of("inventory", "system", "size", "scenarios",
-                "rates", "conflicts", "reps", "seed", "out", "ssh-user", "dry-run", "verbose"));
+                "rates", "conflicts", "reps", "seed", "out", "ssh-user", "dry-run", "verbose",
+                "simulation"));
         String systemArg = a.get("system");
         if (systemArg == null) {
             throw new IllegalArgumentException("--system is required (one block per system)");
@@ -96,16 +97,36 @@ public final class Main {
                 .map(String::strip).map(Long::parseLong).toList();
         var conflicts = Arrays.stream(a.getOrDefault("conflicts", "0").split(","))
                 .map(String::strip).map(Double::parseDouble).toList();
+        long seed = Long.parseLong(a.getOrDefault("seed", "20260718"));
+        int size = Integer.parseInt(a.getOrDefault("size",
+                String.valueOf(system.defaultClusterSize())));
+        Path out = Path.of(a.getOrDefault("out", "results"));
+        Path inventory = Path.of(a.getOrDefault("inventory", "deploy/inventory.env"));
+        String sshUser = a.getOrDefault("ssh-user", "root");
+
+        // D12: a NAMED simulation is the campaign's unit of intent. Rates stay
+        // an operator input even here, because the runbook's 25/50/75% points
+        // come from a PRIOR block's measured saturation — a constant cannot
+        // know them. An unknown name fails closed against the real set rather
+        // than silently running the default (F32's rule, applied to a value).
+        String simName = a.get("simulation");
+        if (simName != null) {
+            var builders = gr.thesis.bench.campaign.Simulations.byName();
+            var builder = builders.get(simName);
+            if (builder == null) {
+                throw new IllegalArgumentException("unknown --simulation " + simName
+                        + " (valid: " + builders.keySet() + ")");
+            }
+            var named = builder.build(system, size, rates, seed, out, inventory, sshUser);
+            gr.thesis.bench.campaign.MatrixRunner.run(named,
+                    gr.thesis.bench.campaign.RemoteRunner::run, a.containsKey("dry-run"));
+            return;
+        }
+
         var block = gr.thesis.bench.campaign.MatrixRunner.block(
-                system,
-                Integer.parseInt(a.getOrDefault("size",
-                        String.valueOf(system.defaultClusterSize()))),
-                scenarios, rates, conflicts,
+                system, size, scenarios, rates, conflicts,
                 Integer.parseInt(a.getOrDefault("reps", "5")),
-                Long.parseLong(a.getOrDefault("seed", "20260718")),
-                Path.of(a.getOrDefault("out", "results")),
-                Path.of(a.getOrDefault("inventory", "deploy/inventory.env")),
-                a.getOrDefault("ssh-user", "root"));
+                seed, out, inventory, sshUser);
         gr.thesis.bench.campaign.MatrixRunner.run(block,
                 gr.thesis.bench.campaign.RemoteRunner::run, a.containsKey("dry-run"));
     }
@@ -146,7 +167,15 @@ public final class Main {
                 Integer.parseInt(a.getOrDefault("valsize", "1024")),
                 Double.parseDouble(a.getOrDefault("conflict", "0")),
                 Integer.parseInt(a.getOrDefault("fault-at", String.valueOf(warmup + 60))),
-                Integer.parseInt(a.getOrDefault("loss", "30")),
+                // D14/F53: no default severity. It is required for
+                // PACKET_LOSS (the value IS part of cell identity) and
+                // refused elsewhere; the Spec re-checks both.
+                scenario == Scenario.PACKET_LOSS
+                        ? Integer.parseInt(requireArg(a, "loss", scenario)) : 0,
+                // A single remote-run cell always uses the DOCUMENTED
+                // replica 0 for leaderless systems; rotation belongs to the
+                // >=30-trial failover block (D15.5), which campaign-run owns.
+                0,
                 Path.of(a.getOrDefault("out", "results")),
                 runId,
                 Path.of(a.getOrDefault("inventory", "deploy/inventory.env")),
@@ -247,6 +276,18 @@ public final class Main {
                 r.latencies().percentileMicros(99), r.latencies().percentileMicros(99.9),
                 r.latencies().percentileMicros(100));
         log.info("results -> {}", id.dir(out));
+    }
+
+    /** A required argument, named in the failure so the operator knows what
+     *  to pass and why it is not defaulted (D14: a hidden severity is the
+     *  F53 bug). */
+    static String requireArg(Map<String, String> args, String key, Object because) {
+        String v = args.get(key);
+        if (v == null) {
+            throw new IllegalArgumentException(
+                    "--" + key + " is required for " + because + " and has no default");
+        }
+        return v;
     }
 
     /** Fail closed on a typo'd argument name (F32): `--ratee 300` parsing

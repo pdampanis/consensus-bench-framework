@@ -1,3 +1,10 @@
+# ARCHIVED 2026-08-15
+
+> Superseded: PROJECT_STATE is now self-contained, so a fresh session needs no separate priming prompt.
+> **The driver is `docs/PROJECT_STATE.md`.**
+
+---
+
 CONTINUATION PROMPT — paste this into a fresh session (Fable) to resume the
 consensus-benchmark implementation. Attach the project files noted at the end.
 

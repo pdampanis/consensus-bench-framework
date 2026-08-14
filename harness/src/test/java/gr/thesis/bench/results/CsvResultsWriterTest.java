@@ -43,6 +43,8 @@ class CsvResultsWriterTest {
 
     private static final CsvResultsWriter.RunIdentity ID =
             new CsvResultsWriter.RunIdentity(SystemUnderTest.ETCD, Scenario.BASELINE, 1, 0.0, "t1");
+    private static final CsvResultsWriter.RunIdentity FAULT_ID =
+            new CsvResultsWriter.RunIdentity(SystemUnderTest.ETCD, Scenario.LEADER_KILL, 3, 0.0, "t1");
     private static final WorkloadEngine.Config CFG =
             new WorkloadEngine.Config(10, 2, 100, 64, 256, 0.0);
     private static final String IMG = "quay.io/coreos/etcd@sha256:5a65b4c6test";
@@ -249,5 +251,221 @@ class CsvResultsWriterTest {
         assertTrue(manifest(ID).contains("\"fault_injected_at_ms\": 25"), manifest(ID));
         assertTrue(manifest(ID).contains("\"failover_ms\": null"),
                 "no recovery -> null, never a fabricated number: " + manifest(ID));
+    }
+
+    // ---- F50: a fault run whose fault never fired is not a fault result ----
+    // The mark is stamped only after FaultInjector.apply() RETURNS, so
+    // "mark present" <=> "the fault demonstrably fired". A fault-scenario run
+    // that cannot show a mark is void as that scenario, however clean its
+    // measurement looks — and the manifest is where every downstream layer
+    // (campaign resume, ValidityChecker, analyse.py) learns that.
+
+    @Test
+    void faultScenarioWithoutAMarkMayNotClaimComplete() throws IOException {
+        // The engine started the log; the fault thread never stamped it
+        // (injection threw, or stalled past the runner's join). The
+        // measurement itself is pristine — which is precisely why an honest
+        // status is the only thing standing between it and the leader_kill
+        // figures.
+        var events = new EventLog(16);
+        events.start(0);
+        events.append(10_000_000L, true);
+        var rec = new LatencyRecorder();
+        for (int i = 0; i < 100; i++) rec.record(1_000, true);
+        writeRun(FAULT_ID, new WorkloadEngine.Result(tenGoodSeconds(), rec, 0, events), CFG);
+
+        assertTrue(manifest(FAULT_ID).contains("\"fault_injected_at_ms\": null"), manifest(FAULT_ID));
+        assertTrue(manifest(FAULT_ID).contains("\"status\": \"failed\""),
+                "an unmarked fault run must not claim complete: " + manifest(FAULT_ID));
+    }
+
+    @Test
+    void faultScenarioWithNoEventLogAtAllIsAlsoFailed() throws IOException {
+        // The baseline-shaped Result (no EventLog) can never evidence a fault.
+        writeRun(FAULT_ID, result(tenGoodSeconds(), 0, 100), CFG);
+        assertTrue(manifest(FAULT_ID).contains("\"status\": \"failed\""),
+                "no event log means no fault evidence: " + manifest(FAULT_ID));
+    }
+
+    @Test
+    void faultScenarioWithAMarkStillCompletes() throws IOException {
+        // The guard against over-correcting: a fault that DID fire is a
+        // perfectly good fault result.
+        var events = new EventLog(16);
+        events.start(0);
+        events.append(10_000_000L, true);
+        events.faultInjectedAt(25_000_000L);
+        events.append(95_000_000L, true);
+        var rec = new LatencyRecorder();
+        for (int i = 0; i < 100; i++) rec.record(1_000, true);
+        writeRun(FAULT_ID, new WorkloadEngine.Result(tenGoodSeconds(), rec, 0, events), CFG);
+
+        assertTrue(manifest(FAULT_ID).contains("\"status\": \"complete\""),
+                "a marked fault run is valid data: " + manifest(FAULT_ID));
+    }
+
+    // ---- D14/F53: packet-loss SEVERITY is part of cell identity ----
+    // Sweeping severity (5% and 30%) without this is worse than leaving it
+    // hardcoded: RunIdentity.dir() is <system>/<scenario>/size<N>[/c<pct>]/
+    // <runId> and MatrixRunner's runId is rate<R>r<NN>, so two severities of
+    // the same scenario resolved to the SAME directory and the SAME
+    // config_hash. The latent ambiguity would have become an active
+    // overwrite — the v6 path-collision class this record's javadoc claims
+    // is inexpressible.
+
+    private static final CsvResultsWriter.RunIdentity LOSS5 =
+            new CsvResultsWriter.RunIdentity(SystemUnderTest.ETCD, Scenario.PACKET_LOSS,
+                    3, 0.0, 5, "t1");
+    private static final CsvResultsWriter.RunIdentity LOSS30 =
+            new CsvResultsWriter.RunIdentity(SystemUnderTest.ETCD, Scenario.PACKET_LOSS,
+                    3, 0.0, 30, "t1");
+
+    private static WorkloadEngine.Result markedFaultResult() {
+        var events = new EventLog(16);
+        events.start(0);
+        events.append(10_000_000L, true);
+        events.faultInjectedAt(25_000_000L);
+        events.append(95_000_000L, true);
+        var rec = new LatencyRecorder();
+        for (int i = 0; i < 100; i++) rec.record(1_000, true);
+        return new WorkloadEngine.Result(tenGoodSeconds(), rec, 0, events);
+    }
+
+    @Test
+    void twoPacketLossSeveritiesGetDifferentResultDirectories() {
+        assertNotEquals(LOSS5.dir(root), LOSS30.dir(root),
+                "5% and 30% packet loss are different cells — sharing a directory means"
+                        + " the second silently OVERWRITES the first and resume skips it");
+        assertTrue(LOSS5.dir(root).toString().contains("loss5"), LOSS5.dir(root).toString());
+    }
+
+    @Test
+    void twoPacketLossSeveritiesGetDifferentConfigHashes() throws IOException {
+        writeRun(LOSS5, markedFaultResult(), CFG);
+        writeRun(LOSS30, markedFaultResult(), CFG);
+        String h5 = hashOf(manifest(LOSS5)), h30 = hashOf(manifest(LOSS30));
+        assertNotEquals(h5, h30,
+                "methodology §1 requires any cell individually reproducible from its"
+                        + " config_hash; identical hashes make the severity invisible");
+    }
+
+    @Test
+    void manifestCarriesLossPercentOnlyWhereItMeansSomething() throws IOException {
+        writeRun(LOSS30, markedFaultResult(), CFG);
+        assertTrue(manifest(LOSS30).contains("\"loss_percent\": 30"), manifest(LOSS30));
+        // A non-packet-loss run did not measure a loss percentage of zero —
+        // it has none. Absent is not zero, as with the fault fields (F70).
+        writeRun(ID, result(tenGoodSeconds(), 0, 100), CFG);
+        assertTrue(manifest(ID).contains("\"loss_percent\": null"), manifest(ID));
+    }
+
+    @Test
+    void severityOnANonPacketLossScenarioFailsClosed() {
+        assertThrows(IllegalArgumentException.class, () ->
+                new CsvResultsWriter.RunIdentity(SystemUnderTest.ETCD, Scenario.LEADER_KILL,
+                        3, 0.0, 30, "t1"),
+                "a leader_kill run has no packet-loss severity — silently carrying one"
+                        + " would put a meaningless segment in the results tree");
+    }
+
+    @Test
+    void packetLossWithoutASeverityFailsClosed() {
+        assertThrows(IllegalArgumentException.class, () ->
+                new CsvResultsWriter.RunIdentity(SystemUnderTest.ETCD, Scenario.PACKET_LOSS,
+                        3, 0.0, 0, "t1"),
+                "a packet_loss cell whose severity is unset is the F53 ambiguity again");
+    }
+
+    private static String hashOf(String manifest) {
+        var m = java.util.regex.Pattern.compile("\"config_hash\": \"([0-9a-f]+)\"").matcher(manifest);
+        assertTrue(m.find(), "manifest carries a config_hash");
+        return m.group(1);
+    }
+
+    // ---- F70: an EventLog that OVERFLOWED may not pose as a measurement ----
+    // EventLog.append drops silently past capacity and only counts the drops;
+    // RemoteRunner caps the buffer at 4,000,000 events, which a saturation run
+    // exceeds. If the buffer fills before the fault mark, failoverMillis()
+    // finds no qualifying commit and returns empty — so the run writes
+    // "fault_injected_at_ms": <n> with "failover_ms": null, which is
+    // INDISTINGUISHABLE from the honest "the system never recovered" (the
+    // preregistered paxi wedge, F26). The distinguishing fact — that we lost
+    // the record — was computed by EventLog.dropped() and then read by nobody.
+
+    @Test
+    void faultRunThatLostItsEventRecordMayNotClaimComplete() throws IOException {
+        // Capacity 2, four appends: the log overflows BEFORE the mark, so the
+        // recovery commit at 95 ms is dropped and never seen again.
+        var events = new EventLog(2);
+        events.start(0);
+        events.append(1_000_000L, true);
+        events.append(2_000_000L, true);
+        events.append(3_000_000L, true);          // dropped
+        events.faultInjectedAt(25_000_000L);
+        events.append(95_000_000L, true);         // the recovery — dropped
+
+        var rec = new LatencyRecorder();
+        for (int i = 0; i < 100; i++) rec.record(1_000, true);
+        writeRun(FAULT_ID, new WorkloadEngine.Result(tenGoodSeconds(), rec, 0, events), CFG);
+
+        String m = manifest(FAULT_ID);
+        assertTrue(m.contains("\"fault_injected_at_ms\": 25"), m);
+        assertTrue(m.contains("\"failover_ms\": null"), m);
+        assertTrue(m.contains("\"status\": \"failed\""),
+                "a fault run whose event record overflowed cannot tell 'never recovered'"
+                        + " from 'we lost the evidence' — it must not claim complete: " + m);
+    }
+
+    @Test
+    void manifestCarriesTheDroppedEventCount() throws IOException {
+        var events = new EventLog(2);
+        events.start(0);
+        events.append(1_000_000L, true);
+        events.append(2_000_000L, true);
+        events.append(3_000_000L, true);          // dropped
+        events.faultInjectedAt(25_000_000L);
+
+        var rec = new LatencyRecorder();
+        for (int i = 0; i < 100; i++) rec.record(1_000, true);
+        writeRun(FAULT_ID, new WorkloadEngine.Result(tenGoodSeconds(), rec, 0, events), CFG);
+
+        assertTrue(manifest(FAULT_ID).contains("\"events_dropped\": 1"),
+                "the drop count is the only thing that distinguishes a lost record from"
+                        + " a real absence — it belongs in the manifest: " + manifest(FAULT_ID));
+    }
+
+    @Test
+    void baselineRunReportsNullDroppedNotZero() throws IOException {
+        // A run with no EventLog did not measure zero drops; it did not
+        // measure drops at all. Absent != zero, as with the fault fields.
+        writeRun(ID, result(tenGoodSeconds(), 0, 100), CFG);
+        assertTrue(manifest(ID).contains("\"events_dropped\": null"), manifest(ID));
+    }
+
+    @Test
+    void faultRunWithDropsButAResolvedFailoverStaysComplete() throws IOException {
+        // The guard against over-correcting, and the reason the rule is not
+        // simply "drops > 0 => failed": here the buffer filled AFTER the
+        // recovery commit was already recorded, so the failover number is
+        // real and the run is valid data. Discarding it would throw away a
+        // good measurement to punish a late overflow.
+        var events = new EventLog(4);
+        events.start(0);
+        events.append(1_000_000L, true);
+        events.faultInjectedAt(25_000_000L);
+        events.append(95_000_000L, true);         // recovery, captured
+        events.append(96_000_000L, true);
+        events.append(97_000_000L, true);
+        events.append(98_000_000L, true);         // dropped
+
+        var rec = new LatencyRecorder();
+        for (int i = 0; i < 100; i++) rec.record(1_000, true);
+        writeRun(FAULT_ID, new WorkloadEngine.Result(tenGoodSeconds(), rec, 0, events), CFG);
+
+        String m = manifest(FAULT_ID);
+        assertTrue(m.contains("\"failover_ms\": 70"), m);
+        assertTrue(m.contains("\"events_dropped\": 1"), m);
+        assertTrue(m.contains("\"status\": \"complete\""),
+                "drops after a captured recovery do not void the measurement: " + m);
     }
 }

@@ -104,6 +104,114 @@ validity threat on consensus nodes was inconsistent — steal on the loadgen
 corrupts tails undetectably. Cost delta ≈ €0.05/h (noise). A loadgen
 CPU-steal check joins the validity gates (methodology §4.1).
 
+**D12 — A simulation is a typed Java record, published as JSON** *(decided
+2026-08-14)*. One experiment definition = a named constant in the harness,
+not a parsed config file. The rebuild's founding lesson is that typed Java
+makes the v6 string-surgery bug class inexpressible at compile time; a YAML
+simulation file would reintroduce exactly that, and buy a parser, a schema,
+and a new failure mode for a benefit ("rerun without rebuilding") nobody has
+needed. Instead the runner **serializes the fully resolved spec** to
+`simulation.json` in the results tree and folds its hash into every manifest
+— so the thesis appendix still gets a publishable, citable artifact, and a
+mistyped scenario is still a compile error. Same discipline as the goldens:
+the written text is the reviewable spec. Rejected: file-driven specs
+(OpenMessaging/YCSB model) — reconsider only if the pilot needs threshold or
+shape changes faster than a ~30 s rebuild allows. Detail:
+`SIMULATION_AND_RULES_ANALYSIS.md` §4.
+
+**D13 — Result confidence is an ORDINAL grade mechanizing methodology §6,
+never a numeric score** *(decided 2026-08-14)*. Each cell carries a grade
+derived from the existing four claim gates (effect estimated with a CI
+excluding the null; mechanistically consistent; directionally consistent
+with published results; survives its caveats) **plus validity-gate
+coverage**: A = every applicable gate evaluated and PASS; B = as A with ≥1
+SKIP, which the grade NAMES; C = a gate FAILed or n incomplete → reportable
+as an observation, never as a conclusion; VOID = the run cannot evidence
+what it claims (the F50/F70 class). The grade is shorthand for *which
+criteria were met* and always ships with that list. A 0–100 score was
+rejected: it invites false precision and cannot be defended in a viva.
+Load-bearing constraint: **the grade may not ship before the gates actually
+evaluate** — measured 2026-08-14 at 1 of 10.
+*Anchored 2026-08-14:* the scheme is **adapted from GRADE** (Guyatt et al.,
+BMJ 2008;336:924–926), which rates a body of evidence on ordinal levels and
+downgrades for named reasons — imprecision, inconsistency, indirectness,
+risk of bias, publication bias. Two consequences taken from it: **the grade
+attaches to a CELL (n=5), never to a single run**, because GRADE is explicit
+that quality is a property of a body of evidence; and our downgrade reasons
+are stated in GRADE's vocabulary (imprecision ← CI fails to exclude the
+null; inconsistency ← per-run spread / CoV; indirectness ← the D9 hardware
+seam and HotStuff's log-derived metrics; risk of bias ← a FAILed or SKIPped
+gate). Publication bias has no analogue here — a single-author campaign
+reporting every cell — and the thesis says so rather than dropping it
+silently. `VOID` is our addition: GRADE has no level for "this evidence
+cannot evidence its own claim", because the F50/F70 failure mode does not
+arise in a literature review.
+
+**D14 — Packet-loss severity is a workload factor, swept at 5% and 30%**
+*(decided 2026-08-14, resolving F53)*. The percentage was preregistered at
+5% in `METRICS_AND_SOURCES.md` and hardcoded at 30% in `MatrixRunner` and
+the golden. Rather than pick one, severity becomes a first-class factor like
+D7's conflict ratio: 5% tests the preregistered "modest degradation,
+continued availability" prediction, 30% probes where degradation becomes
+qualitative. Both points must be preregistered with their expected direction
+BEFORE the campaign runs. Cost: +5 runs per system (~+50 min, ≈ +€0.25),
+which is noise against the ~€61 campaign. **Consequence that must be
+implemented with it:** loss percentage becomes part of run identity — two
+`packet_loss` cells at different severities currently resolve to the SAME
+results path and the same `config_hash`, which is the v6 path-collision
+class (see `SIMULATION_AND_RULES_ANALYSIS.md` §6, S1.1).
+
+**D15 — Fault semantics, targeting and run shape are settled as follows**
+*(decided 2026-08-14 in one sitting, resolving F55, F56, F57, F71, F73)*.
+Five divergences between what the docs preregistered and what the code
+implements. In every case the **implementation was better reasoned and
+carries its justification in-code**, so the docs move — with one genuine
+code fix and one methodological upgrade:
+
+1. **`network_partition` is pairwise node-IP DROP, never full isolation**
+   (F55). The loadgen→leader path is preserved deliberately: observing the
+   isolated leader IS the measurement. **The preregistered PREDICTION was
+   also wrong** and is rewritten with it — `METRICS_AND_SOURCES.md` claimed
+   "throughput continues at a lower level (one fewer replication target)",
+   but isolating the *leader* means it cannot commit at all, so clients on
+   the old leader fail until the survivors elect a new one. Rewriting a
+   prediction is only legitimate **before** data exists (HARKing — Nosek et
+   al. 2018); it is being done now, before any run, and that timing is the
+   point.
+2. **`slow_node` is host `stress-ng --cpu 2`, not Pumba or `yes`** (F56).
+   cloud-init installs it, it is bounded, and it throttles the node without
+   touching the data path.
+3. **`slow_node`'s duration is derived from the run shape** (F57 — the one
+   real code fix). A fixed `--timeout 120s` left slow_node faulted for ~120 s
+   of the measurement window while every other fault persisted to `heal()`
+   (~240 s+) — a cross-scenario confound baked into the F5 recovery figure.
+   The timeout is now sized as `duration − faultAt + slack`, so the fault
+   covers the rest of the run **and still self-ends**, preserving the F28
+   safety property that an aborted run cannot pin the VM.
+4. **Failover trials use the RUNBOOK's shape: 180 s warmup + 180 s
+   measurement, fault at +60** (F71). **Corrected 2026-08-14, same day, on
+   re-derivation** — the reasoning first offered for this decision was
+   inverted and is recorded here rather than quietly fixed. `faultAtSecs` is
+   absolute from RUN start (the fault thread sleeps *after*
+   `awaitEngineStart`, so warmup is included), which means **both shapes
+   inject at the same instant, t = 240 s = 60 s into the measurement
+   window.** The real difference is post-fault observation, and it runs the
+   other way: the code's 480 s run observes **240 s** after the fault, the
+   runbook's 360 s run observes **120 s**. The decision stands, on its
+   actual merits: 120 s is **twice** the ±60 s recovery window methodology
+   §2/§4.3 requires, ample for sub-second Raft re-election and equally
+   conclusive for the preregistered paxi wedge (an unrecovered 120 s is not
+   made more unrecovered by another 120 s) — and it is ~2 min cheaper per
+   trial, which across ≥30 trials × 7 systems is ~7 h of cluster time. The
+   code's 480 s shape was never a decision, only the standard block default
+   inherited by a scenario that did not need it.
+5. **EPaxos targeting: deterministic replica 0 for the n=5 fault cells,
+   seeded rotation across replicas for the ≥30 failover trials** (F73 — the
+   methodological upgrade). Cells stay individually reproducible (methodology
+   §1), while the failover distribution now **tests** the leaderless-symmetry
+   assumption instead of asserting it. Same rule for CometBFT, whose proposer
+   rotates by design.
+
 ---
 
 ## 2. Target architecture

@@ -45,10 +45,51 @@
 #    deterministic thesis-tm<i> names; teardown removes every container
 #    this cluster started. clientEndpoints: http://<ip>:26657 (the
 #    CometBftDriver RPC-base contract).
+# F69 HOST-STATE SWEEP (the lines after the container sweep): a netem
+# qdisc, the harness's own iptables DROP rules and a stress-ng load all
+# OUTLIVE the campaign JVM, so a run killed between inject and heal would
+# silently shape every later run on that VM. Scope is only what this
+# harness creates — never `iptables -F`. MEASURED exit codes on
+# ubuntu-24.04 (infra/probes/): nothing-to-undo gives tc 2, iptables 1,
+# pkill 1, so on a healthy node every one of these lines is EXPECTED to
+# fail and that is silent; a ZERO exit means state really leaked and the
+# provider WARNs, because that also puts the previous run's data in doubt.
 10.0.0.11:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
 10.0.0.12:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
 10.0.0.13:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
 10.0.0.14:22$ docker ps -aq --filter name=thesis- | xargs -r docker rm -f
+10.0.0.11:22$ sudo tc qdisc del dev $(ip -o route get 10.0.0.12 | awk '{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1)}') root
+10.0.0.11:22$ sudo iptables -D INPUT -s 10.0.0.12 -j DROP
+10.0.0.11:22$ sudo iptables -D OUTPUT -d 10.0.0.12 -j DROP
+10.0.0.11:22$ sudo iptables -D INPUT -s 10.0.0.13 -j DROP
+10.0.0.11:22$ sudo iptables -D OUTPUT -d 10.0.0.13 -j DROP
+10.0.0.11:22$ sudo iptables -D INPUT -s 10.0.0.14 -j DROP
+10.0.0.11:22$ sudo iptables -D OUTPUT -d 10.0.0.14 -j DROP
+10.0.0.11:22$ pkill -f 'stress-n[g] --cpu 2'
+10.0.0.12:22$ sudo tc qdisc del dev $(ip -o route get 10.0.0.11 | awk '{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1)}') root
+10.0.0.12:22$ sudo iptables -D INPUT -s 10.0.0.11 -j DROP
+10.0.0.12:22$ sudo iptables -D OUTPUT -d 10.0.0.11 -j DROP
+10.0.0.12:22$ sudo iptables -D INPUT -s 10.0.0.13 -j DROP
+10.0.0.12:22$ sudo iptables -D OUTPUT -d 10.0.0.13 -j DROP
+10.0.0.12:22$ sudo iptables -D INPUT -s 10.0.0.14 -j DROP
+10.0.0.12:22$ sudo iptables -D OUTPUT -d 10.0.0.14 -j DROP
+10.0.0.12:22$ pkill -f 'stress-n[g] --cpu 2'
+10.0.0.13:22$ sudo tc qdisc del dev $(ip -o route get 10.0.0.11 | awk '{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1)}') root
+10.0.0.13:22$ sudo iptables -D INPUT -s 10.0.0.11 -j DROP
+10.0.0.13:22$ sudo iptables -D OUTPUT -d 10.0.0.11 -j DROP
+10.0.0.13:22$ sudo iptables -D INPUT -s 10.0.0.12 -j DROP
+10.0.0.13:22$ sudo iptables -D OUTPUT -d 10.0.0.12 -j DROP
+10.0.0.13:22$ sudo iptables -D INPUT -s 10.0.0.14 -j DROP
+10.0.0.13:22$ sudo iptables -D OUTPUT -d 10.0.0.14 -j DROP
+10.0.0.13:22$ pkill -f 'stress-n[g] --cpu 2'
+10.0.0.14:22$ sudo tc qdisc del dev $(ip -o route get 10.0.0.11 | awk '{for(i=1;i<=NF;i++) if($i=="dev") print $(i+1)}') root
+10.0.0.14:22$ sudo iptables -D INPUT -s 10.0.0.11 -j DROP
+10.0.0.14:22$ sudo iptables -D OUTPUT -d 10.0.0.11 -j DROP
+10.0.0.14:22$ sudo iptables -D INPUT -s 10.0.0.12 -j DROP
+10.0.0.14:22$ sudo iptables -D OUTPUT -d 10.0.0.12 -j DROP
+10.0.0.14:22$ sudo iptables -D INPUT -s 10.0.0.13 -j DROP
+10.0.0.14:22$ sudo iptables -D OUTPUT -d 10.0.0.13 -j DROP
+10.0.0.14:22$ pkill -f 'stress-n[g] --cpu 2'
 10.0.0.11:22$ rm -rf /root/thesis-tm /root/thesis-tm-testnet
 10.0.0.12:22$ rm -rf /root/thesis-tm
 10.0.0.13:22$ rm -rf /root/thesis-tm
