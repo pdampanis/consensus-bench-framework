@@ -274,4 +274,50 @@ class MatrixRunnerTest {
                 out, Path.of("inv"), "root");
         assertEquals(List.of(0.0, 0.02, 0.10), cs.conflicts());
     }
+
+    // ---- S4.1: the journal records EVERY cell, not only the failures ----
+
+    @Test
+    void theJournalDistinguishesRanFromSkippedFromFailed(@TempDir Path out) throws Exception {
+        MatrixRunner.Block b = block(out, 42, 1);   // 4 cells
+        // Pre-complete one so it resumes-skips…
+        RemoteRunner.Spec done = MatrixRunner.specs(b).get(0);
+        Path dir = new CsvResultsWriter.RunIdentity(done.system(), done.scenario(),
+                done.clusterSize(), done.conflictRatio(), done.runId()).dir(out);
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"), "{\n  \"status\": \"complete\"\n}");
+        // …and fail another.
+        String failing = MatrixRunner.specs(b).get(1).runId();
+        String failingScenario = MatrixRunner.specs(b).get(1).scenario().name();
+
+        MatrixRunner.run(b, spec -> {
+            if (spec.runId().equals(failing)
+                    && spec.scenario().name().equals(failingScenario)) {
+                throw new IllegalStateException("cluster never formed (simulated)");
+            }
+        }, false);
+
+        List<String> lines = Files.readAllLines(out.resolve("journal.jsonl"));
+        // Every cell, not just the failures: after an 11-hour block the
+        // question a reader has is "what happened to cell X", and
+        // campaign-log.jsonl could only ever answer it for failures.
+        assertEquals(4, lines.size(), String.join("\n", lines));
+        assertEquals(1, lines.stream().filter(l -> l.contains("\"outcome\":\"skipped\"")).count());
+        assertEquals(1, lines.stream().filter(l -> l.contains("\"outcome\":\"failed\"")).count());
+        assertEquals(2, lines.stream().filter(l -> l.contains("\"outcome\":\"ran\"")).count());
+        assertTrue(lines.stream().anyMatch(l -> l.contains("duration_s")), lines.toString());
+    }
+
+    @Test
+    void aFailureCauseWithQuotesCannotBreakTheJournal(@TempDir Path out) throws Exception {
+        // JSONL assembled by hand, same class as F21 and the validity report:
+        // an unescaped quote emits a line no reader can parse.
+        MatrixRunner.run(block(out, 42, 1), spec -> {
+            throw new IllegalStateException("he said \"boom\" and it \\ broke");
+        }, false);
+        var mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+        for (String line : Files.readAllLines(out.resolve("journal.jsonl"))) {
+            mapper.readTree(line);   // must parse, every line
+        }
+    }
 }

@@ -252,6 +252,40 @@ public final class MatrixRunner {
         }
     }
 
+    /**
+     * S4.1 — the per-simulation JOURNAL, shaped after Chaos Toolkit's run
+     * journal (status, start/end/duration, per-activity results, rollbacks,
+     * and a `deviated` flag). Until now the block recorded ONLY failures, in
+     * campaign-log.jsonl, which meant a reader could not tell "skipped on
+     * resume" from "never attempted" — and after an 11-hour block that is
+     * exactly the question they have.
+     *
+     * <p>One line per cell, appended as it finishes, so a block killed
+     * halfway still leaves an accurate record of what it did. JSONL rather
+     * than one JSON document for the same reason: an interrupted write costs
+     * the last line, not the file.
+     */
+    private static void journal(Path out, String cell, String outcome, Instant started,
+                                String detail) {
+        try {
+            Files.createDirectories(out);
+            Files.writeString(out.resolve("journal.jsonl"),
+                    "{\"t\":\"" + Instant.now() + "\",\"cell\":\"" + cell
+                            + "\",\"outcome\":\"" + outcome
+                            + "\",\"duration_s\":"
+                            + java.time.Duration.between(started, Instant.now()).toSeconds()
+                            + ",\"detail\":\"" + escape(detail) + "\"}\n",
+                    StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+        } catch (Exception io) {
+            log.error("could not append to journal.jsonl: {}", io.toString());
+        }
+    }
+
+    private static String escape(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\n", " ").replace("\r", " ");
+    }
+
     public static Summary run(Block b, CellRunner runner, boolean dryRun) throws Exception {
         List<RemoteRunner.Spec> specs = specs(b);
         if (!dryRun) {
@@ -273,18 +307,22 @@ public final class MatrixRunner {
                 log.info("dry-run: {}", cell);
                 continue;
             }
+            Instant cellStart = Instant.now();
             if (alreadyComplete(spec)) {
                 log.info("resume: {} already complete — skipping", cell);
                 skipped++;
+                journal(b.out(), cell, "skipped", cellStart, "already complete (resume)");
                 continue;
             }
             try {
                 runner.run(spec);
                 ran++;
+                journal(b.out(), cell, "ran", cellStart, "");
             } catch (Exception e) {
                 failed++;
                 log.error("cell {} FAILED — recorded, continuing: {}", cell, e.toString());
                 appendFailure(b.out(), cell, e);
+                journal(b.out(), cell, "failed", cellStart, e.toString());
             }
         }
         log.info("block {} done: {} ran, {} skipped (resume), {} failed{}",

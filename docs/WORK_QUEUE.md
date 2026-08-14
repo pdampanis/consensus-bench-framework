@@ -76,8 +76,8 @@ worth more than any single increment below.
 | ~~**13**~~ | P6 | **DONE** — **S3.3 — harness self-metrics :9400 (M5.3)** | micrometer (already in pom, unused) | Unlocks `window_headroom` gate | **70%** |
 | ~~**14**~~ | P6 | **DONE** — **S3.4 — docker-events audit (P4.5 open half)** | Restart audit per block | Unlocks `container_restarts` + the paxi/hotstuff gate-3 witness | **65%** |
 | ~~**15**~~ | P7 | **DONE (with #12)** — **S2.2 — false-positive triage in verdicts** | Verdicts name candidate benign causes; F68's pressure rule becomes machine-readable | | **75%** |
-| **16** | P7 | **S4.1 — the journal** | Chaos-Toolkit-shaped per-simulation record; every cell, not just failures | | **75%** |
-| **17** | P7 | **S4.3 — confidence grade (D13/GRADE)** | Per **cell**, ordinal, with named downgrade reasons | **HARD GATE: must not ship before #6, #8, #13, #14** | **60%** |
+| ~~**16**~~ | P7 | **DONE** — **S4.1 — the journal** | Chaos-Toolkit-shaped per-simulation record; every cell, not just failures | | **75%** |
+| ~~**17**~~ | P7 | **DONE — hard gate satisfied first (9/11 gates now evaluate)** — **S4.3 — confidence grade (D13/GRADE)** | Per **cell**, ordinal, with named downgrade reasons | **HARD GATE: must not ship before #6, #8, #13, #14** | **60%** |
 | **18** | P7 | **S4.2 — the report** | Generated `report.md` per simulation | Lowest value here. Delete if unread after the pilot | **55%** |
 | **19** | P8 | **S5.1 / F54 — analyse.py fails closed** | Missing `environment`/`duration_secs` ⇒ exclude-and-list | ⚠ **OWNED BY THE OTHER SESSION** (its increment 4). Do not duplicate | **85%** |
 | **20** | P8 | **S5.2 — analysis consumes the new record** | Reads `validity.json`, excludes on grade, stops dropping `null` failovers silently | Depends on #6, #17 | **80%** |
