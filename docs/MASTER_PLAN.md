@@ -132,6 +132,20 @@ criteria were met* and always ships with that list. A 0–100 score was
 rejected: it invites false precision and cannot be defended in a viva.
 Load-bearing constraint: **the grade may not ship before the gates actually
 evaluate** — measured 2026-08-14 at 1 of 10.
+*Anchored 2026-08-14:* the scheme is **adapted from GRADE** (Guyatt et al.,
+BMJ 2008;336:924–926), which rates a body of evidence on ordinal levels and
+downgrades for named reasons — imprecision, inconsistency, indirectness,
+risk of bias, publication bias. Two consequences taken from it: **the grade
+attaches to a CELL (n=5), never to a single run**, because GRADE is explicit
+that quality is a property of a body of evidence; and our downgrade reasons
+are stated in GRADE's vocabulary (imprecision ← CI fails to exclude the
+null; inconsistency ← per-run spread / CoV; indirectness ← the D9 hardware
+seam and HotStuff's log-derived metrics; risk of bias ← a FAILed or SKIPped
+gate). Publication bias has no analogue here — a single-author campaign
+reporting every cell — and the thesis says so rather than dropping it
+silently. `VOID` is our addition: GRADE has no level for "this evidence
+cannot evidence its own claim", because the F50/F70 failure mode does not
+arise in a literature review.
 
 **D14 — Packet-loss severity is a workload factor, swept at 5% and 30%**
 *(decided 2026-08-14, resolving F53)*. The percentage was preregistered at

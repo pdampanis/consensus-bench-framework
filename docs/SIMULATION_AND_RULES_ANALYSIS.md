@@ -274,28 +274,72 @@ cannot be cited, and §9 argues this section is thesis material.
   Performance Regressions in a CI System*, ICPE'20:
   <https://dl.acm.org/doi/10.1145/3358960.3375791> (preprint
   <https://arxiv.org/abs/2003.00584>)
+- **Guyatt et al., *GRADE: an emerging consensus on rating quality of
+  evidence and strength of recommendations*, BMJ 2008;336(7650):924–926:
+  <https://doi.org/10.1136/bmj.39489.470347.AD>** — the parent scheme D13's
+  grading is adapted from (§3.3)
+- **Nosek, Ebersole, DeHaven & Mellor, *The preregistration revolution*,
+  PNAS 2018;115(11):2600–2606:
+  <https://doi.org/10.1073/pnas.1708274114>** — the citation for the
+  expected-vs-observed framework, and for why post-hoc prediction changes
+  (HARKing) void it (§3.3)
 
 Surveyed 2026-08-14. Versions are deliberately not pinned: nothing here is
 adopted as a dependency, so the citations support *design decisions*, not a
 build.
 
-### 3.3 Research still owed (honest gaps)
+### 3.3 The two open gaps — now CLOSED with citations
 
-The survey answered "which framework, if any" conclusively. Two questions it
-did **not** answer, both cheap and both viva-relevant:
+Both were closed 2026-08-14. Neither is decorative: each changed something.
 
-1. **D13's A/B/C/VOID grading has no cited precedent yet.** It mechanizes
-   methodology §6, which is itself well-anchored — but the *ordinal
-   evidence-grading* idea is borrowed from nowhere in particular. Established
-   schemes exist (GRADE in evidence-based medicine is the canonical one) and
-   citing one would turn "a scheme we invented" into "a scheme we adapted".
-   **Do this before the grade ships (S4.3), not after.**
-2. **Preregistration has no methodological citation.** The project already
-   preregisters expectations — a genuine strength — but §7 cites no source
-   for the practice. The replication-crisis literature is the standard
-   anchor. One citation closes it.
+**1. D13's grading is adapted from GRADE, not invented.**
+Guyatt et al., *GRADE: an emerging consensus on rating quality of evidence
+and strength of recommendations*, BMJ 2008;336(7650):924–926
+(<https://doi.org/10.1136/bmj.39489.470347.AD>). GRADE rates a body of
+evidence on four ordinal levels (high / moderate / low / very low) and
+downgrades for **imprecision, inconsistency, indirectness, risk of bias and
+publication bias** — that is, an ordinal grade justified by *named
+downgrade reasons*, which is exactly D13's "the letter always ships with
+the list".
 
-Neither blocks any increment. Both are listed so they are not discovered at
+Two things this citation **changes**, not merely supports:
+
+- **The grade attaches to a CELL, not a run.** GRADE is explicit that
+  quality is assessed for a *body of evidence*, never a single study. Our
+  unit of evidence is the cell (n=5 runs), so S4.3 grades the cell and a
+  single run only contributes to it. This resolves an ambiguity the plan
+  had left open.
+- **Our downgrade reasons should map onto GRADE's, and mostly already do**:
+  *imprecision* ← a bootstrap CI that fails to exclude the null;
+  *inconsistency* ← per-run spread / the CoV stability check;
+  *indirectness* ← the D9 hardware seam and the HotStuff log-derived
+  metrics; *risk of bias* ← a FAILed or SKIPped validity gate. The one
+  GRADE reason with no analogue is publication bias, which does not apply
+  to a single-author campaign that reports every cell — worth saying in the
+  thesis rather than silently dropping.
+
+Naming the parent scheme also fixes the letters: **A/B/C/VOID stays**, but
+it is described as *adapted from GRADE with campaign-specific downgrade
+criteria*, and VOID is our addition (GRADE has no "this evidence cannot
+evidence its own claim" level, because F50/F70's failure mode does not
+arise in a literature review).
+
+**2. Preregistration is a cited practice, not a house style.**
+Nosek, Ebersole, DeHaven & Mellor, *The preregistration revolution*, PNAS
+2018;115(11):2600–2606 (<https://doi.org/10.1073/pnas.1708274114>). The
+argument this project already relies on, stated by its standard source:
+preregistration separates **prediction from postdiction**, constrains
+researcher degrees of freedom, and guards against **HARKing** (hypothesising
+after results are known) and p-hacking.
+
+What it changes: the D14 note — *"changing a prediction after seeing data
+would void the preregistration"* — stops being a house rule and becomes the
+citable definition of HARKing. `DATA_ANALYSIS_METHODOLOGY.md` §1/§7 and
+`OBSERVABILITY_AND_EXPECTATIONS.md` should cite it where they describe the
+expected-vs-observed framework, since that framework *is* preregistration
+under another name.
+
+Neither blocked an increment. Both are recorded so they are not discovered at
 the viva instead. — ALL THREE MADE BY THE AUTHOR 2026-08-14
 
 > **D12 = Java records + serialized JSON** (option C below).

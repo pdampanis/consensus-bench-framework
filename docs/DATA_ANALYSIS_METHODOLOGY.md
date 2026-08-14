@@ -128,7 +128,21 @@ never bare means; state everything needed to reproduce), Kalibera & Jones on
 rigorous benchmarking with repetition-level variance, Jain's classic text
 for experimental design, Tene on coordinated omission (the HdrHistogram
 rationale), and the Paxi/PaxiBFT/HotStuff papers for the domain-specific
-methodology this design mirrors.
+methodology this design mirrors. Two further anchors added 2026-08-14:
+**Nosek et al., *The preregistration revolution*, PNAS 2018;115(11):2600–2606**
+— the standard source for the practice §1/§7 already follow under another
+name. Its argument is precisely ours: preregistration separates *prediction*
+from *postdiction*, constrains researcher degrees of freedom, and guards
+against **HARKing** (hypothesising after results are known) and p-hacking.
+That is what makes expected-vs-observed with deviation attribution a method
+rather than a habit, and it is why a preregistered prediction may not be
+revised after seeing the data (see D14's two packet-loss points, both fixed
+before any run). And **Guyatt et al., GRADE, BMJ 2008;336:924–926** — the
+parent scheme for D13's ordinal confidence grade: a body of evidence rated
+on ordinal levels, downgraded for *named* reasons (imprecision,
+inconsistency, indirectness, risk of bias), never a numeric score. GRADE's
+unit is a body of evidence, so the grade attaches to a **cell** (n = 5),
+never to a single run.
 
 ## 4. Validity checks — automated, per run
 
