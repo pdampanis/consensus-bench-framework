@@ -37,6 +37,29 @@ public final class RemoteLogs {
         }
     }
 
+    /**
+     * P4.5's other half: the {@code docker events} audit for one run window.
+     * Two gates depend on it and neither could evaluate without it —
+     * {@code container_restarts} (§4.4 stationarity: an unexpected restart
+     * means the run measured a different cluster than it thought) and gate 3
+     * for paxi/hotstuff, which expose NO server metrics at all, so a kill has
+     * no other witness (F41).
+     *
+     * <p>Bounded by {@code --until}, never streamed: `docker events` follows
+     * forever by default, which against a 30 s SSH command bound is a hang
+     * rather than a collection. Both bounds are explicit so the audit covers
+     * exactly the measured window and terminates on its own.
+     */
+    public static String dockerEvents(SshExecutor ssh, String host,
+                                      java.time.Instant from, java.time.Instant to)
+            throws Exception {
+        String cmd = "docker events --since " + from.getEpochSecond()
+                + " --until " + to.getEpochSecond()
+                + " --filter type=container"
+                + " --format '{{.Time}} {{.Actor.Attributes.name}} {{.Action}}'";
+        return ssh.execOrThrow(host, SSH_PORT, cmd);
+    }
+
     /** Chunked read of an arbitrary remote file — bounded per command.
      *  Chunks are accumulated as BYTES and decoded once at the end: a
      *  chunk boundary may split a multi-byte character, so per-chunk

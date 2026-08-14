@@ -277,17 +277,21 @@ class ValidityCheckerTest {
     }
 
     @Test
-    void paxiFaultRunSkipsGroundTruthNamingTheMissingInstrumentation(@TempDir Path dir) throws IOException {
+    void paxiWithNoEventsAuditStillSkipsRatherThanGuessing(@TempDir Path dir) throws IOException {
         // Paxi exposes NO server-side metrics (documented §2/§7 limitation)
-        // and the preregistered F26 wedge has no leader change BY DESIGN —
-        // an evaluated FAIL would misread both. Honest SKIP, loud reason.
+        // and the preregistered F26 wedge has no leader change BY DESIGN — an
+        // evaluated FAIL would misread both. Until P4.5 this SKIPped naming
+        // the events audit as the FUTURE source; the audit now exists, so the
+        // SKIP narrowed to the case where it was not collected for this cell.
+        // The behaviour changed because the dependency landed, which is the
+        // right reason for a test to change.
         faultRun(dir, "paxos");
         metric(dir, "node_up", "1000,10.0.0.11,1\n");
         Report r = ValidityChecker.check(dir);
         assertEquals(State.SKIP, stateOf(r, "fault_ground_truth"));
         assertTrue(r.gates().stream().anyMatch(g -> g.gate().equals("fault_ground_truth")
-                        && g.detail().contains("P4.5")),
-                "the SKIP must name the future corroboration source (docker-events, P4.5)");
+                        && g.detail().contains("no events/ audit")),
+                "the SKIP must say WHY nothing could corroborate it");
     }
 
     // ---- F42: HotStuff runs must not fail gates they structurally
@@ -495,5 +499,70 @@ class ValidityCheckerTest {
         baseline(dir, 0, new int[]{500, 500, 500, 500, 500, 500});
         metric(dir, "harness_inflight", "1000,loadgen,64\n");
         assertEquals(State.SKIP, stateOf(ValidityChecker.check(dir), "window_headroom"));
+    }
+
+    // ---- S3.4/P4.5: the docker-events audit closes two gates ----
+
+    private static void events(Path dir, String lines) throws IOException {
+        Path e = dir.resolve("events");
+        Files.createDirectories(e);
+        Files.writeString(e.resolve("10.0.0.11.txt"), lines);
+    }
+
+    @Test
+    void aBaselineThatKilledAContainerBrokeStationarity(@TempDir Path dir) throws IOException {
+        baseline(dir, 100, new int[]{100, 100, 100, 100, 100, 100});
+        events(dir, "1723600000 thesis-etcd1 die\n");
+        assertEquals(State.FAIL, stateOf(ValidityChecker.check(dir), "container_restarts"),
+                "a baseline measured a cluster that changed under it");
+    }
+
+    @Test
+    void aQuietBaselinePassesTheRestartGate(@TempDir Path dir) throws IOException {
+        baseline(dir, 100, new int[]{100, 100, 100, 100, 100, 100});
+        events(dir, "1723600000 thesis-etcd1 health_status\n");
+        assertEquals(State.PASS, stateOf(ValidityChecker.check(dir), "container_restarts"));
+    }
+
+    @Test
+    void aFaultRunIsEXPECTEDToShowAKillAndFailsWhenItDoesNot(@TempDir Path dir)
+            throws IOException {
+        // The reason this gate could not simply count events: a fault run's
+        // own kill is BY DESIGN, so counting would fail exactly the runs the
+        // campaign exists to produce. Read against the scenario, the same
+        // audit becomes evidence instead of an alarm.
+        runWithErrorRate(dir, "leader_kill", 0.0, "3000");
+        events(dir, "1723600000 thesis-etcd2 die\n");
+        assertEquals(State.PASS, stateOf(ValidityChecker.check(dir), "container_restarts"));
+
+        events(dir, "1723600000 thesis-etcd2 health_status\n");
+        assertEquals(State.FAIL, stateOf(ValidityChecker.check(dir), "container_restarts"),
+                "no container died in a kill run — the fault did not land");
+    }
+
+    @Test
+    void paxiAndHotstuffFinallyHaveAKillWitness(@TempDir Path dir) throws IOException {
+        // F41 deferred this to P4.5. These two expose NO server metrics at
+        // all, so the events audit is not a fallback for them — it is the
+        // only possible ground truth, and for a kill it is a better one than
+        // any gauge because it observes the process dying rather than
+        // inferring it from a counter.
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"), "{\n"
+                + "  \"system\": \"paxos\",\n  \"scenario\": \"leader_kill\",\n"
+                + "  \"started_at\": \"2026-08-03T14:00:00Z\",\n  \"rate_ops_s\": 100,\n"
+                + "  \"warmup_secs\": 2,\n  \"duration_secs\": 6,\n  \"window\": 64,\n"
+                + "  \"error_rate\": 0.0,\n  \"fault_injected_at_ms\": 3000\n}\n");
+        StringBuilder tp = new StringBuilder();
+        for (int t = 0; t < 6; t++) tp.append(t).append(",100\n");
+        Files.writeString(dir.resolve("throughput.csv"), tp.toString());
+
+        events(dir, "1723600000 thesis-paxi2 die\n");
+        assertEquals(State.PASS, stateOf(ValidityChecker.check(dir), "fault_ground_truth"),
+                "the audit IS paxi's ground truth — it has nothing else");
+
+        events(dir, "1723600000 thesis-paxi2 health_status\n");
+        assertEquals(State.FAIL, stateOf(ValidityChecker.check(dir), "fault_ground_truth"),
+                "nothing died, so the fault did not land where the run claims");
     }
 }

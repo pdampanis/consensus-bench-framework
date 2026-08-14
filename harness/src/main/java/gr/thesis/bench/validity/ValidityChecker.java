@@ -150,7 +150,8 @@ public final class ValidityChecker {
                     "same as loadgen_steal: a hypervisor-side fact about the hour, so"
                             + " rerun before reading anything into the numbers")),
             java.util.Map.entry("container_restarts", new GateSpec(
-                    "no unexpected restarts", "§4.4",
+                    "baseline: zero die/restart events; fault run: at least one",
+                    "§4.4 / P4.5",
                     "a fault scenario's OWN kill is an expected restart — the audit must"
                             + " be read against the run's scenario, never in isolation")),
             java.util.Map.entry("clock_discipline", new GateSpec(
@@ -202,8 +203,7 @@ public final class ValidityChecker {
         gates.add(gateSteal("loadgen_steal", "loadgen_cpu_steal", runDir, hasMetrics));
         gates.add(gateSteal("node_cpu_steal", "node_cpu_steal", runDir, hasMetrics));
         // Gate 4's second half per methodology §4.4 — no collector yet.
-        gates.add(GateResult.skip("container_restarts",
-                "docker-events restart audit not yet collected (P4.5 open half)"));
+        gates.add(gateContainerRestarts(runDir, manifest));
         gates.add(gateClock(runDir, hasMetrics));
         gates.add(gateFaultGroundTruth(runDir, manifest, system, hasMetrics));
         gates.add(GateResult.skip("durability",
@@ -404,6 +404,58 @@ public final class ValidityChecker {
                                 tail, head, rel * 100, CONVERGENCE_MAX_REL_DIFF * 100));
     }
 
+    /**
+     * Gate 4b (§4.4, P4.5): no UNEXPECTED container restart during the run.
+     * A restart means the run measured a different cluster than it believed
+     * it was measuring — the stationarity assumption every comparison rests
+     * on, silently broken.
+     *
+     * <p>"Unexpected" has to be read against the SCENARIO, which is why this
+     * gate could not simply count events: a fault run's own `kill` produces a
+     * die/stop event BY DESIGN, and counting it would fail exactly the runs
+     * the campaign exists to produce. So a BASELINE tolerates no die/kill at
+     * all, while a fault run tolerates them and instead uses their presence
+     * as evidence — which is the same audit doing double duty as gate 3's
+     * kill witness for the systems that have no server metrics (F41).
+     */
+    private static GateResult gateContainerRestarts(Path dir, JsonNode m) throws IOException {
+        Path events = dir.resolve("events");
+        if (!Files.isDirectory(events)) {
+            return GateResult.skip("container_restarts",
+                    "no events/ dir — the docker-events audit did not run for this cell");
+        }
+        List<String> disruptive = new ArrayList<>();
+        try (var walk = Files.list(events)) {
+            for (Path f : (Iterable<Path>) walk::iterator) {
+                for (String line : Files.readAllLines(f)) {
+                    // `die` covers both a kill and a crash; `restart` is
+                    // docker's own restart-policy action. `stop` during
+                    // teardown is expected and is outside the run window.
+                    if (line.contains(" die") || line.contains(" restart")
+                            || line.contains(" oom")) {
+                        disruptive.add(f.getFileName() + ": " + line.strip());
+                    }
+                }
+            }
+        }
+        boolean baseline = "baseline".equals(m.path("scenario").asText(""));
+        if (baseline) {
+            return disruptive.isEmpty()
+                    ? GateResult.pass("container_restarts", "no container died during the run")
+                    : GateResult.fail("container_restarts",
+                            "a BASELINE run must disturb nothing, but "
+                                    + disruptive.size() + " container event(s) say otherwise: "
+                                    + disruptive.get(0));
+        }
+        return disruptive.isEmpty()
+                ? GateResult.fail("container_restarts",
+                        "a fault run with NO container event — the audit corroborates no"
+                                + " kill, so what was measured may be an undisturbed cluster")
+                : GateResult.pass("container_restarts",
+                        disruptive.size() + " container event(s), expected for this scenario: "
+                                + disruptive.get(0));
+    }
+
     // ---- gates that need metrics/ (SKIP until M5.4; FAIL on empty series) ----
 
     private static GateResult gateLoadgenCpu(Path dir, boolean hasMetrics) throws IOException {
@@ -493,9 +545,32 @@ public final class ValidityChecker {
             default -> "";
         };
         if (witness == null) {
-            return GateResult.skip("fault_ground_truth",
-                    system + " exposes no server-side metrics (documented limitation);"
-                            + " kill corroboration awaits the docker-events audit (P4.5)");
+            // F41 said this had to wait for P4.5; P4.5 is here. paxi and
+            // hotstuff expose no server metrics at all, so the events audit
+            // is their ONLY possible witness — and for a kill it is a better
+            // one than any gauge, because it observes the process dying
+            // rather than inferring it.
+            Path events = dir.resolve("events");
+            if (!Files.isDirectory(events)) {
+                return GateResult.skip("fault_ground_truth",
+                        system + " exposes no server-side metrics, and no events/ audit was"
+                                + " collected for this cell — nothing can corroborate the fault");
+            }
+            long died = 0;
+            try (var walk = Files.list(events)) {
+                for (Path f : (Iterable<Path>) walk::iterator) {
+                    died += Files.readAllLines(f).stream()
+                            .filter(l -> l.contains(" die") || l.contains(" kill")).count();
+                }
+            }
+            return died > 0
+                    ? GateResult.pass("fault_ground_truth",
+                            "corroborated by the docker-events audit (" + died
+                                    + " die/kill event(s)) — " + system + " has no server"
+                                    + " metrics, so this IS its ground truth")
+                    : GateResult.fail("fault_ground_truth",
+                            system + "'s events audit shows no container dying — the fault"
+                                    + " did not land where the run says it did");
         }
         if (witness.isEmpty()) {
             return GateResult.fail("fault_ground_truth",

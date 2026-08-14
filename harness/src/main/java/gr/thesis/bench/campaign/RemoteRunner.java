@@ -207,6 +207,10 @@ public final class RemoteRunner {
                 collectSutLogs(ssh, nodes, id.dir(spec.out()));
                 collectAuxLogs(ssh, provider.auxContainerHandles(), id.dir(spec.out()));
             }
+            // The events audit is collected for EVERY run, not just fault
+            // runs: gate 4 asks whether an UNEXPECTED restart happened, and a
+            // baseline is exactly where an unexpected one would hide.
+            collectDockerEvents(ssh, nodes, id.dir(spec.out()), started, ended);
             if (injectionFailure.get() != null) {
                 // The run completed and its CSVs exist for forensics, but a
                 // fault run whose fault never fired is NOT a fault result.
@@ -456,6 +460,30 @@ public final class RemoteRunner {
                 log.warn("could not collect logs of {} on {}: {}",
                         n.containerName(), n.host(), e.toString());
             }
+        }
+    }
+
+    /**
+     * P4.5's other half — the docker-events audit per node, into
+     * {@code events/<container-host>.txt}. Best-effort like the logs: the
+     * measurement is already on disk, and an unreachable node costs the
+     * audit, never the run.
+     */
+    private static void collectDockerEvents(SshExecutor ssh, List<NodeHandle> nodes, Path runDir,
+                                            Instant started, Instant ended) {
+        try {
+            Path events = runDir.resolve("events");
+            Files.createDirectories(events);
+            for (NodeHandle n : nodes) {
+                try {
+                    Files.writeString(events.resolve(n.host() + ".txt"),
+                            RemoteLogs.dockerEvents(ssh, n.host(), started, ended));
+                } catch (Exception e) {
+                    log.warn("could not collect docker events from {}: {}", n.host(), e.toString());
+                }
+            }
+        } catch (Exception e) {
+            log.warn("could not create the events audit dir for {}: {}", runDir, e.toString());
         }
     }
 
