@@ -19,12 +19,27 @@ it at the end of every working session.
 > * **Session B (this one)** — eighth read-through, F70–F76, plus the
 >   simulation/rules analysis and decisions D12–D14. **Changed no code.**
 >
-> Overlap to respect: both sessions edit `PENDING_TASKS.md` and this file.
-> The hazard is a silent lost update, not a merge conflict — see
-> `GIT_WORKFLOW.md` §"Concurrent sessions". Whoever resumes increment 4
-> should re-read both docs before editing rather than trusting context.
+> **The two sessions are now isolated by worktree (2026-08-14).** Git
+> refuses the same branch in two worktrees, so session A — which was
+> mid-increment — keeps its original path and branch untouched, and session
+> B moved out:
+>
+> | Session | Worktree path | Branch |
+> |---|---|---|
+> | **A** (seventh review, increment 4 in flight) | `~/Downloads/consensus-bench-thesis` | `seventh-review-tier1` |
+> | **B** (eighth read-through, planning) | `~/Downloads/cbt-eighth` | `eighth-review-tier1` |
+>
+> Both branches are pushed. Conflicts are now real git conflicts (loud)
+> instead of silent overwrites — see `GIT_WORKFLOW.md` §"Concurrent
+> sessions". **Session A: stay in your existing path; nothing changed for
+> you.** Note each worktree builds into its own `target/`, so the first
+> `mvn21 clean verify` in `cbt-eighth` is a cold build; the Docker images
+> are machine-global and shared.
+>
 > Nothing in session B blocks increment 4: `analysis/analyse.py` was not
-> touched by it.
+> touched by it, and B independently measured increment 4's red target —
+> the committed M0 tree analyses as **2 included / 0 excluded** today and
+> must become **0 included / 2 excluded**.
 
 Last updated: 2026-08-14 — **eighth read-through (F70–F76; ledger in
 PENDING_TASKS §"2026-08-14 (continuation)").** Suite re-verified by
