@@ -236,4 +236,56 @@ class RemoteRunnerTest {
                         + " rule in CsvResultsWriter is what stands between that and the"
                         + " F4 failover ECDF");
     }
+
+    // ---- S3.2: every run must be validity-checked, or the gates are decor ----
+
+    @Test
+    void writingAResultAlsoWritesItsValidityVerdict(@org.junit.jupiter.api.io.TempDir
+                                                    Path out) throws Exception {
+        // ValidityChecker has been a LIBRARY THAT NOTHING CALLS: neither
+        // RemoteRunner nor MatrixRunner invoked check(), so no campaign run
+        // has ever produced a validity.json. Ten gates that never run are
+        // not gates.
+        var id = new gr.thesis.bench.results.CsvResultsWriter.RunIdentity(
+                SystemUnderTest.ETCD, Scenario.BASELINE, 3, 0.0, "r001");
+        var cfg = new gr.thesis.bench.core.WorkloadEngine.Config(6, 2, 100, 64, 1024, 0.0);
+        var rec = new gr.thesis.bench.core.LatencyRecorder();
+        for (int i = 0; i < 400; i++) rec.record(1_000, true);
+        long[] perSec = {100, 100, 100, 100, 100, 100};
+        var result = new gr.thesis.bench.core.WorkloadEngine.Result(perSec, rec, 0);
+
+        RemoteRunner.writeResultsAndCheck(out, id, result, cfg, "hetzner", "img@sha256:x",
+                java.time.Instant.EPOCH, java.time.Instant.EPOCH.plusSeconds(6));
+
+        Path dir = id.dir(out);
+        assertTrue(java.nio.file.Files.exists(dir.resolve("manifest.json")), "manifest");
+        assertTrue(java.nio.file.Files.exists(dir.resolve("validity.json")),
+                "the run must carry its own verdict beside its numbers");
+        String v = java.nio.file.Files.readString(dir.resolve("validity.json"));
+        assertTrue(v.contains("\"gate\": \"baseline_error_rate\""), v);
+    }
+
+    @Test
+    void anUncheckableRunStillKeepsItsMeasurement(@org.junit.jupiter.api.io.TempDir
+                                                  Path out) throws Exception {
+        // The verdict is a JUDGEMENT of the measurement, not part of it. If
+        // checking blows up, the CSVs and manifest must still be on disk —
+        // losing a measured run because we could not grade it would be the
+        // worst possible trade. checkTree()'s record-and-continue rule,
+        // applied one level down.
+        var id = new gr.thesis.bench.results.CsvResultsWriter.RunIdentity(
+                SystemUnderTest.ETCD, Scenario.BASELINE, 3, 0.0, "r002");
+        var cfg = new gr.thesis.bench.core.WorkloadEngine.Config(6, 2, 100, 64, 1024, 0.0);
+        var rec = new gr.thesis.bench.core.LatencyRecorder();
+        for (int i = 0; i < 400; i++) rec.record(1_000, true);
+        var result = new gr.thesis.bench.core.WorkloadEngine.Result(
+                new long[]{100, 100, 100, 100, 100, 100}, rec, 0);
+        RemoteRunner.writeResultsAndCheck(out, id, result, cfg, "hetzner", null,
+                java.time.Instant.EPOCH, java.time.Instant.EPOCH.plusSeconds(6));
+        // Make the dir unreadable for a re-check and prove the measurement survives.
+        java.nio.file.Files.delete(id.dir(out).resolve("throughput.csv"));
+        RemoteRunner.writeResultsAndCheck(out, id, result, cfg, "hetzner", null,
+                java.time.Instant.EPOCH, java.time.Instant.EPOCH.plusSeconds(6));
+        assertTrue(java.nio.file.Files.exists(id.dir(out).resolve("manifest.json")));
+    }
 }

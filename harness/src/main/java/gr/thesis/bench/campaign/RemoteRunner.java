@@ -18,6 +18,7 @@ import gr.thesis.bench.topology.RemoteSshProvider;
 import gr.thesis.bench.topology.SshExecutor;
 import gr.thesis.bench.topology.SshFaultInjector;
 import gr.thesis.bench.topology.SshjExecutor;
+import gr.thesis.bench.validity.ValidityChecker;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -189,7 +190,7 @@ public final class RemoteRunner {
             }
             Instant ended = Instant.now();
 
-            new CsvResultsWriter().write(spec.out(), id, result, cfg, "hetzner",
+            writeResultsAndCheck(spec.out(), id, result, cfg, "hetzner",
                     imageFor(spec.system()), started, ended);
             if (faultRun) {
                 collectSutLogs(ssh, nodes, id.dir(spec.out())); // fault forensics (P4.5)
@@ -333,6 +334,46 @@ public final class RemoteRunner {
                 ? spec.ratePerSec() * spec.durationSecs() * 2 + spec.window()
                 : 4_000_000;
         return (int) Math.min(4_000_000, Math.max(100_000, expected));
+    }
+
+    /**
+     * Write the run's numbers, then JUDGE them (S3.2). Until this existed,
+     * {@link ValidityChecker} was a library that nothing called — neither
+     * this runner nor {@link MatrixRunner} invoked {@code check()}, so no
+     * campaign run had ever produced a {@code validity.json}. Ten gates that
+     * never run are not gates, and methodology §4's "a run is valid only
+     * if…" was unenforced for the entire campaign path.
+     *
+     * <p>The verdict is a judgement OF the measurement, never part of it, so
+     * a checker failure must not cost the run: the CSVs and manifest are
+     * already on disk when the check runs, and a thrown check is logged and
+     * swallowed. Losing a measured cell because we could not grade it would
+     * be the worst available trade — this is {@code checkTree}'s
+     * record-and-continue rule applied one level down. A cell that could not
+     * be graded simply has no validity.json, which analyse.py treats as
+     * ungraded rather than as valid.
+     */
+    static void writeResultsAndCheck(Path out, CsvResultsWriter.RunIdentity id,
+                                     WorkloadEngine.Result result, WorkloadEngine.Config cfg,
+                                     String environment, String imageRef,
+                                     Instant started, Instant ended) throws java.io.IOException {
+        new CsvResultsWriter().write(out, id, result, cfg, environment, imageRef,
+                started, ended);
+        Path dir = id.dir(out);
+        try {
+            ValidityChecker.Report report = ValidityChecker.check(dir);
+            log.info("validity {}: {} ({} pass, {} fail, {} skip)", dir,
+                    report.valid() ? "VALID" : "INVALID",
+                    report.gates().stream().filter(g -> g.state() == ValidityChecker.State.PASS).count(),
+                    report.gates().stream().filter(g -> g.state() == ValidityChecker.State.FAIL).count(),
+                    report.gates().stream().filter(g -> g.state() == ValidityChecker.State.SKIP).count());
+            report.gates().stream()
+                    .filter(g -> g.state() == ValidityChecker.State.FAIL)
+                    .forEach(g -> log.warn("validity FAIL {} — {}", g.gate(), g.detail()));
+        } catch (Exception e) {
+            log.error("could not evaluate validity for {} — the MEASUREMENT is safe on disk,"
+                    + " the verdict is not: {}", dir, e.toString());
+        }
     }
 
     /**
@@ -489,6 +530,16 @@ public final class RemoteRunner {
                 spec.runId(), LocalDockerProvider.HOTSTUFF_IMAGE, started, ended,
                 spec.durationSecs(), spec.warmupSecs(), spec.ratePerSec(), spec.valueSizeBytes());
         Files.writeString(dir.resolve("manifest.json"), manifest);
+        // S3.2 applies here too: HotStuff's gates are mostly honest SKIPs
+        // (no throughput.csv BY DESIGN — F42), but "mostly SKIP" is a
+        // verdict the run should carry rather than one a reader has to
+        // reconstruct.
+        try {
+            ValidityChecker.check(dir);
+        } catch (Exception e) {
+            log.error("could not evaluate validity for {} — the SUMMARY and logs are safe"
+                    + " on disk, the verdict is not: {}", dir, e.toString());
+        }
         log.info("hotstuff results -> {}", dir);
     }
 }
