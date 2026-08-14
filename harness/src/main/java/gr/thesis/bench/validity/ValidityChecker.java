@@ -83,6 +83,86 @@ public final class ValidityChecker {
             "loadgen_cpu", "loadgen_cpu_steal", "node_cpu_steal", "clock_offset",
             "node_up", "etcd_leader_chg", "cmt_rounds", "kafka_urp");
 
+    /**
+     * The RULE behind a gate, written into every {@code validity.json}
+     * alongside the verdict (S2.1a/S2.2). Two things a bare PASS/FAIL cannot
+     * tell a reader months later, with the cluster destroyed:
+     *
+     * <p><b>Which threshold judged this run.</b> M6.2's job is to fix every
+     * PROVISIONAL threshold numerically from pilot variance, so runs from
+     * before and after that retune are judged by different numbers. If the
+     * verdict does not carry the value, no one can tell which.
+     *
+     * <p><b>What would make this verdict a FALSE POSITIVE.</b> That knowledge
+     * exists in OBSERVABILITY_AND_EXPECTATIONS.md and was, until now,
+     * unreachable from any verdict — so a red gate said "threshold exceeded"
+     * and the reader had to remember where the catalogue lived. The
+     * change-point-detection literature is blunt about this: a large share of
+     * automatically detected regressions are not actionable, so an automated
+     * verdict that ships without triage guidance trains its reader to ignore
+     * it.
+     *
+     * @param threshold the value in force, or null where the gate is not
+     *                  numeric
+     * @param reference the methodology section that justifies it
+     * @param falsePositives benign causes to rule out BEFORE believing a FAIL
+     */
+    public record GateSpec(String threshold, String reference, String falsePositives) { }
+
+    /** Every gate's rule, in one reviewable place. Pinned by test against the
+     *  gates the checker actually emits — a rule without a gate, or a gate
+     *  without a rule, is the F40 drift class in a new costume. */
+    static final java.util.Map<String, GateSpec> GATE_SPECS = java.util.Map.ofEntries(
+            java.util.Map.entry("rate_adherence", new GateSpec(
+                    "achieved/target >= " + RATE_ADHERENCE_MIN, "§4.1",
+                    "a short warmup or a cold JVM depresses the early window; check that"
+                            + " the run's own convergence gate passed before blaming the"
+                            + " client")),
+            java.util.Map.entry("baseline_error_rate", new GateSpec(
+                    "error_rate < " + BASELINE_ERROR_RATE_MAX + " (PROVISIONAL until M6.2)",
+                    "§4.1 / F52",
+                    "errors concentrated at the very start are connect-time, not"
+                            + " steady-state — check firstError in the run log")),
+            java.util.Map.entry("window_headroom", new GateSpec(
+                    "in-flight window not pinned at its ceiling", "§4.1",
+                    "a window-bound run looks like a slow SYSTEM but is a client ceiling"
+                            + " (Little's Law) — compare window/latency against achieved")),
+            java.util.Map.entry("convergence", new GateSpec(
+                    "|head-tail|/tail <= " + CONVERGENCE_MAX_REL_DIFF + " (PROVISIONAL until M6.2)",
+                    "§4.5",
+                    "a single stalled second in either window skews the comparison; look"
+                            + " at throughput.csv before concluding the run never settled")),
+            java.util.Map.entry("loadgen_cpu", new GateSpec(
+                    "peak < " + LOADGEN_CPU_MAX, "§4.1 / D11",
+                    "a co-tenant on the loadgen (a forgotten collector, an ssh session)"
+                            + " raises this without the instrument being the bottleneck")),
+            java.util.Map.entry("loadgen_steal", new GateSpec(
+                    "peak steal < " + STEAL_MAX, "§4.1 / D11",
+                    "steal on a DEDICATED vCPU means a platform problem, not a benchmark"
+                            + " one — it is grounds to rerun, not to adjust the harness")),
+            java.util.Map.entry("node_cpu_steal", new GateSpec(
+                    "peak steal < " + STEAL_MAX, "§4.4",
+                    "same as loadgen_steal: a hypervisor-side fact about the hour, so"
+                            + " rerun before reading anything into the numbers")),
+            java.util.Map.entry("container_restarts", new GateSpec(
+                    "no unexpected restarts", "§4.4",
+                    "a fault scenario's OWN kill is an expected restart — the audit must"
+                            + " be read against the run's scenario, never in isolation")),
+            java.util.Map.entry("clock_discipline", new GateSpec(
+                    "max |offset| < " + CLOCK_OFFSET_MAX_S + " s", "§4.6",
+                    "chrony steps hard after a VM resumes; a single spike at boot does"
+                            + " not invalidate a window that is otherwise disciplined")),
+            java.util.Map.entry("fault_ground_truth", new GateSpec(
+                    "witness moves within ±" + (FAULT_WINDOW_MS / 1000) + " s of the mark",
+                    "§4.3 / F41",
+                    "node_up cannot witness a `docker kill` — the host node_exporter"
+                            + " survives it. An unmoved witness on paxi/hotstuff is the"
+                            + " documented no-server-metrics limitation, not a targeting"
+                            + " bug; on etcd/kafka/cometbft it IS a reclassify")),
+            java.util.Map.entry("durability", new GateSpec(
+                    "per-system correctness probe passes", "§4.2 / P2.6",
+                    "not implemented — the SKIP is the honest state, not a pass")));
+
     public enum State { PASS, FAIL, SKIP }
 
     public record GateResult(String gate, State state, String detail) {
@@ -482,6 +562,14 @@ public final class ValidityChecker {
         return s / xs.length;
     }
 
+    /** Minimal JSON string escaping — the report is assembled by hand like
+     *  the manifest, and a quote in a gate detail would otherwise emit
+     *  broken JSON that every downstream reader then fails on (F21's class). */
+    private static String json(String s) {
+        return s.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\n", " ").replace("\r", " ");
+    }
+
     private static void writeReport(Path dir, Report r) throws IOException {
         StringBuilder sb = new StringBuilder();
         sb.append("{\n  \"valid\": ").append(r.valid()).append(",\n");
@@ -491,10 +579,21 @@ public final class ValidityChecker {
         sb.append("  \"gates\": [\n");
         for (int i = 0; i < r.gates().size(); i++) {
             GateResult g = r.gates().get(i);
+            GateSpec spec = GATE_SPECS.get(g.gate());
             sb.append("    {\"gate\": \"").append(g.gate())
               .append("\", \"state\": \"").append(g.state())
-              .append("\", \"detail\": \"").append(g.detail().replace("\"", "'"))
-              .append("\"}").append(i < r.gates().size() - 1 ? "," : "").append("\n");
+              .append("\", \"detail\": \"").append(json(g.detail()))
+              .append("\", \"threshold\": ")
+              .append(spec == null || spec.threshold() == null
+                      ? "null" : "\"" + json(spec.threshold()) + "\"")
+              .append(", \"reference\": ")
+              .append(spec == null ? "null" : "\"" + json(spec.reference()) + "\"")
+              // Only a FAIL needs triage guidance; attaching it to every PASS
+              // would bury the one case a reader must act on.
+              .append(g.state() == State.FAIL && spec != null
+                      ? ", \"check_before_believing\": \"" + json(spec.falsePositives()) + "\""
+                      : "")
+              .append("}").append(i < r.gates().size() - 1 ? "," : "").append("\n");
         }
         sb.append("  ]\n}\n");
         Files.writeString(dir.resolve("validity.json"), sb.toString());

@@ -395,4 +395,61 @@ class ValidityCheckerTest {
         assertEquals(State.FAIL, stateOf(ValidityChecker.check(dir), "baseline_error_rate"),
                 "a missing error_rate is an unmeasured error rate, not a zero one");
     }
+
+    // ---- S2.1a/S2.2: the RULE ships with the verdict ----
+
+    @Test
+    void everyGateTheCheckerEmitsHasADeclaredRuleAndViceVersa(@TempDir Path dir)
+            throws IOException {
+        // The F40 drift class in a new costume: a rule with no gate is dead
+        // text, and a gate with no rule writes a verdict nobody can audit.
+        // Pinning both directions is what stops them separating.
+        baseline(dir, 100, new int[]{100, 100, 100, 100, 100, 100});
+        var emitted = ValidityChecker.check(dir).gates().stream()
+                .map(GateResult::gate).collect(java.util.stream.Collectors.toSet());
+        assertEquals(emitted, ValidityChecker.GATE_SPECS.keySet(),
+                "declared rules and emitted gates must be the same set");
+        ValidityChecker.GATE_SPECS.forEach((gate, spec) -> {
+            assertFalse(spec.reference().isBlank(), gate + " must cite its methodology §");
+            assertFalse(spec.falsePositives().isBlank(),
+                    gate + " must say what would make a FAIL a false positive");
+        });
+    }
+
+    @Test
+    void theVerdictCarriesTheThresholdThatJudgedIt(@TempDir Path dir) throws IOException {
+        // M6.2 retunes every PROVISIONAL threshold from pilot variance, so
+        // runs either side of that are judged by different numbers. Without
+        // the value in the verdict, nobody can tell which judged this one.
+        baseline(dir, 100, new int[]{100, 100, 100, 100, 100, 100});
+        ValidityChecker.check(dir);
+        String v = Files.readString(dir.resolve("validity.json"));
+        assertTrue(v.contains("\"threshold\": \"achieved/target >= 0.99\""), v);
+        assertTrue(v.contains("\"reference\": \"§4.1\""), v);
+    }
+
+    @Test
+    void onlyAFailCarriesItsFalsePositiveTriage(@TempDir Path dir) throws IOException {
+        runWithErrorRate(dir, "baseline", 0.49, null);
+        ValidityChecker.check(dir);
+        String v = Files.readString(dir.resolve("validity.json"));
+        assertTrue(v.contains("check_before_believing"),
+                "a FAILed gate must say what to rule out first: " + v);
+        // A PASS does not: attaching triage to every green gate would bury
+        // the one line a reader has to act on.
+        long occurrences = v.lines().filter(l -> l.contains("check_before_believing")).count();
+        assertEquals(1, occurrences, v);
+    }
+
+    @Test
+    void aQuoteInAGateDetailCannotBreakTheReportJson(@TempDir Path dir) throws IOException {
+        // The report is assembled by hand like the manifest, so F21's class
+        // applies: unescaped text emits broken JSON that every downstream
+        // reader then fails on. gate 3's FAIL detail quotes the scenario.
+        runWithErrorRate(dir, "leader_kill", 0.0, null);
+        ValidityChecker.check(dir);
+        String v = Files.readString(dir.resolve("validity.json"));
+        new com.fasterxml.jackson.databind.ObjectMapper().readTree(v); // must parse
+        assertTrue(v.contains("fault_ground_truth"), v);
+    }
 }
