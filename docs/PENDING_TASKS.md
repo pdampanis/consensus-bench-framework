@@ -826,7 +826,8 @@ one increment at a time, TDD red→green with the red shown, a green
 | # | Finding | Status |
 |---|---------|--------|
 | F50 | A fault run whose injection FAILED was written as a complete, valid, permanently-skipped cell: `RemoteRunner` writes CSVs+manifest BEFORE rethrowing `injectionFailure`, so `status: complete` + `fault_injected_at_ms: null` → `MatrixRunner.alreadyComplete` skips it forever on resume, gate 3 calls it a "baseline run" and SKIPs (`valid: true`), and analyse.py emits a `leader_kill` cell carrying UNDISTURBED BASELINE numbers — the v6 reclassification class, reachable from the campaign path. Proven end-to-end through the real writer/runner/checker classes | **F50a CLOSED** (TDD) — `CsvResultsWriter` writes `status: failed` when `scenario != BASELINE` and the EventLog carries no mark. The mark is stamped only after `apply()` RETURNS, so mark-present ⇔ fault-fired; putting the rule in the WRITER (not the caller) makes resume, validity and analysis read one truth and disarms the trap for future callers. Measured after: `alreadyComplete` false, analyse.py excludes with reason `status=failed`. **F50b/c ALSO CLOSED** (increment 2, TDD): gate 3 now reads `scenario` and FAILs (`'leader_kill' run carries NO fault mark`) instead of SKIPping as "baseline run"; `RemoteRunner` checks `faultThread.isAlive()` after its join instead of discarding the timeout; the fault thread's engine-start wait is BOUNDED (`awaitEngineStart`, 2 min) — the unbounded loop leaked one spinning daemon thread per failed fault cell whenever `connect()` died. Whole chain re-measured: `status failed` / `alreadyComplete false` / `valid=false` with the right diagnosis / analyse.py excluded |
-| F51 | `SshFaultInjector.undo` is a plain `ArrayDeque` pushed by the fault thread and popped by the main thread in `heal()`, which `RemoteRunner` calls unconditionally after a `join(30_000)` that may time out — a lost undo entry leaves a live netem qdisc / iptables DROP poisoning every later run on that VM (the stationarity violation F29 exists to prevent) | **OPEN** — increment 3 |
+| F51 | `SshFaultInjector.undo` is a plain `ArrayDeque` pushed by the fault thread and popped by the main thread in `heal()`, which `RemoteRunner` calls unconditionally after a `join(30_000)` that may time out — a lost undo entry leaves a live netem qdisc / iptables DROP poisoning every later run on that VM (the stationarity violation F29 exists to prevent) | **CLOSED** (increment 3, TDD) — every mutating operation now holds the injector's monitor, so `heal()` WAITS for an in-flight injection instead of interleaving with it. The red was deterministic (a latch holding `tc qdisc add` in flight, commands recorded in COMPLETION order): heal issued `tc qdisc del` BEFORE the add — recorded order `[ip -o route get, tc qdisc del, tc qdisc add]` — so the delete failed as "nothing to undo" (a WARN by design) and the netem rule SURVIVED. Serializing dominates a concurrent deque, which would have stopped collection corruption but still allowed the interleave; the `ArrayDeque` stays, guarded |
+| **F69** | **No sweep undoes HOST-level fault state.** Host fault undo exists ONLY inside `heal()` (verified: `tc qdisc del` / `iptables -D` / `pkill` appear nowhere else in main), and `PRECLEAN_CMD` removes `thesis-*` CONTAINERS only. So if the campaign JVM dies between inject and heal — OOM, Ctrl-C, SSH transport loss, power — the netem qdisc / iptables DROP / stress-ng SURVIVES, and the next `start()` sweeps containers while the fault silently shapes every later run on that VM. F29 closed exactly this class for containers; the host half was never covered. F51's fix removes the *in-process* race but cannot help a dead process | **OPEN** — NEXT-9 |
 | F52 | `error_rate` is computed and written but consulted by NO validity gate; `status` tolerates 50% failures, and `rate_adherence` SKIPs for saturation runs — so a baseline where 49% of ops failed reports `valid: true`. §4's gate 2 (durability) is the intended home and is a documented SKIP pending P2.6, but a manifest-only error-rate gate needs no Prometheus | **OPEN** — needs a threshold + scope decision (fault runs SHOULD error) |
 | F53 | packet-loss percent is hardcoded 30 in `MatrixRunner` (not a `Block` field, so a block cannot vary it), absent from the manifest AND from `config_hash` — two `packet_loss` cells at different percentages hash identically, so §1's "any cell individually reproducible" fails for that scenario. `METRICS_AND_SOURCES.md:229` preregisters **5%** and predicts "modest degradation" | **OPEN** — value decision (5 / 30 / sweep) then plumbing |
 | F54 | `analyse.py`'s honesty rules fail OPEN on fields a v1 manifest lacks: missing `environment` ≠ "local" so laptop runs are INCLUDED (verified: the committed M0 tree analyses as 2 included / 0 excluded), and missing `duration_secs` keeps the drain tail, reporting 229.9 ops/s for a run that achieved 306.5 | **OPEN** — increment 4 |
@@ -840,17 +841,21 @@ one increment at a time, TDD red→green with the red shown, a green
 
 **NEXT-6 — F50b/c. DONE (increment 2, TDD red→green, 176 green.)**
 
-**NEXT-7 — F51 (increment 3).** `SshFaultInjector.undo` → a concurrent
-deque, and settle whether `heal()` may run while the injector thread is
-still alive. Now more than theoretical: increment 2's `isAlive()` check
-made the racing window VISIBLE, and `partition` issues five SSH commands
-(one `ip -o route get` + four `iptables -A`), each bounded at 30 s by
-`SshjExecutor` — so a degraded node can keep `apply()` running ~150 s,
-five times the 30 s join. Two consequences to decide together: heal
-racing a live apply on a non-thread-safe `ArrayDeque` (a lost undo entry
-leaves a live netem/iptables rule — the F29 stationarity class), and
-whether voiding such a run is right (it is: a fault landing after the
-load ended is not measurable — but say so deliberately).
+**NEXT-7 — F51. DONE (increment 3, TDD red→green.)**
+
+**NEXT-9 — F69: sweep HOST fault state at `start()` (increment 5).** Add
+the host-level undo to the remote pre-clean so a fault cannot outlive the
+process that injected it. Shape (author's call on the exact commands,
+because these are destructive on a shared host and must be scoped to what
+the harness itself creates): per provisioned node, alongside
+`PRECLEAN_CMD` — `tc qdisc del dev <resolved-iface> root` (ignore
+"nothing to delete"), remove the harness's own DROP rules rather than
+`iptables -F` (a flush would take out anything else on the box), and
+`pkill -f 'stress-n[g] --cpu 2'`. Goldens must be updated FIRST as the
+spec (they are FINAL text for G2, so this needs the author's sign-off
+either way). Preconditions to state in the golden header: the sweep runs
+on EVERY provisioned node like F29's container sweep, and each command's
+"nothing to undo" exit is benign while a real failure still fails closed.
 
 **NEXT-8 — F54 (increment 4).** `analyse.py` must exclude-and-list on a
 missing `environment` or `duration_secs` instead of treating absence as
