@@ -232,9 +232,71 @@ Great Expectations *suite ↔ validation result* pairing, and the
 OpenMessaging *driver/workload split*. Every one of them is expressible in
 the code that already exists, in typed Java, with tests.
 
----
+### 3.1 Where each borrowed idea actually lands
 
-## 4. Decisions — ALL THREE MADE BY THE AUTHOR 2026-08-14
+Traceability, so a later session sees *why* an increment is shaped the way
+it is instead of re-deriving it — or re-running the survey:
+
+| Borrowed from | The specific idea | Lands in |
+|---|---|---|
+| Gatling | A simulation is a **named artifact**, not CLI arguments | **S1.2** |
+| Gatling | Assertions declared **with** the simulation; their failure is the verdict | **S4.3** + **S2.1a** |
+| Chaos Toolkit | The **run journal**: `status`, `start`/`end`/`duration`, `deviated`, per-activity results, `rollbacks` | **S4.1** |
+| Chaos Toolkit | **Steady state checked before AND after** the method | **S4.1**'s `deviated` — baseline holds → inject → does it recover? |
+| Chaos Toolkit | `rollbacks` as a first-class record | **S4.1** — `heal()` already is this, it just isn't recorded |
+| Great Expectations | **Suite ↔ validation-result pairing**, both human-readable | **S2.1a** + **S4.2** |
+| OpenMessaging / YCSB | The workload is a **published, citable** document | **S1.2**'s `simulation.json` (D12's serialization half) |
+| Jepsen | The **fault schedule belongs in the spec**, beside the workload | **S1.1** |
+| Jepsen | A checker must **name the offending observation**, not just fail | **S2.2** |
+| Change-point literature | Automated verdicts **must** ship with false-positive triage | **S2.2** — why it exists at all |
+| Hoefler & Belli | "State everything needed to reproduce" is an **acceptance standard**, not an aspiration | **S4.1/S4.2** are what make it checkable |
+
+### 3.2 Sources
+
+Recorded here rather than left in a session transcript: an unsourced survey
+cannot be cited, and §9 argues this section is thesis material.
+
+- Gatling assertions: <https://docs.gatling.io/concepts/assertions/>
+- Jepsen docs: <https://jepsen-io.github.io/jepsen/index.html> · nemesis
+  tutorial: <https://github.com/jepsen-io/jepsen/blob/main/doc/tutorial/05-nemesis.md>
+- Chaos Toolkit journal: <https://chaostoolkit.org/reference/api/journal/> ·
+  experiment API: <https://chaostoolkit.org/reference/api/experiment/>
+- OpenMessaging Benchmark: <https://openmessaging.cloud/docs/benchmarks/>
+- YCSB core properties: <https://github.com/brianfrankcooper/YCSB/wiki/Core-Properties>
+- Great Expectations / Deequ / Soda comparison:
+  <https://branchboston.com/great-expectations-vs-deequ-vs-soda-data-quality-testing-tools-compared/>
+- Java rule engines (Drools, Easy Rules): <https://www.baeldung.com/java-rule-engines>
+- Hoefler & Belli, *Scientific Benchmarking of Parallel Computing Systems:
+  twelve ways to tell the masses*, SC'15:
+  <https://dl.acm.org/doi/10.1145/2807591.2807644> — **already in `corpus/`
+  and cited by methodology §3**
+- Daly et al., *The Use of Change Point Detection to Identify Software
+  Performance Regressions in a CI System*, ICPE'20:
+  <https://dl.acm.org/doi/10.1145/3358960.3375791> (preprint
+  <https://arxiv.org/abs/2003.00584>)
+
+Surveyed 2026-08-14. Versions are deliberately not pinned: nothing here is
+adopted as a dependency, so the citations support *design decisions*, not a
+build.
+
+### 3.3 Research still owed (honest gaps)
+
+The survey answered "which framework, if any" conclusively. Two questions it
+did **not** answer, both cheap and both viva-relevant:
+
+1. **D13's A/B/C/VOID grading has no cited precedent yet.** It mechanizes
+   methodology §6, which is itself well-anchored — but the *ordinal
+   evidence-grading* idea is borrowed from nowhere in particular. Established
+   schemes exist (GRADE in evidence-based medicine is the canonical one) and
+   citing one would turn "a scheme we invented" into "a scheme we adapted".
+   **Do this before the grade ships (S4.3), not after.**
+2. **Preregistration has no methodological citation.** The project already
+   preregisters expectations — a genuine strength — but §7 cites no source
+   for the practice. The replication-crisis literature is the standard
+   anchor. One citation closes it.
+
+Neither blocks any increment. Both are listed so they are not discovered at
+the viva instead. — ALL THREE MADE BY THE AUTHOR 2026-08-14
 
 > **D12 = Java records + serialized JSON** (option C below).
 > **D13 = ordinal grade mechanizing methodology §6.**
@@ -632,3 +694,45 @@ laptop-verifiable, which is the specific discipline v6 lacked.
    ~8.3k ops/s where F70's buffer starts dropping. Nobody has measured
    saturation on the target hardware — the pilot settles it, and S0.1 makes
    it not matter.
+
+---
+
+## 9. §3 is thesis material — do not leave it as an engineering note
+
+The survey in §3 answers a question an examiner is **likely** to ask, and
+which the thesis does not currently answer anywhere:
+
+> *"Jepsen, Gatling and the OpenMessaging Benchmark already exist. Why did
+> you build your own harness?"*
+
+Today the answer lives only in this planning doc. It belongs in the thesis
+as a short subsection — methodology chapter, or related work — and it is a
+strong answer rather than a defensive one, because it is specific:
+
+- **Jepsen** is the closest match and the honest framing is that this
+  harness *is* Jepsen-shaped (control node → SSH → nodes; generator,
+  nemesis, checker). It was not adopted because its checkers answer a
+  different question — linearizability/safety — whereas this thesis measures
+  throughput, latency distributions and failover time. Saying that out loud
+  is stronger than not mentioning Jepsen at all.
+- **Gatling / OpenMessaging / YCSB** all assume the client's notion of
+  "operation complete" is transport-level. This thesis's entire measurement
+  contract is that an operation completes **only on consensus commitment**,
+  with per-system semantics (Kafka's acks=all send callback, jetcd's async
+  put, CometBFT's `broadcast_tx_commit`, Paxi's `Ballot` header). That
+  contract is the reason the harness exists at all — it is the fix for the
+  original probe flaws — and no general-purpose load tool encodes it.
+- **Rule engines** were considered and refused on complexity grounds, which
+  is itself a methodology-chapter-worthy statement about keeping the
+  validity layer auditable.
+
+Two consequences for how this document is treated:
+
+1. **Keep §3.2's citations current.** They are the bibliography for that
+   subsection.
+2. **Close §3.3's two gaps before the viva** — an invented grading scheme
+   and an uncited preregistration practice are exactly the surfaces an
+   examiner probes, and both are one citation each.
+
+Not an increment: no code, no test. Recorded here so the argument is not
+reconstructed from memory a year from now.
