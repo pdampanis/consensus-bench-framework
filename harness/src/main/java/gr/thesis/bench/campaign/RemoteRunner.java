@@ -12,6 +12,7 @@ import gr.thesis.bench.driver.HotStuffLogAnalyzer;
 import gr.thesis.bench.driver.KafkaDriver;
 import gr.thesis.bench.driver.PaxiDriver;
 import gr.thesis.bench.results.CsvResultsWriter;
+import gr.thesis.bench.results.PrometheusExporter;
 import gr.thesis.bench.topology.ClusterProvider.NodeHandle;
 import gr.thesis.bench.topology.LocalDockerProvider;
 import gr.thesis.bench.topology.RemoteSshProvider;
@@ -190,6 +191,7 @@ public final class RemoteRunner {
             }
             Instant ended = Instant.now();
 
+            exportMetrics(inv, id.dir(spec.out()), started, ended);
             writeResultsAndCheck(spec.out(), id, result, cfg, "hetzner",
                     imageFor(spec.system()), started, ended);
             if (faultRun) {
@@ -341,6 +343,41 @@ public final class RemoteRunner {
                 : 4_000_000;
         return (int) Math.min(4_000_000, Math.max(100_000, expected));
     }
+
+    /**
+     * M5.4 — archive this run's Prometheus window into {@code metrics/}
+     * BEFORE the validity check, because the metric gates read exactly those
+     * files; exporting afterwards would leave every one of them SKIPping on
+     * the run that just produced the data.
+     *
+     * <p>No obs VM (the canary shape) means no export, and therefore no
+     * {@code metrics/} dir — which the checker reports as a loud SKIP rather
+     * than a pass. That is the honest degradation: the gates say they could
+     * not run, instead of a run failing over infrastructure it never had.
+     */
+    private static void exportMetrics(Inventory inv, Path runDir, Instant started, Instant ended) {
+        if (inv.obsPrivateIp().isEmpty()) {
+            log.info("no PRIVATE_OBS in the inventory — skipping the metrics export;"
+                    + " the metric validity gates will SKIP, not pass");
+            return;
+        }
+        String base = "http://" + inv.obsPrivateIp().get() + ":9090";
+        try {
+            var queries = PrometheusExporter.parseQueries(EXPORT_QUERIES);
+            PrometheusExporter.export(runDir, queries, started, ended,
+                    PrometheusExporter.http(base));
+        } catch (Exception e) {
+            // The measurement is already made; losing its explanation layer
+            // must not lose the run. The gates will fail closed on the empty
+            // or missing series, which is the correct outcome.
+            log.error("metrics export from {} failed — the run's own numbers are safe, its"
+                    + " Prometheus window is not: {}", base, e.toString());
+        }
+    }
+
+    /** Shipped beside the jar on the loadgen (collect_block.sh stages the
+     *  repo there); the runbook §5 set the exporter executes verbatim. */
+    static final Path EXPORT_QUERIES = Path.of("observability/export_queries.txt");
 
     /**
      * Write the run's numbers, then JUDGE them (S3.2). Until this existed,

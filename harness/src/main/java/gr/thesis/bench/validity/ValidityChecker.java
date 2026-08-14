@@ -420,9 +420,12 @@ public final class ValidityChecker {
         return vals.stream().mapToDouble(Double::doubleValue).toArray();
     }
 
-    /** metrics/<name>.csv → list of (t_unix, value); [] if file absent/empty.
-     *  Header located; value = last column, t_unix = first. */
-    static List<double[]> metricValues(Path dir, String name) throws IOException {
+    /** metrics/&lt;name&gt;.csv → list of (t_unix, value); [] if file absent/empty.
+     *  Header located; value = last column, t_unix = first.
+     *  Public so the PrometheusExporter's own test can assert that what the
+     *  exporter WRITES is what this checker READS — pinning the two halves
+     *  of that contract separately is exactly how they drift apart. */
+    public static List<double[]> metricValues(Path dir, String name) throws IOException {
         Path f = dir.resolve("metrics").resolve(name + ".csv");
         if (!Files.exists(f)) return List.of();
         List<String> lines = Files.readAllLines(f);

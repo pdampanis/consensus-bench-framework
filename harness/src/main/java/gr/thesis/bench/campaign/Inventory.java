@@ -19,7 +19,16 @@ import java.util.Map;
  * key AND the file — a silently defaulted IP would point the harness (and
  * the fault injector) at the wrong machine.
  */
-public record Inventory(List<String> nodePrivateIps, String loadgenPrivateIp, Path sshKey) {
+/**
+ * @param obsPrivateIp the observability VM, OPTIONAL by design: Terraform
+ *        always emits PRIVATE_OBS for a full phase, but the P3.4 canary runs
+ *        two VMs and has no obs stack. Absent simply means no metrics/ dir,
+ *        which the ValidityChecker already reports as a loud SKIP ("M5.4 not
+ *        run") rather than a pass — so a metrics-less run degrades honestly
+ *        instead of failing on infrastructure it was never given.
+ */
+public record Inventory(List<String> nodePrivateIps, String loadgenPrivateIp,
+                        java.util.Optional<String> obsPrivateIp, Path sshKey) {
 
     public static Inventory parse(Path file) throws IOException {
         Map<String, String> kv = new HashMap<>();
@@ -38,7 +47,9 @@ public record Inventory(List<String> nodePrivateIps, String loadgenPrivateIp, Pa
         if (key.startsWith("~/")) {
             key = System.getProperty("user.home") + key.substring(1);
         }
-        return new Inventory(List.copyOf(ips), require(kv, "PRIVATE_LOADGEN", file), Path.of(key));
+        String obs = kv.get("PRIVATE_OBS");
+        return new Inventory(List.copyOf(ips), require(kv, "PRIVATE_LOADGEN", file),
+                java.util.Optional.ofNullable(obs).filter(v -> !v.isBlank()), Path.of(key));
     }
 
     private static String require(Map<String, String> kv, String key, Path file) {
