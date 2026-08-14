@@ -84,7 +84,7 @@ public final class SshFaultInjector implements FaultInjector {
         // Process death, no undo (a fresh cluster is spun for the next run —
         // Scenario.mutatesCluster()). docker kill, not stop: an abrupt
         // SIGKILL is the fault we mean, not a graceful shutdown.
-        ssh.execOrThrow(node.privateIp(), SSH_PORT, "docker kill " + node.containerName());
+        ssh.execOrThrow(node.host(), SSH_PORT, "docker kill " + node.containerName());
     }
 
     @Override
@@ -92,8 +92,8 @@ public final class SshFaultInjector implements FaultInjector {
         String iface = privateIface(node);
         // Register the undo BEFORE applying: if the add half-succeeds we
         // must still be able to remove the qdisc.
-        undo.push(new String[]{node.privateIp(), "sudo tc qdisc del dev " + iface + " root"});
-        ssh.execOrThrow(node.privateIp(), SSH_PORT,
+        undo.push(new String[]{node.host(), "sudo tc qdisc del dev " + iface + " root"});
+        ssh.execOrThrow(node.host(), SSH_PORT,
                 "sudo tc qdisc add dev " + iface + " root netem loss " + percent + "%");
     }
 
@@ -106,9 +106,9 @@ public final class SshFaultInjector implements FaultInjector {
             for (String chain : new String[]{"INPUT -s", "OUTPUT -d"}) {
                 String c = chain.split(" ")[0]; // INPUT / OUTPUT
                 String flag = chain.split(" ")[1]; // -s / -d
-                undo.push(new String[]{node.privateIp(),
+                undo.push(new String[]{node.host(),
                         "sudo iptables -D " + c + " " + flag + " " + ip + " -j DROP"});
-                ssh.execOrThrow(node.privateIp(), SSH_PORT,
+                ssh.execOrThrow(node.host(), SSH_PORT,
                         "sudo iptables -A " + c + " " + flag + " " + ip + " -j DROP");
             }
         }
@@ -126,8 +126,8 @@ public final class SshFaultInjector implements FaultInjector {
         // `sh -c`, whose OWN cmdline contains the pattern text — a plain
         // pattern would SIGTERM that shell every heal and turn the loud
         // WARN channel into permanent noise; F31).
-        undo.push(new String[]{node.privateIp(), "pkill -f 'stress-n[g] --cpu 2'"});
-        ssh.execOrThrow(node.privateIp(), SSH_PORT,
+        undo.push(new String[]{node.host(), "pkill -f 'stress-n[g] --cpu 2'"});
+        ssh.execOrThrow(node.host(), SSH_PORT,
                 backgrounded("stress-ng --cpu 2 --timeout " + slowNodeSecs + "s"));
     }
 
@@ -169,7 +169,7 @@ public final class SshFaultInjector implements FaultInjector {
      *  the output has no dev field (we will not guess eth0). */
     private String privateIface(NodeHandle node) throws Exception {
         NodeHandle peer = firstOtherNode(node);
-        String out = ssh.execOrThrow(node.privateIp(), SSH_PORT,
+        String out = ssh.execOrThrow(node.host(), SSH_PORT,
                 "ip -o route get " + peer.privateIp());
         String[] toks = out.trim().split("\\s+");
         for (int i = 0; i < toks.length - 1; i++) {

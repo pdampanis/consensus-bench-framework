@@ -40,7 +40,8 @@ import java.util.List;
  * discipline; PrometheusExporter M5.4 must emit exactly it): one file per
  * query name at {@code metrics/<name>.csv}, header row, then data rows whose
  * FIRST column is {@code t_unix} and LAST column is {@code value}; an
- * {@code instance} column, if present, is carried for per-node checks. Extra
+ * {@code instance} column, if present, is currently IGNORED — the gates are
+ * whole-cluster today; per-node checks would need it and do not exist. Extra
  * label columns between are ignored. This is the runbook §5 shape
  * ({@code t_unix,t_iso,labels…,value}) read tolerantly.
  *

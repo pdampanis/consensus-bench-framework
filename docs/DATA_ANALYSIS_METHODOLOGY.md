@@ -45,8 +45,15 @@ jitter is a validity threat like any other.
 Three design controls protect against confounds. First, run order is
 randomized within each system block, so time-correlated environmental drift
 does not systematically favor one scenario. Second, every scenario that
-mutates the cluster gets a fresh cluster per repetition — enforced in the
-harness type system, not by discipline. Third, each run's manifest pins the
+mutates the cluster gets a fresh cluster per repetition — enforced
+STRUCTURALLY rather than by discipline, though not, as this sentence once
+claimed, by the type system: `RemoteRunner` constructs a fresh provider and
+calls `start()` for EVERY cell unconditionally, which is stronger than
+`Scenario.mutatesCluster()` requires (F72, corrected 2026-08-14 — the flag
+itself has no production caller and documents intent rather than enforcing
+it). The guarantee is therefore real, but it lives in the runner's control
+flow, and anyone optimising "skip the recycle for baseline reps" would face
+no compile-time or runtime objection. Third, each run's manifest pins the
 image digests, harness version, and configuration hash, making any cell
 individually reproducible.
 

@@ -32,11 +32,4 @@ public enum SystemUnderTest {
     }
 
     public int defaultClusterSize() { return defaultClusterSize; }
-    public boolean isByzantine()    { return byzantine; }
-
-    public List<String> allContainerNames(int clusterSize) {
-        return java.util.stream.IntStream.rangeClosed(1, clusterSize)
-                .mapToObj(this::containerName)
-                .toList();
-    }
 }

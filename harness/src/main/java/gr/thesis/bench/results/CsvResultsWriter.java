@@ -63,6 +63,17 @@ public final class CsvResultsWriter {
                 throw new IllegalArgumentException(
                         scenario + " carries no packet-loss severity, got " + lossPercent);
             }
+            // F21: the manifest is assembled by string formatting, so a runId
+            // containing a quote or backslash would emit BROKEN JSON that
+            // every downstream reader then fails on. Main guards its own
+            // remote-run flag, but campaign-run generates ids itself and was
+            // unguarded — the constraint belongs HERE, on the identity, where
+            // no caller can route around it.
+            if (!runId.matches("[a-z0-9]+")) {
+                throw new IllegalArgumentException(
+                        "runId must be [a-z0-9]+ (it is a path segment and an unescaped"
+                                + " JSON value), got: " + runId);
+            }
         }
 
         /** Every non-PACKET_LOSS cell: severity is not applicable. */
@@ -256,8 +267,11 @@ public final class CsvResultsWriter {
     }
 
     /** Implementation-Version from the shaded jar's manifest; "dev" when
-     *  running from classes (tests, IDE) — an honest tag, not a guess. */
-    private static String harnessVersion() {
+     *  running from classes (tests, IDE) — an honest tag, not a guess.
+     *  Public because HotStuff's manifest is assembled OUTSIDE this class
+     *  (its metrics come from log parsing, not the engine) and was, until
+     *  F58, the only cell shape missing these two reproducibility fields. */
+    public static String harnessVersion() {
         String v = CsvResultsWriter.class.getPackage().getImplementationVersion();
         return v == null ? "dev" : v;
     }
@@ -268,7 +282,7 @@ public final class CsvResultsWriter {
      * reproducible": two runs with the same hash ran the same experiment.
      * Canonical '|'-joined string, so any param change changes the hash.
      */
-    private static String configHash(RunIdentity id, WorkloadEngine.Config cfg, String imageRef) {
+    public static String configHash(RunIdentity id, WorkloadEngine.Config cfg, String imageRef) {
         String canonical = String.join("|",
                 id.system().name(), id.scenario().name(),
                 Integer.toString(id.clusterSize()), Double.toString(id.conflictRatio()),

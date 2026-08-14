@@ -816,6 +816,16 @@ public final class RemoteSshProvider implements ClusterProvider {
         return "{\"address\": {" + addr + "}, \"http_address\": {" + http + "}}";
     }
 
+    /** Auxiliary containers this cluster started beside the SUT nodes, as
+     *  (ip, containerName) — today only KAFKA_ZK's colocated ZooKeeper
+     *  ensemble (D10). Exposed because fault FORENSICS must collect their
+     *  logs too: without them a Kafka+ZK fault run's evidence is missing the
+     *  coordination half, which is exactly the half a ZAB-vs-Raft comparison
+     *  is about (F58). */
+    public List<String[]> auxContainerHandles() {
+        return List.copyOf(auxContainers);
+    }
+
     @Override
     public List<String> clientEndpoints() {
         if (endpoints.isEmpty()) {

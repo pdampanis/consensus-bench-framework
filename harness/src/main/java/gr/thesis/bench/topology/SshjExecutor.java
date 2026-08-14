@@ -84,9 +84,17 @@ public final class SshjExecutor implements SshExecutor {
         client.connect(host, port);
         client.authPublickey(user, client.loadKeys(privateKey.toString()));
         SSHClient raced = clients.putIfAbsent(key, client);
-        if (raced != null && raced.isConnected()) { // another thread won the race
-            IOUtils.closeQuietly(client);
-            return raced;
+        if (raced != null) {
+            if (raced.isConnected()) { // another thread won the race, fairly
+                IOUtils.closeQuietly(client);
+                return raced;
+            }
+            // The race was lost to a STALE entry, so our fresh client never
+            // entered the pool — it would have been used and then never
+            // closed by close(), leaking a socket and an sshd session per
+            // occurrence. Replace the dead entry with ours.
+            clients.put(key, client);
+            IOUtils.closeQuietly(raced);
         }
         log.debug("phase: ssh connect — {}@{}", user, key);
         return client;

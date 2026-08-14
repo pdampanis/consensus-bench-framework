@@ -193,7 +193,13 @@ public final class RemoteRunner {
             writeResultsAndCheck(spec.out(), id, result, cfg, "hetzner",
                     imageFor(spec.system()), started, ended);
             if (faultRun) {
-                collectSutLogs(ssh, nodes, id.dir(spec.out())); // fault forensics (P4.5)
+                // Fault forensics (P4.5) — SUT nodes AND any auxiliary
+                // containers. KAFKA_ZK colocates a ZooKeeper ensemble beside
+                // each broker (D10), and omitting it left a ZAB fault run's
+                // evidence missing precisely the coordination half the
+                // F6 comparison is about (F58).
+                collectSutLogs(ssh, nodes, id.dir(spec.out()));
+                collectAuxLogs(ssh, provider.auxContainerHandles(), id.dir(spec.out()));
             }
             if (injectionFailure.get() != null) {
                 // The run completed and its CSVs exist for forensics, but a
@@ -412,6 +418,27 @@ public final class RemoteRunner {
         }
     }
 
+    /** Auxiliary containers (KAFKA_ZK's colocated ZK ensemble) alongside the
+     *  SUT logs — same best-effort rule: a missing log is reported and the
+     *  rest still collected, because the measurement is already on disk. */
+    private static void collectAuxLogs(SshExecutor ssh, List<String[]> aux, Path runDir)
+            throws Exception {
+        if (aux.isEmpty()) {
+            return;
+        }
+        Path logs = runDir.resolve("logs");
+        Files.createDirectories(logs);
+        for (String[] a : aux) {
+            try {
+                Files.writeString(logs.resolve(a[1] + ".log"),
+                        RemoteLogs.dockerLogs(ssh, a[0], a[1]));
+            } catch (Exception e) {
+                log.warn("could not collect logs of aux container {} on {}: {}",
+                        a[1], a[0], e.toString());
+            }
+        }
+    }
+
     // ---------------------------------------------------------------
     // HotStuff: the upstream client IS the load generator (boundary).
     // ---------------------------------------------------------------
@@ -523,12 +550,25 @@ public final class RemoteRunner {
                   "rate_ops_s": %d,
                   "value_size_bytes": %d,
                   "metrics_source": "summary.txt (logs.py-port over the post-warmup window, NEXT-4b; logs/ are the raw evidence — recompute full-run from them if needed)",
+                  "harness_version": "%s",
+                  "config_hash": "%s",
                   "status": "complete",
                   "harness": "consensus-bench-java"
                 }
                 """.formatted(spec.scenario().name().toLowerCase(), spec.clusterSize(),
                 spec.runId(), LocalDockerProvider.HOTSTUFF_IMAGE, started, ended,
-                spec.durationSecs(), spec.warmupSecs(), spec.ratePerSec(), spec.valueSizeBytes());
+                spec.durationSecs(), spec.warmupSecs(), spec.ratePerSec(), spec.valueSizeBytes(),
+                // F58: HotStuff cells were the ONLY ones with no version and no
+                // config_hash, so they alone could not be shown individually
+                // reproducible (methodology 1). status stays "complete", which is
+                // safe TODAY only because runHotStuff refuses every non-BASELINE
+                // scenario above -- it becomes load-bearing at NEXT-4 and must be
+                // revisited there rather than inherited.
+                CsvResultsWriter.harnessVersion(),
+                CsvResultsWriter.configHash(id, new WorkloadEngine.Config(
+                        spec.durationSecs(), spec.warmupSecs(), spec.ratePerSec(),
+                        spec.window(), spec.valueSizeBytes(), spec.conflictRatio()),
+                        LocalDockerProvider.HOTSTUFF_IMAGE));
         Files.writeString(dir.resolve("manifest.json"), manifest);
         // S3.2 applies here too: HotStuff's gates are mostly honest SKIPs
         // (no throughput.csv BY DESIGN — F42), but "mostly SKIP" is a

@@ -77,7 +77,7 @@ consensus-bench-thesis/
 │   │   │                           + SshFaultInjector (all golden-tested)
 │   │   ├── campaign/               Inventory + RemoteRunner (remote-run cell)
 │   │   │                           + RemoteLogs (chunked whole-log retrieval)
-│   │   └── Main.java               CLI: endpoint-run + local-run + remote-run
+│   │   └── Main.java               CLI: endpoint-run + local-run + remote-run + campaign-run
 │   ├── src/test/java/              TDD suite (count: PROJECT_STATE; needs Docker)
 │   └── results/                    M0 EVIDENCE — real etcd run outputs
 ├── infra/
@@ -87,7 +87,7 @@ consensus-bench-thesis/
 ├── observability/
 │   ├── prometheus.yml              scrape config, role labels (promtool-verified)
 │   ├── docker-compose.yml          obs VM: Prometheus + Grafana
-│   ├── export_queries.txt          per-run PromQL archive set (22 queries)
+│   ├── export_queries.txt          per-run PromQL archive set (23 queries)
 │   ├── offline/                    replay a collected campaign snapshot on the laptop
 │   └── grafana/provisioning/       datasource + dashboards as code (campaign overview
 │                                   + per-algorithm, each with an embedded reading guide)
