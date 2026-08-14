@@ -142,6 +142,25 @@ class ValidityCheckerTest {
     }
 
     @Test
+    void faultRunWithoutAMarkFailsRatherThanPosingAsBaseline(@TempDir Path dir) throws IOException {
+        // F50: the injection threw (or stalled past the runner's join), so no
+        // mark was ever stamped — but the manifest still says leader_kill.
+        // Reading ONLY the mark makes the gate answer "baseline run — N/A",
+        // which is the wrong answer to the right question: the run is void as
+        // a fault cell, and this gate is the last layer that can say so.
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"),
+                manifest(100, 2, 6, "leader_kill", null));
+        Files.writeString(dir.resolve("throughput.csv"),
+                "0,100\n1,100\n2,100\n3,100\n4,100\n5,100\n");
+
+        Report r = ValidityChecker.check(dir);
+        assertEquals(State.FAIL, stateOf(r, "fault_ground_truth"),
+                "a fault run carrying no injection mark is not a baseline run");
+        assertFalse(r.valid(), "and it must not come out valid");
+    }
+
+    @Test
     void faultRunCorroboratedByLeaderChangePasses(@TempDir Path dir) throws IOException {
         Files.createDirectories(dir);
         // fault at 3000 ms after start 14:00:00Z -> epoch of 14:00:03.

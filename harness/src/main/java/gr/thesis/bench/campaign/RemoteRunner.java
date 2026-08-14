@@ -61,6 +61,15 @@ public final class RemoteRunner {
      *  real network — generous, and every gate inside fails closed sooner
      *  with a named node. */
     private static final Duration HEALTH_DEADLINE = Duration.ofMinutes(3);
+    /** How long the fault thread waits for the engine to start the event log
+     *  (F47's alignment). A LEAK-STOPPER, not a timing gate: connect() is
+     *  seconds on a formed cluster, so this can only expire when
+     *  {@code engine.run()} died inside connect() and start() will never
+     *  come — deliberately generous so it can never cut a slow-but-healthy
+     *  connect short. */
+    private static final Duration ENGINE_START_WAIT = Duration.ofMinutes(2);
+    /** How long the runner waits for the fault thread after the load ends. */
+    private static final long FAULT_JOIN_MILLIS = 30_000;
 
     /** Everything one cell needs. Constructed by Main from CLI args. */
     public record Spec(SystemUnderTest system, Scenario scenario, int clusterSize,
@@ -128,7 +137,21 @@ public final class RemoteRunner {
                 if (faultThread != null) faultThread.start();
                 result = engine.run();
             } finally {
-                if (faultThread != null) faultThread.join(30_000);
+                if (faultThread != null) {
+                    faultThread.join(FAULT_JOIN_MILLIS);
+                    if (faultThread.isAlive()) {
+                        // F50c: the join's own timeout used to be DISCARDED, so
+                        // a stalled injector produced a silent, unflagged
+                        // "fault run" — the same void cell as a thrown
+                        // injection, minus the exception that would have named
+                        // it. compareAndSet so a real cause already recorded by
+                        // the thread always wins over this generic one.
+                        injectionFailure.compareAndSet(null, new IllegalStateException(
+                                "fault thread still running " + FAULT_JOIN_MILLIS
+                                        + " ms after the load ended — the injection did not"
+                                        + " complete inside the measured run"));
+                    }
+                }
                 injector.heal(); // always — a surviving netem/iptables rule poisons the next run
             }
             Instant ended = Instant.now();
@@ -167,9 +190,7 @@ public final class RemoteRunner {
                                       EventLog events, AtomicReference<Exception> failure) {
         Thread t = new Thread(() -> {
             try {
-                while (!events.isStarted()) {
-                    Thread.sleep(100); // engine is still in connect()
-                }
+                awaitEngineStart(events, ENGINE_START_WAIT);
                 Thread.sleep(spec.faultAtSecs() * 1000L);
                 int target = faultTargetIndex(spec.system(), driver);
                 log.info("phase: fault inject — {} on node index {} ({})",
@@ -184,6 +205,31 @@ public final class RemoteRunner {
         }, "bench-fault-injector");
         t.setDaemon(true);
         return t;
+    }
+
+    /**
+     * Wait until the engine has started the event log, bounded (F50c). The
+     * fault delay must count from MEASUREMENT start, not thread start (F47),
+     * which means waiting — but the wait was UNBOUNDED: when {@code
+     * engine.run()} fails inside {@code driver.connect()}, {@code start()}
+     * never comes, so the loop spun for the life of the campaign JVM, leaking
+     * one daemon thread per failed fault cell and costing a 30 s join timeout
+     * each time. Expiring throws rather than returning, because returning
+     * would let the thread inject against a run that is not measuring.
+     *
+     * <p>Package-private so the bound itself is testable without a 2-minute
+     * test; production always passes {@link #ENGINE_START_WAIT}.
+     */
+    static void awaitEngineStart(EventLog events, Duration bound) throws InterruptedException {
+        long deadline = System.nanoTime() + bound.toNanos();
+        while (!events.isStarted()) {
+            if (System.nanoTime() >= deadline) {
+                throw new IllegalStateException(
+                        "engine never started the event log within " + bound
+                                + " — connect() almost certainly failed; refusing to spin");
+            }
+            Thread.sleep(50);
+        }
     }
 
     /**

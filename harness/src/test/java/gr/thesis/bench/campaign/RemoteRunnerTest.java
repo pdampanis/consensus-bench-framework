@@ -116,6 +116,32 @@ class RemoteRunnerTest {
     }
 
     @Test
+    void engineStartWaitIsBoundedSoAFailedConnectCannotSpinForever() {
+        // F50c: the fault thread waits for the engine to start the EventLog
+        // (F47's alignment fix). If engine.run() dies inside driver.connect(),
+        // start() never comes and the ORIGINAL unbounded loop spun for the
+        // life of the campaign JVM — one leaked daemon thread per failed
+        // fault cell, plus a fixed 30 s join timeout each time. The bound is
+        // a leak-stopper, not a timing gate, so it fails LOUD rather than
+        // returning as if the engine had started.
+        var neverStarted = new gr.thesis.bench.core.EventLog(8);
+        long t0 = System.nanoTime();
+        var e = assertThrows(IllegalStateException.class,
+                () -> RemoteRunner.awaitEngineStart(neverStarted, java.time.Duration.ofMillis(300)));
+        long elapsedMs = (System.nanoTime() - t0) / 1_000_000L;
+
+        assertTrue(e.getMessage().contains("event log"), e.getMessage());
+        assertTrue(elapsedMs < 5_000, "must give up at its bound, waited " + elapsedMs + " ms");
+    }
+
+    @Test
+    void engineStartWaitReturnsOnceTheLogIsStarted() throws Exception {
+        var started = new gr.thesis.bench.core.EventLog(8);
+        started.start(System.nanoTime());
+        RemoteRunner.awaitEngineStart(started, java.time.Duration.ofSeconds(5)); // must not throw
+    }
+
+    @Test
     void baselineSpecIgnoresTheFaultTimeItNeverUses() {
         // F48: a short BASELINE run was rejected because the DEFAULTED
         // fault-at (warmup+60) landed outside it — but no fault thread ever

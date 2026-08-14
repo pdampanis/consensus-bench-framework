@@ -282,7 +282,21 @@ public final class ValidityChecker {
                                                    boolean hasMetrics) throws IOException {
         JsonNode mark = m.get("fault_injected_at_ms");
         if (mark == null || mark.isNull()) {
-            return GateResult.skip("fault_ground_truth", "baseline run (no fault injected) — N/A");
+            // F50: an absent mark means one of two OPPOSITE things, and only
+            // the scenario tells them apart — a baseline run has nothing to
+            // corroborate, while a FAULT run with no mark is one whose
+            // injection never fired (it threw, or stalled past the runner's
+            // join). Judging by the mark alone reported the second as
+            // "baseline run — N/A" and waved it through as valid. Anything
+            // not explicitly baseline fails closed here.
+            String scenario = m.path("scenario").asText("");
+            if ("baseline".equals(scenario)) {
+                return GateResult.skip("fault_ground_truth",
+                        "baseline run (no fault injected) — N/A");
+            }
+            return GateResult.fail("fault_ground_truth",
+                    "'" + scenario + "' run carries NO fault mark — the injection never fired"
+                            + " (or stalled); the run is void as a fault cell, not a baseline");
         }
         String witness = switch (system) {
             case "etcd" -> "etcd_leader_chg";
