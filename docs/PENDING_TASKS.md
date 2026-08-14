@@ -814,7 +814,48 @@ commit stale — HEAD had 146 committed tests before this session; NEXT-4b's
 
 ---
 
+## 2026-08-14 seventh hard review (F50–F68)
+
+**Protocol:** full code+docs read-through against committed HEAD 9e9fbdd
+(re-verified by execution FIRST: `mvn21 clean verify` green, 170/170 — the
+documented count confirmed). Findings F50–F67 and their evidence are in the
+review write-up; F68 was found while gating this session's own work. Then
+one increment at a time, TDD red→green with the red shown, a green
+`mvn21 clean verify` before each checkpoint. Suite 170 → **176 green**.
+
+| # | Finding | Status |
+|---|---------|--------|
+| F50 | A fault run whose injection FAILED was written as a complete, valid, permanently-skipped cell: `RemoteRunner` writes CSVs+manifest BEFORE rethrowing `injectionFailure`, so `status: complete` + `fault_injected_at_ms: null` → `MatrixRunner.alreadyComplete` skips it forever on resume, gate 3 calls it a "baseline run" and SKIPs (`valid: true`), and analyse.py emits a `leader_kill` cell carrying UNDISTURBED BASELINE numbers — the v6 reclassification class, reachable from the campaign path. Proven end-to-end through the real writer/runner/checker classes | **F50a CLOSED** (TDD) — `CsvResultsWriter` writes `status: failed` when `scenario != BASELINE` and the EventLog carries no mark. The mark is stamped only after `apply()` RETURNS, so mark-present ⇔ fault-fired; putting the rule in the WRITER (not the caller) makes resume, validity and analysis read one truth and disarms the trap for future callers. Measured after: `alreadyComplete` false, analyse.py excludes with reason `status=failed`. **F50b/c ALSO CLOSED** (increment 2, TDD): gate 3 now reads `scenario` and FAILs (`'leader_kill' run carries NO fault mark`) instead of SKIPping as "baseline run"; `RemoteRunner` checks `faultThread.isAlive()` after its join instead of discarding the timeout; the fault thread's engine-start wait is BOUNDED (`awaitEngineStart`, 2 min) — the unbounded loop leaked one spinning daemon thread per failed fault cell whenever `connect()` died. Whole chain re-measured: `status failed` / `alreadyComplete false` / `valid=false` with the right diagnosis / analyse.py excluded |
+| F51 | `SshFaultInjector.undo` is a plain `ArrayDeque` pushed by the fault thread and popped by the main thread in `heal()`, which `RemoteRunner` calls unconditionally after a `join(30_000)` that may time out — a lost undo entry leaves a live netem qdisc / iptables DROP poisoning every later run on that VM (the stationarity violation F29 exists to prevent) | **OPEN** — increment 3 |
+| F52 | `error_rate` is computed and written but consulted by NO validity gate; `status` tolerates 50% failures, and `rate_adherence` SKIPs for saturation runs — so a baseline where 49% of ops failed reports `valid: true`. §4's gate 2 (durability) is the intended home and is a documented SKIP pending P2.6, but a manifest-only error-rate gate needs no Prometheus | **OPEN** — needs a threshold + scope decision (fault runs SHOULD error) |
+| F53 | packet-loss percent is hardcoded 30 in `MatrixRunner` (not a `Block` field, so a block cannot vary it), absent from the manifest AND from `config_hash` — two `packet_loss` cells at different percentages hash identically, so §1's "any cell individually reproducible" fails for that scenario. `METRICS_AND_SOURCES.md:229` preregisters **5%** and predicts "modest degradation" | **OPEN** — value decision (5 / 30 / sweep) then plumbing |
+| F54 | `analyse.py`'s honesty rules fail OPEN on fields a v1 manifest lacks: missing `environment` ≠ "local" so laptop runs are INCLUDED (verified: the committed M0 tree analyses as 2 included / 0 excluded), and missing `duration_secs` keeps the drain tail, reporting 229.9 ops/s for a run that achieved 306.5 | **OPEN** — increment 4 |
+| F55–F57 | Methodology/semantics needing an author call: `METRICS_AND_SOURCES.md` describes partition as "full isolation" (impl preserves the loadgen→leader path BY DESIGN) and slow_node as Pumba/`yes` (impl is host `stress-ng`); fault DURATIONS differ across scenarios (slow_node self-ends at 120 s, others persist to `heal()` — 120/300 vs 240/300 measured seconds faulted); `packet_loss` netem shapes the measurement path too, while partition explicitly does not | **OPEN — decisions** |
+| F58–F67 | Hygiene: HotStuff manifest hardcodes `status: complete` and omits `harness_version`/`config_hash`/`error_rate` (safe only while `runHotStuff` refuses non-BASELINE — becomes load-bearing at NEXT-4); F21 runId validation guards only `remote-run`; ValidityChecker javadoc claims an `instance` column it discards; `SshFaultInjector` SSHes to `privateIp()` where `host()` is the documented management address; `SshjExecutor` leaks a client on a lost putIfAbsent race; **export_queries.txt has 23 queries, README/PENDING_TASKS/LOCAL_TESTING still say 22** (F40 added `clock_offset`; LOCAL_TESTING states it as EXPECTED OUTPUT, so following that doc now shows a false failure); MEASUREMENT_DIAGRAMS header says 66 tests, line 194 says 170; README CLI list omits `campaign-run`; `collectSutLogs` skips KAFKA_ZK's colocated ZK containers; stray un-expanded brace dir under `bench/` | **OPEN — cheap** |
+| **F68** | **`KafkaPerfTestParityTest` is the suite's only unstable gate and it red-lined `mvn21 clean verify` TWICE this session in two DIFFERENT ways — ratio 0.22x (band is 0.33–3.0), then 11% errors (`TimeoutException: Expiring 1 record(s) … 5000 ms`). Mechanism: it benchmarks a REAL broker, so it asserts on the laptop's spare capacity; both failures occurred at load average ~15 (Chrome on three cores), and the same test passed at 1.86x in isolation on the SAME tree minutes later. Its band (0.33x) is TIGHTER than the variance its own javadoc records observing (0.2x–2.8x across four laptop configurations).** Why it matters beyond annoyance: IMPLEMENTATION_PLAN's honest review names "gates holding under impatience" as the plan's deepest assumption — a gate that reds on unrelated background load is the one test training the author to wave a red build through | **OPEN — AUTHOR'S CALL** (it is a G1 regression test; narrowing/widening a gate is not a mechanical fix). Options: widen the laptop band to the documented evidence (~0.1x–10x — its stated job is catching the 100–1000× probe class, not a 3× one); raise/drop the 2% error assertion locally (the test's OWN comment calls these "honest timeouts, not a broken load model"); or tag it out of the default `verify` and run it deliberately, since the symmetric ±15% comparison already lives at G3/M6.1 on the cluster where the environment is controlled |
+
+---
+
 ## Immediate next increments (LLM-ready specs)
+
+**NEXT-6 — F50b/c. DONE (increment 2, TDD red→green, 176 green.)**
+
+**NEXT-7 — F51 (increment 3).** `SshFaultInjector.undo` → a concurrent
+deque, and settle whether `heal()` may run while the injector thread is
+still alive. Now more than theoretical: increment 2's `isAlive()` check
+made the racing window VISIBLE, and `partition` issues five SSH commands
+(one `ip -o route get` + four `iptables -A`), each bounded at 30 s by
+`SshjExecutor` — so a degraded node can keep `apply()` running ~150 s,
+five times the 30 s join. Two consequences to decide together: heal
+racing a live apply on a non-thread-safe `ArrayDeque` (a lost undo entry
+leaves a live netem/iptables rule — the F29 stationarity class), and
+whether voiding such a run is right (it is: a fault landing after the
+load ended is not measurable — but say so deliberately).
+
+**NEXT-8 — F54 (increment 4).** `analyse.py` must exclude-and-list on a
+missing `environment` or `duration_secs` instead of treating absence as
+permission. Verify against the committed M0 tree: today 2 included /
+0 excluded, must become 0 included / 2 excluded.
 
 **NEXT-1 — G2 golden read-through (HUMAN, the author).** Read all seven
 goldens in `harness/src/test/resources/goldens/` against their header

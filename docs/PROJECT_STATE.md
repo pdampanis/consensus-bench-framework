@@ -5,7 +5,40 @@ It is written for a fresh Claude session with no memory of prior turns.
 When something here conflicts with an older file, this document wins; update
 it at the end of every working session.
 
-Last updated: 2026-07-21 — **sixth hard review (F39–F49, all closed same
+Last updated: 2026-08-14 — **seventh hard review (F50–F68; ledger in
+PENDING_TASKS §"2026-08-14").** HEAD 9e9fbdd re-verified by execution
+FIRST (`mvn21 clean verify` green, 170/170 — the documented count
+confirmed). The review's headline is **F50**, the v6 reclassification
+class reachable from the campaign path: `RemoteRunner` wrote a fault
+cell's CSVs+manifest BEFORE rethrowing its injection failure, so a
+`leader_kill` run whose fault NEVER FIRED landed as
+`status: complete` + `fault_injected_at_ms: null` — which
+`MatrixRunner.alreadyComplete` then skipped FOREVER on resume, gate 3
+called a "baseline run" and waved through as `valid: true`, and
+analyse.py emitted as a `leader_kill` cell carrying UNDISTURBED BASELINE
+numbers (biasing F4/F5 toward "faults had no impact"). Proven end-to-end
+through the real writer/runner/checker classes, not argued.
+**Closed in two TDD increments, both gated green:** (1) `CsvResultsWriter`
+writes `status: failed` when the scenario is not BASELINE and the EventLog
+carries no mark — the mark is stamped only after `apply()` RETURNS, so
+mark-present ⇔ fault-fired, and putting the rule in the WRITER rather than
+the caller makes resume/validity/analysis read ONE truth and disarms the
+trap for future callers; (2) gate 3 now reads `scenario` and FAILs instead
+of posing as baseline, `RemoteRunner` checks `faultThread.isAlive()`
+instead of discarding its join timeout, and the fault thread's
+engine-start wait is BOUNDED (the unbounded `while (!events.isStarted())`
+leaked one spinning daemon thread per failed fault cell whenever
+`connect()` died). **Suite: 170 → 176 green.**
+Still OPEN from this review: **F51** (non-thread-safe undo deque raced by
+`heal()` — NEXT-7), **F52** (error_rate gates nothing), **F53** (packet-loss
+percent unrecorded + docs preregister 5% where code injects 30%), **F54**
+(analyse.py fails OPEN on v1 manifests — NEXT-8), F55–F57 (methodology
+decisions), F58–F67 (hygiene), and **F68 — the parity gate is unstable**
+(`KafkaPerfTestParityTest` red-lined `clean verify` twice in two different
+ways at load average ~15, then passed at 1.86x in isolation on the same
+tree; its 0.33x floor is tighter than the 0.2x its own javadoc records —
+AUTHOR'S CALL, it is a G1 regression test).
+Prior update, 2026-07-21 — **sixth hard review (F39–F49, all closed same
 session; ledger in PENDING_TASKS §"2026-07-21").** Highlights: the
 in-flight **M5.5 ValidityChecker landed HARDENED** (per-system gate-3
 witnesses, hotstuff-aware gates, loud SKIPs for the two collector-less
