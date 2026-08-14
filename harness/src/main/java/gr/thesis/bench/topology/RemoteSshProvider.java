@@ -17,7 +17,7 @@ import java.util.stream.IntStream;
  * flows through {@link SshExecutor}: the same code paths run against the
  * recorder (G2 golden files, reviewed by a human) and the real cluster.
  *
- * Remote deltas honored (the PENDING_TASKS P3.3 preregistration):
+ * Remote deltas honored (the the findings ledger (docs/archive/) P3.3 preregistration):
  *  - {@code NodeHandle.privateIp} carries the REAL private IP (F20) — the
  *    address peers, clients, and faults act on; {@code host} is the SSH
  *    target, the same IP, because the harness runs ON the loadgen.

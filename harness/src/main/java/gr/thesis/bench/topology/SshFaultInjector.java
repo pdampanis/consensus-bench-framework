@@ -17,7 +17,7 @@ import java.util.List;
  * (which node) is the {@link FaultInjector#apply} default, pinned by
  * FaultInjectorApplyTest (F13/F19); this class is the mechanics.
  *
- * Network invariants (the PENDING_TASKS P3.3 remote-deltas preregistration,
+ * Network invariants (the the findings ledger (docs/archive/) P3.3 remote-deltas preregistration,
  * and why laptop-Docker faults would be WRONG on the servers):
  *  - netem shapes the interface carrying PRIVATE traffic, resolved at
  *    runtime from {@code ip -o route get <peer_private_ip>} — never an

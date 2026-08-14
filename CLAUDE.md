@@ -1,42 +1,83 @@
 # CLAUDE.md — consensus-bench-thesis
 
 > This repo lives under `~/Downloads`, whose CLAUDE.md belongs to a
-> DIFFERENT project (Release Note Generator) — ignore that file here.
-> This project's real rules live in the docs; this file only points at them.
+> DIFFERENT project (Release Note Generator) — **ignore that file here.**
+> That is this file's main job; the rest is a pointer.
 
-## Read first
-`docs/PROJECT_STATE.md` — the single source of truth for where the
-implementation stands. Backlog + findings ledger: `docs/PENDING_TASKS.md`.
+## Read first, and only this
+
+**`docs/PROJECT_STATE.md` is the SINGLE DRIVING DOCUMENT.** Decisions, open
+issues, the prioritized queue, and the merge plan all live there. Start every
+session by reading it and taking the top unblocked item from its §6.
+
+Everything else in `docs/` is **reference** — consulted when PROJECT_STATE
+sends you there, never planned from. `docs/archive/` is history, including
+the full F1–F76 findings ledger (code comments across the harness cite those
+F-numbers, so it stays).
 
 ## Authority order (when sources conflict)
-live code > IMPLEMENTATION_PLAN + DATA_ANALYSIS_METHODOLOGY >
-PENDING_TASKS/PROJECT_STATE > other docs > docs/archive (history only).
 
-## Working agreement (PROJECT_STATE §9 — non-negotiable)
-1. **Execute, don't assert** — if it can be compiled/run/parsed, do it and
-   show the evidence before claiming it works.
-2. **TDD, strictly** — failing test first, red for the right reason.
-3. **One increment per session-step**; stop at checkpoints with
-   done / evidence / not-verified / next.
-4. **Honest review** — separate verified from assumed, every time.
-5. **Respect gates G1/G2/G3** — the evidence must exist; G2's human
-   read-through of the SSH goldens is the author's, never skipped.
+```
+live code  >  IMPLEMENTATION_PLAN + DATA_ANALYSIS_METHODOLOGY
+           >  PROJECT_STATE  >  other docs  >  docs/archive
+```
+
+PROJECT_STATE wins on **what to do next**; the plan and the methodology win
+on **how it must be done** (acceptance criteria, statistics, validity).
+
+## The loop (PROJECT_STATE §3 and §9 — non-negotiable)
+
+1. **Execute, don't assert** — if it can be compiled, run or parsed, do it
+   and show the evidence before claiming it works.
+2. **TDD, strictly** — failing test first, watched red for the RIGHT reason.
+3. **One increment per session-step**; stop with done / evidence /
+   not-verified / next.
+4. **Honest review** — separate verified from assumed, every time; name what
+   was not tested.
+5. **Respect gates G1/G2/G3** — the evidence must exist. G2's human
+   read-through of the goldens is the author's and is never skipped.
+6. **Update PROJECT_STATE at session end** — it is the only thing a fresh
+   session reads first.
 
 ## Hard safety rules
-- **Never `terraform apply`** (G2 gate). `validate`/dummy-token `plan` are fine.
-- Laptop numbers are functional evidence only — never thesis data.
+
+- **Never `terraform apply`** (G2 gate). `validate` / dummy-token `plan` are
+  fine.
+- **Laptop numbers are functional evidence only — never thesis data.**
+- **Never widen a gate to make a build pass.** If a gate is wrong, say so,
+  argue it from measured evidence, and change it deliberately (F68 is the
+  worked example).
 
 ## Build / test
+
 ```bash
 cd harness && mvn21 clean verify   # ~/tools/maven/mvn21.sh if no alias
 # Needs Docker + BOTH local images, once per machine:
 #   docker build -t paxi:6823d0b infra/paxi
 #   docker build -t hotstuff:dc01ac8 infra/hotstuff
-# Expected count: docs/LOCAL_TESTING.md (170 green as of 2026-07-21).
 ```
+**Read the count from Maven's own `Tests run:` summary line**, never from
+arithmetic over report files, and treat a suspiciously fast run as a FAILED
+gate until the count is confirmed — see F76 in PROJECT_STATE §5.
+Current baseline: **243 tests**, ~5–7 min.
 
-## Next task (as of 2026-07-21 — verify against PROJECT_STATE header)
-G2 golden read-through is the AUTHOR'S (surface the seven goldens in
-harness/src/test/resources/goldens/ and wait) → P3.5 price check → P3.4
-canary. LLM-ready specs: docs/PENDING_TASKS.md "Immediate next increments";
-architecture diagrams: docs/MEASUREMENT_DIAGRAMS.md §3.
+## Branches and worktrees
+
+Work happens on a named branch off `main` (`<review>-tier<N>`). `main` is the
+integration branch; **there is no `master`.** Push the branch early — there
+is no CI and no backup.
+
+**One active session per branch.** Two sessions sharing one checkout lose
+each other's uncommitted edits silently — not as a merge conflict, but as a
+whole-file overwrite. A second concurrent session gets its own worktree:
+`git worktree add ../cbt-<topic> -b <topic>`.
+
+The 9-item merge gate is in `docs/GIT_WORKFLOW.md`; the step-by-step runbook
+to `main` is `docs/PROJECT_STATE.md` §7.
+
+## Next task
+
+See `docs/PROJECT_STATE.md` §6. As of 2026-08-15 the top three are the
+author's: **G2 golden read-through** (blocks everything billed — three
+goldens changed and need re-reading), then the P3.5 price check, then the
+P3.4 canary.

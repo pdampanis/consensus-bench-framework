@@ -278,7 +278,7 @@ collection). The cost model above only starts ticking after G2.
    VM at destroy time**; collection is verified (manifest count) *before*
    destroy.
 
-**New tangible tasks (added to PENDING_TASKS):**
+**New tangible tasks (added to PROJECT_STATE):**
 - **P4.5 — SUT log + docker-events capture per block** (closes the gap in
   §6; HotStuff hard-depends on it, gate 4 needs the events audit).
 - **M3.3 amendment** — campaign runner must support a single-system block

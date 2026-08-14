@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * F19: pins the F13 preregistration into the ONE place every injector
  * inherits its targeting from — the {@code FaultInjector.apply} default.
- * Preregistered semantics (PENDING_TASKS P3.3 notes, locked 2026-07-08):
+ * Preregistered semantics (the findings ledger (docs/archive/) P3.3 notes, locked 2026-07-08):
  *  - NETWORK_PARTITION isolates the LEADER from everyone else — the
  *    default used to isolate node 0, which for etcd is "whoever won the
  *    first election" roughly a third of the time and a follower otherwise:

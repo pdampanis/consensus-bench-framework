@@ -1,7 +1,7 @@
 # Per-Algorithm Test & Debug Guide
 
 How to run, debug, and read the tests and the benchmark **one algorithm at a
-time**. Companion to `HOW_TO_CONTINUE.md` (the map) and `LOCAL_TESTING.md`
+time**. Companion to `PROJECT_STATE.md` (the map) and `LOCAL_TESTING.md`
 (whole-suite manual verification). Everything here is a real command against
 this repo.
 

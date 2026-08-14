@@ -225,7 +225,7 @@ public final class LocalDockerProvider implements ClusterProvider {
     /**
      * 3-node Paxi (P2.4a) — one binary serves both PAXOS and EPAXOS via
      * {@code -algorithm}. Facts verified against the pinned source
-     * (2026-07-16, commit 6823d0b — see PENDING_TASKS F22):
+     * (2026-07-16, commit 6823d0b — see the findings ledger (docs/archive/) F22):
      *  - config.json needs only the two address maps; Config.Load() decodes
      *    into a defaults-prefilled singleton (config.go). IDs are Zone.Node
      *    ("1.1".."1.3"); http binds ":"+port of its URL, host part is

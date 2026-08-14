@@ -54,7 +54,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * client (the SUT's own load generator) runs on the LOADGEN VM, its logs
  * plus the four node logs are collected whole (RemoteLogs), and the
  * logs.py-port analyzer produces the canonical SUMMARY. BASELINE only for
- * now; hotstuff fault scenarios are preregistered in PENDING_TASKS.
+ * now; hotstuff fault scenarios are preregistered in the findings ledger (docs/archive/).
  */
 public final class RemoteRunner {
 
@@ -531,7 +531,7 @@ public final class RemoteRunner {
         if (spec.scenario() != Scenario.BASELINE) {
             throw new UnsupportedOperationException(
                     "HOTSTUFF remote-run serves BASELINE only for now — fault scenarios are"
-                            + " preregistered in PENDING_TASKS (target semantics + faults count"
+                            + " preregistered in the findings ledger (docs/archive/) (target semantics + faults count"
                             + " in the SUMMARY need a decision, not a default)");
         }
         if (spec.ratePerSec() <= 0) {

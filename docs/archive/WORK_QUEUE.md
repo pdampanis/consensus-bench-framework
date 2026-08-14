@@ -1,3 +1,10 @@
+# ARCHIVED 2026-08-15
+
+> Folded into PROJECT_STATE §6 (the queue) and §3 (the flow).
+> **The driver is `docs/PROJECT_STATE.md`.**
+
+---
+
 # Work Queue — every open front, grouped into increments, ordered, scored
 
 **Compiled 2026-08-14** against the tree at `eighth-review-tier1` `d7f0c59`

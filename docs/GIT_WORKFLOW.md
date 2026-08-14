@@ -72,10 +72,10 @@ down. That is the whole gate — nothing else is checking.
 |---|------|--------------------|---------------|
 | 1 | **Suite green, count verified** | `cd harness && mvn21 clean verify` → BUILD SUCCESS, and the count is read from **Maven's own `Tests run:` summary line**, not from arithmetic over report files. It must **match or exceed** the count in `PROJECT_STATE`. Current baseline: **177 tests / 34 classes** | F76: a `verify` once reported BUILD SUCCESS having run only **90 tests across 15 classes**, skipping the test covering the change being gated. A build that exits 0 having run half the suite undercuts every green-gate claim in the project's history |
 | 2 | **The environment could actually run the tests** | Docker daemon up, and BOTH local images present: `docker images \| grep -E 'paxi:6823d0b\|hotstuff:dc01ac8'`. A ~5 min wall-clock for `verify` is the sanity check — a suspiciously fast green is gate 1's failure mode | Integration tests need the daemon; the two source-built images exist in no registry (F33) |
-| 3 | **Every finding touched is ledgered** | `PENDING_TASKS.md` carries each F-number with status (OPEN/CLOSED/DECIDED) **and its evidence** — the measurement, not the assertion | The ledger is the handoff contract; a finding that lives only in a session's scrollback is lost work (this gate exists *because* F76 was found that way) |
+| 3 | **Every finding touched is ledgered** | `PROJECT_STATE.md` carries each F-number with status (OPEN/CLOSED/DECIDED) **and its evidence** — the measurement, not the assertion | The ledger is the handoff contract; a finding that lives only in a session's scrollback is lost work (this gate exists *because* F76 was found that way) |
 | 4 | **`PROJECT_STATE.md` header updated** | The header says what changed, what was verified by execution, and what is next | Working agreement §9 rule 6. It is the first thing a fresh session reads |
 | 5 | **TDD evidence stated** | Each behaviour-changing commit message names the failing test and that it was seen **red for the right reason** | Working agreement §9 rule 2 |
-| 6 | **Goldens: re-read if touched** | If any file under `src/test/resources/goldens/` changed, the **G2 human read-through is redone for the changed blocks** and signed off in `PENDING_TASKS` | The seven goldens are FINAL text for G2; changing them after sign-off silently invalidates it |
+| 6 | **Goldens: re-read if touched** | If any file under `src/test/resources/goldens/` changed, the **G2 human read-through is redone for the changed blocks** and signed off in `PROJECT_STATE` | The seven goldens are FINAL text for G2; changing them after sign-off silently invalidates it |
 | 7 | **No `terraform apply` was run** | `hcloud server list` empty / no state change in `infra/` | Hard safety rule — G2 gate, and a forgotten cluster costs ~€7/day |
 | 8 | **Doc authority sweep** | If the branch changed behaviour a doc describes, that doc changed in the **same branch** | Authority order is `live code > plan/methodology > state docs`; drift is how the ledger fills up |
 | 9 | **Branch pushed** | `git push -u origin <branch>` | Reviewability and backup |
@@ -101,7 +101,7 @@ The failure mode is **not** a merge conflict — git never gets the chance. It
 is a **silent lost update**: session A has a file's older content in its
 context, writes the whole file, and session B's uncommitted edits to the same
 file vanish with no error and no diff to notice. The highest-risk files are
-the ones every session touches: `PENDING_TASKS.md` and `PROJECT_STATE.md`.
+the ones every session touches: `PROJECT_STATE.md` and `PROJECT_STATE.md`.
 
 Protocol:
 
@@ -114,7 +114,7 @@ Protocol:
 3. **Before editing a shared doc, re-read it.** Do not edit from a copy held
    in context from earlier in the session; another session may have rewritten
    it since.
-4. **Prefer targeted edits over whole-file writes** on `PENDING_TASKS.md` and
+4. **Prefer targeted edits over whole-file writes** on `PROJECT_STATE.md` and
    `PROJECT_STATE.md`. An anchored edit fails loudly when the content moved;
    a whole-file write succeeds and destroys.
 5. **Record who is doing what** in the `PROJECT_STATE` header when a session

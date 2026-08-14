@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *     protocol, not the client's thread count.
  *
  * Facts verified against the pinned source (ailidani/paxi @ 6823d0b,
- * 2026-07-16 — PENDING_TASKS F22/F24/F26):
+ * 2026-07-16 — the findings ledger (docs/archive/) F22/F24/F26):
  *  - The key is Atoi-parsed from the URL path (http.go), so it must be
  *    numeric-only; a 200 reply means the command was committed AND
  *    executed (reply-on-EXECUTE default — same semantics as etcd's

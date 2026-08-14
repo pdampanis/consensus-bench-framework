@@ -62,7 +62,7 @@ flaws that motivated the harness.
 **SUPERSEDED on substrate choice (2026-07-07): the local substrate is Docker
 via Testcontainers (`LocalDockerProvider`), not local processes** — Docker is
 up on the dev machine, it matches the pinned-image packaging (D2), and
-Testcontainers gives typed teardown guarantees. See `PENDING_TASKS.md` P0,
+Testcontainers gives typed teardown guarantees. See `PROJECT_STATE.md` P0,
 which also pulls this milestone *ahead of* M2 (local loop first). The
 acceptance criteria below still bind; only the mechanism and order changed.
 

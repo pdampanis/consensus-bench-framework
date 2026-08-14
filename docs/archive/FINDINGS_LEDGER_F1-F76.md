@@ -1,3 +1,15 @@
+# ARCHIVED 2026-08-15 — findings ledger F1–F76 (evidence trail)
+
+> **This file no longer drives anything.** It is kept because code comments
+> across the harness cite F-numbers, and because it is the audit trail
+> showing HOW each finding was found, proven and closed — which is the
+> project's most transferable artifact.
+>
+> **The driver is `docs/PROJECT_STATE.md`.** Findings still OPEN live in its
+> §5; everything here is closed or superseded. Do not add new findings here.
+
+---
+
 # Pending Tasks — Prioritized Backlog + Status Ledger
 
 **Last updated: 2026-08-14** (seventh review F50–F69, then the eighth

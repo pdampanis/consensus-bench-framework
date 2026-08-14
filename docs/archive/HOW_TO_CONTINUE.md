@@ -1,3 +1,10 @@
+# ARCHIVED 2026-08-15
+
+> Folded into PROJECT_STATE §3 and §6.
+> **The driver is `docs/PROJECT_STATE.md`.**
+
+---
+
 # HOW TO CONTINUE — one page, low noise
 
 > **Prioritized cross-front queue with confidence scores:**
