@@ -32,7 +32,7 @@ mvn21 clean verify
 **Expect** (versions/counts as of 2026-07-21 — counts only grow):
 
 ```
-Tests run: 204, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 229, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -45,7 +45,7 @@ old`, the testcontainers pin regressed below 1.21.4 (Docker 29 needs
 ≥1.21.4). Per-algorithm selections and debugging:
 `docs/PER_ALGORITHM_TEST_GUIDE.md`.
 
-What the 204 tests pin, so you know what a failure means (headline
+What the 229 tests pin, so you know what a failure means (headline
 additions since 143: the sixth-review batch — ValidityCheckerTest ×19
 [the six §4 gates, per-system fault witnesses, the consulted-metrics ↔
 export_queries contract], KafkaJmxAgentTest ×3 [real broker serves the
@@ -427,7 +427,7 @@ docker run --rm -v /tmp/eq-rules.yml:/rules.yml:ro \
   --entrypoint promtool prom/prometheus:v2.53.0 check rules /rules.yml
 ```
 
-**Expect:** `wrapped 23 queries` then `SUCCESS: 23 rules found`
+**Expect:** `wrapped 25 queries` then `SUCCESS: 25 rules found`
 (count grows as queries are added; any parse error names the bad query).
 
 This proves *syntax* only — metric **names** (ZK :7000, Kafka JMX) are

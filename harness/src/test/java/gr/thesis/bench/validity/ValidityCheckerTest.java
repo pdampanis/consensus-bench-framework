@@ -452,4 +452,48 @@ class ValidityCheckerTest {
         new com.fasterxml.jackson.databind.ObjectMapper().readTree(v); // must parse
         assertTrue(v.contains("fault_ground_truth"), v);
     }
+
+    // ---- M5.3/S3.3: window_headroom is an EVALUATED gate at last ----
+
+    @Test
+    void aPinnedInFlightWindowMeansTheCLIENTWasTheCeiling(@TempDir Path dir) throws IOException {
+        // Little's Law: at full occupancy the reported number is
+        // window/latency, which is a fact about the harness. This project met
+        // that confusion twice (P2.2c, P2.3) and diagnosed it by hand both
+        // times.
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"), "{\n"
+                + "  \"system\": \"etcd\",\n  \"scenario\": \"baseline\",\n"
+                + "  \"started_at\": \"2026-08-03T14:00:00Z\",\n  \"rate_ops_s\": 100,\n"
+                + "  \"warmup_secs\": 2,\n  \"duration_secs\": 6,\n  \"window\": 64,\n"
+                + "  \"error_rate\": 0.0\n}\n");
+        StringBuilder tp = new StringBuilder();
+        for (int t = 0; t < 6; t++) tp.append(t).append(",100\n");
+        Files.writeString(dir.resolve("throughput.csv"), tp.toString());
+        metric(dir, "harness_inflight", "1000,loadgen,20\n1005,loadgen,63\n");
+
+        assertEquals(State.FAIL, stateOf(ValidityChecker.check(dir), "window_headroom"),
+                "63 of 64 is 98% occupancy — window-bound, not system-bound");
+    }
+
+    @Test
+    void aRunWithHeadroomPassesAndSaturationSkips(@TempDir Path dir) throws IOException {
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"), "{\n"
+                + "  \"system\": \"etcd\",\n  \"scenario\": \"baseline\",\n"
+                + "  \"started_at\": \"2026-08-03T14:00:00Z\",\n  \"rate_ops_s\": 100,\n"
+                + "  \"warmup_secs\": 2,\n  \"duration_secs\": 6,\n  \"window\": 64,\n"
+                + "  \"error_rate\": 0.0\n}\n");
+        StringBuilder tp = new StringBuilder();
+        for (int t = 0; t < 6; t++) tp.append(t).append(",100\n");
+        Files.writeString(dir.resolve("throughput.csv"), tp.toString());
+        metric(dir, "harness_inflight", "1000,loadgen,8\n1005,loadgen,12\n");
+        assertEquals(State.PASS, stateOf(ValidityChecker.check(dir), "window_headroom"));
+
+        // Saturation PINS the window BY METHOD (Paxi's procedure) — gating it
+        // there would fail every run that did what it was told.
+        baseline(dir, 0, new int[]{500, 500, 500, 500, 500, 500});
+        metric(dir, "harness_inflight", "1000,loadgen,64\n");
+        assertEquals(State.SKIP, stateOf(ValidityChecker.check(dir), "window_headroom"));
+    }
 }

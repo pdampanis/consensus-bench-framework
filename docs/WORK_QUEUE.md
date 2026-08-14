@@ -73,7 +73,7 @@ worth more than any single increment below.
 | ~~**10**~~ | P5 | **DONE** — **S1.2 — named + serialized simulations** | `Simulations` constants; `simulation.json` written + hashed into manifests (D12) | The publishable spec artifact | **85%** |
 | ~~**11**~~ | P5 | **S1.3 — `campaign-run --simulation` DONE** | Select by name; an unknown NAME fails closed against the real set, F32's rule applied to a value. **picocli/M1.3 deliberately NOT bundled** — rewriting the whole CLI surface is its own increment with its own risk, and bundling it would have made this one un-reviewable. Still queued as **#11b** | | — |
 | ~~**12**~~ | P5 | **DONE** — **S2.1a — rules in the record** | Thresholds + § reference + false-positive text written into `validity.json`; contract test extended | Before M6.2 retunes thresholds | **80%** |
-| **13** | P6 | **S3.3 — harness self-metrics :9400 (M5.3)** | micrometer (already in pom, unused) | Unlocks `window_headroom` gate | **70%** |
+| ~~**13**~~ | P6 | **DONE** — **S3.3 — harness self-metrics :9400 (M5.3)** | micrometer (already in pom, unused) | Unlocks `window_headroom` gate | **70%** |
 | **14** | P6 | **S3.4 — docker-events audit (P4.5 open half)** | Restart audit per block | Unlocks `container_restarts` + the paxi/hotstuff gate-3 witness | **65%** |
 | ~~**15**~~ | P7 | **DONE (with #12)** — **S2.2 — false-positive triage in verdicts** | Verdicts name candidate benign causes; F68's pressure rule becomes machine-readable | | **75%** |
 | **16** | P7 | **S4.1 — the journal** | Chaos-Toolkit-shaped per-simulation record; every cell, not just failures | | **75%** |

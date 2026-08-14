@@ -67,6 +67,10 @@ public final class ValidityChecker {
      *  1%. Fault scenarios are exempt BY DESIGN; see {@link
      *  #gateBaselineErrorRate}. */
     static final double BASELINE_ERROR_RATE_MAX = 0.01;
+    /** Gate 1b (M5.3): a fixed-rate run's in-flight window must not sit
+     *  pinned at its ceiling — above this occupancy the number reported is
+     *  window/latency, not the system's rate. PROVISIONAL until M6.2. */
+    static final double WINDOW_OCCUPANCY_MAX = 0.95;
     /** Gate 5: warmup-tail vs measurement-head throughput agreement
      *  (PROVISIONAL — M6.2 fixes it from pilot variance). */
     static final double CONVERGENCE_MAX_REL_DIFF = 0.20;
@@ -81,7 +85,7 @@ public final class ValidityChecker {
      *  meta-rule with a FALSE "broken retrieval" diagnosis (F40). */
     static final List<String> CONSULTED_METRICS = List.of(
             "loadgen_cpu", "loadgen_cpu_steal", "node_cpu_steal", "clock_offset",
-            "node_up", "etcd_leader_chg", "cmt_rounds", "kafka_urp");
+            "node_up", "etcd_leader_chg", "cmt_rounds", "kafka_urp", "harness_inflight");
 
     /**
      * The RULE behind a gate, written into every {@code validity.json}
@@ -124,7 +128,8 @@ public final class ValidityChecker {
                     "errors concentrated at the very start are connect-time, not"
                             + " steady-state — check firstError in the run log")),
             java.util.Map.entry("window_headroom", new GateSpec(
-                    "in-flight window not pinned at its ceiling", "§4.1",
+                    "peak occupancy < " + WINDOW_OCCUPANCY_MAX + " of the window"
+                            + " (PROVISIONAL until M6.2)", "§4.1 / M5.3",
                     "a window-bound run looks like a slow SYSTEM but is a client ceiling"
                             + " (Little's Law) — compare window/latency against achieved")),
             java.util.Map.entry("convergence", new GateSpec(
@@ -191,9 +196,7 @@ public final class ValidityChecker {
         // decide it, because an empty harness series before M5.3 exists
         // means "not exported yet", not "broken retrieval". Loud SKIP
         // until M5.3 lands; then this becomes an evaluated gate.
-        gates.add(GateResult.skip("window_headroom",
-                "in-flight-window occupancy needs harness self-metrics"
-                        + " (bench_inflight_current, M5.3) — not yet exported"));
+        gates.add(gateWindowHeadroom(runDir, manifest, hasMetrics));
         gates.add(gateConvergence(runDir, manifest, system));
         gates.add(gateLoadgenCpu(runDir, hasMetrics));
         gates.add(gateSteal("loadgen_steal", "loadgen_cpu_steal", runDir, hasMetrics));
@@ -273,6 +276,56 @@ public final class ValidityChecker {
                 : GateResult.fail("rate_adherence",
                         String.format("achieved only %.1f%% of target (%.1f/%d) — client-bound?",
                                 ratio * 100, mean, target));
+    }
+
+    /**
+     * Gate 1b (§4.1, M5.3): the instrument must not be the ceiling. A run
+     * whose in-flight window sits pinned reports {@code window/latency} by
+     * Little's Law — a property of the CLIENT, not of consensus. This
+     * project has met that confusion twice (P2.2c's Kafka parity, P2.3's
+     * CometBFT floor), both diagnosed by hand afterwards. This automates it.
+     *
+     * <p>SATURATION runs SKIP, and not as a convenience: pinning the window
+     * IS how saturation is found (Paxi's method — raise concurrency until
+     * throughput plateaus), so gating it there would fail every run that did
+     * exactly what it was asked to do.
+     */
+    private static GateResult gateWindowHeadroom(Path dir, JsonNode m, boolean hasMetrics)
+            throws IOException {
+        if (m.path("rate_ops_s").asLong(0) <= 0) {
+            return GateResult.skip("window_headroom",
+                    "saturation run — a pinned window is the METHOD here, not a defect");
+        }
+        int window = m.path("window").asInt(0);
+        if (window <= 0) {
+            // Absent FEATURE, not broken retrieval: a v1 manifest predates
+            // the field. SKIP is loud and does not make the run valid — the
+            // report still reads "valid as far as evaluated" — whereas FAIL
+            // would invalidate every historical run for lacking a field the
+            // harness did not write yet.
+            return GateResult.skip("window_headroom",
+                    "manifest declares no in-flight window (pre-M5.3 format) —"
+                            + " occupancy is uncomputable");
+        }
+        if (!hasMetrics) {
+            return GateResult.skip("window_headroom", "no metrics/ dir (M5.4 not run)");
+        }
+        List<double[]> s = metricValues(dir, "harness_inflight");
+        if (s.isEmpty()) {
+            return GateResult.fail("window_headroom",
+                    "metrics/ present but harness_inflight series empty — the harness's own"
+                            + " :9400 endpoint was not scraped (§4 meta-rule)");
+        }
+        double peak = s.stream().mapToDouble(v -> v[1]).max().orElse(0);
+        double occupancy = peak / window;
+        return occupancy < WINDOW_OCCUPANCY_MAX
+                ? GateResult.pass("window_headroom",
+                        String.format("peak occupancy %.0f/%d (%.0f%%)", peak, window,
+                                occupancy * 100))
+                : GateResult.fail("window_headroom",
+                        String.format("window pinned at %.0f/%d (%.0f%%) — this run reports"
+                                        + " window/latency, i.e. the CLIENT's ceiling",
+                                peak, window, occupancy * 100));
     }
 
     /**

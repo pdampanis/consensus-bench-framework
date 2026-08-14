@@ -62,12 +62,22 @@ public final class WorkloadEngine {
     private final EventLog events; // null = event recording off (baseline runs)
     private final AtomicLongArray perSecondCommits;
     private final LongAdder errors = new LongAdder();
+    /** Issued operations, for the M5.3 self-metrics. A LongAdder increment on
+     *  the issue path costs a couple of nanoseconds against an operation that
+     *  takes microseconds-to-milliseconds over a network — the same trade the
+     *  error counter beside it already makes, and the alternative (deriving
+     *  it) cannot see the warmup window the histogram excludes. */
+    private final LongAdder submitted = new LongAdder();
     // First failure's cause — an error COUNT alone is undebuggable (learned
     // from a 551-error run that gave zero clue). One CAS attempt per error,
     // error path only; the success hot path is untouched.
     private final java.util.concurrent.atomic.AtomicReference<Throwable> firstError =
             new java.util.concurrent.atomic.AtomicReference<>();
     private volatile long startNanos;
+    /** The live window, published for the M5.3 self-metrics gauge. Read by
+     *  the scrape thread only; the per-op path never touches this reference,
+     *  so instrumenting the instrument costs the measurement nothing. */
+    private volatile Semaphore inFlightWindow;
 
     public WorkloadEngine(ConsensusDriver driver, Config cfg, LatencyRecorder recorder) {
         this(driver, cfg, recorder, null);
@@ -93,6 +103,7 @@ public final class WorkloadEngine {
         log.debug("phase: connect ({} driver)", driver.system());
         driver.connect();
         final Semaphore inFlight = new Semaphore(cfg.maxInFlight());
+        this.inFlightWindow = inFlight;
         final byte[] value = new byte[cfg.valueSizeBytes()];
         final long endNanos;
         startNanos = System.nanoTime();
@@ -120,6 +131,7 @@ public final class WorkloadEngine {
                     }
                 }
                 inFlight.acquire();                       // bounded window
+                submitted.increment();
                 final long intended = openLoop ? nextIntendedNanos : System.nanoTime();
                 nextIntendedNanos += interArrivalNanos;
 
@@ -153,6 +165,13 @@ public final class WorkloadEngine {
             log.debug("phase: load end, draining in-flight window");
             // Drain the window before reporting.
             inFlight.acquire(cfg.maxInFlight());
+            // …and hand the permits straight back. The barrier's job is done
+            // the instant it completes, and HOLDING them would leave
+            // availablePermits() at zero — which currentInFlight() reads as a
+            // FULL window when in truth nothing is in flight at all. A
+            // Prometheus scrape landing on the drain would then record a
+            // spurious peak and FAIL window_headroom on a clean run (M5.3).
+            inFlight.release(cfg.maxInFlight());
         } finally {
             if (reporter != null) reporter.interrupt();
         }
@@ -166,6 +185,28 @@ public final class WorkloadEngine {
                     String.valueOf(firstError.get()));
         }
         return new Result(snapshotPerSecond(), recorder, errors.sum(), events, firstError.get());
+    }
+
+    /**
+     * Operations in flight right now — {@code window - availablePermits}.
+     * Zero before the run starts. This is the input to the window_headroom
+     * validity gate: a run whose occupancy sits pinned at the ceiling is
+     * reporting window/latency (Little's Law), which is a fact about the
+     * CLIENT, not about consensus.
+     */
+    /** Issued so far — live, for the :9400 endpoint. */
+    public long submittedCount() {
+        return submitted.sum();
+    }
+
+    /** Failed so far — live, for the :9400 endpoint. */
+    public long errorCount() {
+        return errors.sum();
+    }
+
+    public int currentInFlight() {
+        Semaphore s = inFlightWindow;
+        return s == null ? 0 : cfg.maxInFlight() - s.availablePermits();
     }
 
     /**

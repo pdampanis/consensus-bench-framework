@@ -87,7 +87,7 @@ consensus-bench-thesis/
 ├── observability/
 │   ├── prometheus.yml              scrape config, role labels (promtool-verified)
 │   ├── docker-compose.yml          obs VM: Prometheus + Grafana
-│   ├── export_queries.txt          per-run PromQL archive set (23 queries)
+│   ├── export_queries.txt          per-run PromQL archive set (25 queries)
 │   ├── offline/                    replay a collected campaign snapshot on the laptop
 │   └── grafana/provisioning/       datasource + dashboards as code (campaign overview
 │                                   + per-algorithm, each with an embedded reading guide)

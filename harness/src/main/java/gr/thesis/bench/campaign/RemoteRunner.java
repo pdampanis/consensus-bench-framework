@@ -1,6 +1,7 @@
 package gr.thesis.bench.campaign;
 
 import gr.thesis.bench.core.EventLog;
+import gr.thesis.bench.core.HarnessMetrics;
 import gr.thesis.bench.core.LatencyRecorder;
 import gr.thesis.bench.core.Scenario;
 import gr.thesis.bench.core.SystemUnderTest;
@@ -168,7 +169,10 @@ public final class RemoteRunner {
 
             Instant started = Instant.now();
             WorkloadEngine.Result result;
-            try {
+            // M5.3: the harness's own :9400 endpoint, live for exactly the
+            // measured window. Opened per cell and closed with it, so the
+            // next cell's registry cannot collide on the port.
+            try (var selfMetrics = HarnessMetrics.start(engine, spec.window())) {
                 if (faultThread != null) faultThread.start();
                 result = engine.run();
             } finally {
