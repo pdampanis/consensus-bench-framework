@@ -1,5 +1,10 @@
 # HOW TO CONTINUE — one page, low noise
 
+> **Prioritized cross-front queue with confidence scores:**
+> **`WORK_QUEUE.md`** — 28 items in 10 priority bands, grouped into
+> increments. That file is the "what next" answer; this page is the
+> conceptual map. When the two disagree on ORDER, WORK_QUEUE wins.
+
 State date: 2026-07-21 (sixth review F39–F49 closed; suite **170 green**,
 per-increment gates). The seven goldens are FINAL text for G2 — the M5.2
 exporters (etcd :2381, cometbft :26660, kafka JMX :7071) are wired IN them
