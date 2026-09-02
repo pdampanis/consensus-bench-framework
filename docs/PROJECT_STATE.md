@@ -7,10 +7,27 @@ the thing you plan from. If this file and a reference file disagree about
 what to DO, this file wins; if they disagree about a METHOD, the reference
 wins (see §8).
 
-**Last verified: 2026-08-15.** `mvn21 clean verify` → **`Tests run: 243,
-Failures: 0, Errors: 0`, BUILD SUCCESS**, on branch `eighth-review-tier1`
-at `e8561f6`. Count read from Maven's own summary line, never from
-arithmetic over report files (F76).
+**Last verified: 2026-09-02.** `mvn21 clean verify` → **`Tests run: 243,
+Failures: 0, Errors: 0`, BUILD SUCCESS, 05:48**, on the **merge commit
+`38eb11f`** in `~/Downloads/cbt-main`. 37 test classes ran against 37 on
+disk. Count read from Maven's own summary line, never from arithmetic over
+report files (F76) — which did **not** recur.
+
+> **This closes the one gate that was open on the merge.** `38eb11f` was
+> recorded as "started and KILLED mid-run… it has NEVER been green". It is
+> green now, so §7.2 gate 1 holds for the tree that would be published.
+> Gate 6 (goldens re-read) is still open and now has *more* to cover: §6
+> Phase 0 changes two further goldens deliberately, **before** G2, so the
+> signature is given once against final text.
+
+> **2026-09-02 — the handoff pack was reviewed against this tree.**
+> `thesis-handoff-2026-08-21` (which supersedes `-08-20` entirely) read the
+> repo at `main @ 9e9fbdd`, **30 commits behind**. Every finding was
+> re-verified here; the ledger is `docs/HANDOFF_REVIEW_2026-09-02.md`. Six
+> blocking defects survive and are now §5's first table — two of them
+> (**C1**, **M2**) silently discard *all* HotStuff and *all* CometBFT fault
+> data while the suite stays green, and C1 is proven end-to-end by
+> execution.
 
 ---
 
@@ -63,13 +80,22 @@ encoded into everything: **execute and verify, never assert.**
 
 **Validity gates that actually evaluate: 1 of 10 → 9 of 11.**
 
-At the start of this session `ValidityChecker` was a library *nothing
+At the start of that session `ValidityChecker` was a library *nothing
 called*, so **no campaign run produced a `validity.json` at all**, and a run
 measured against it evaluated ONE gate and still reported `valid: true`.
 Measured again on 2026-08-15 with the full collector set: **9 of 11
-evaluate**. The two SKIPs are both legitimate — `baseline_error_rate` is
-N/A on a fault run by design, and `durability` awaits P2.6's *scope
-decision*, not a missing collector.
+evaluate**.
+
+> **That figure is true in the test harness and NOT true of a deployed
+> campaign** (2026-09-02). Three things stand between it and reality, all in
+> §5: **M3** — a `remote-run` runs the check at `RemoteRunner:199` and writes
+> `events/` at `:213`, so two gates SKIP on a directory that does not exist
+> yet (the campaign path is saved only because `gradeCells` re-runs the check
+> at block end); and **N-16 + N-5** — nothing deploys Prometheus and nothing
+> substitutes `prometheus.yml`'s placeholders, so on real VMs every metric
+> series is empty and the §4 meta-rule turns each one into a **FAIL**. The
+> honest figure until Phase 0 lands is *"9 of 11 in a test fixture; unproven
+> on a VM"*. Canary check 2.9/2.13 is what converts it.
 
 ### Not built yet
 
@@ -120,7 +146,17 @@ done                                  # unmerged work on OTHER branches
 If what you find disagrees with this table, **git wins — then fix the table.**
 A stale coordination map is worse than none, because it is trusted.
 
-**Snapshot, 2026-08-15:**
+**Snapshot, 2026-09-02** (the 2026-08-15 table below was already wrong on
+two counts — there are **three** worktrees, not two, and the merge to `main`
+exists locally):
+
+| Worktree | Branch | State |
+|---|---|---|
+| `~/Downloads/cbt-main` | `main` → `ninth-review-handoff` | **CANONICAL.** Holds the merge `38eb11f` (30 ahead of `origin/main`, **not pushed**) and this review's branch |
+| `~/Downloads/cbt-eighth` | `eighth-review-tier1` | Tree-identical to the merge; pushed |
+| `~/Downloads/consensus-bench-thesis` | `seventh-review-tier1` | **STALE** — opening the repo at its natural path lands you here, on a superseded `PROJECT_STATE.md`. Carries **one commit not in `main`** (`81794f7`, `SESSION_CLOSE_2026-08-15.md`), so §7.1's "strict subset" claim is false and §7.3's branch deletion would lose that file |
+
+**Superseded snapshot, 2026-08-15:**
 
 | Worktree | Branch | Ahead of `main` | What is on it |
 |---|---|---|---|
@@ -179,87 +215,279 @@ Rationale for each lives in `MASTER_PLAN.md` §1. Index only:
 | **D13** | Result confidence is an **ordinal grade adapted from GRADE** (Guyatt et al., BMJ 2008), never a numeric score. Grades a **CELL** (n=5), not a run. `VOID` is our addition — GRADE has no level for "cannot evidence its own claim" |
 | **D14** | Packet-loss severity is a **workload factor swept at 5% and 30%**; severity is part of run identity |
 | **D15** | Fault semantics settled: partition is pairwise IP DROP preserving the loadgen→leader path; slow_node is host `stress-ng` with a **run-shape-derived** timeout; failover trials use the runbook's 180+180 shape; EPaxos/CometBFT targeting is fixed for cells and **rotated** for failover trials |
+| **D16** | **The campaign runs a TWO-BLOCK design, not `--simulation standard`** — baseline across the rate sweep, faults at one rate. Measured: `standard` at four rates emits **120 cells** against a cost model built on 71; the split is **45**, needs no code, and drops only cells no planned figure consumes (handoff N-1/D-6; evidence in `HANDOFF_REVIEW_2026-09-02.md` §6) |
+| **D17** | **n=20 for Paxos vs EPaxos at TWO conflict rates**, n=5 everywhere else. The registered prediction is a *crossover*, so one rate tests neither end; at n=5 Mann–Whitney bottoms out at p≈0.008 and is decorative. Marginal ≈10 machine-hours, ≈€3–6. Elsewhere: effect sizes, bootstrap CIs and printed raw points, **no significance tests** (Kalibera & Jones). The load memo's original n=10 request and its reduction to n=5 are recorded in Appendix Δ rather than silently declined |
+| **D18** | **Any change to golden text lands BEFORE the G2 read-through.** The signature is given once, against final text. This governs §6's phase ordering and is why C4 and N-20 sit in Phase 0 |
 
 ---
 
 ## 5. Open issues
 
 Closed findings F1–F76 with their evidence live in
-`docs/archive/FINDINGS_LEDGER_F1-F76.md` — the audit trail, kept because
-code comments reference F-numbers. Only what is still OPEN is below.
+`docs/archive/FINDINGS_LEDGER_F1-F76.md` — the audit trail, kept because code
+comments reference F-numbers. The 2026-09-02 review of the
+`thesis-handoff-2026-08-21` pack is in `docs/HANDOFF_REVIEW_2026-09-02.md`,
+which carries the evidence for every row below. Only what is still OPEN is
+here.
 
-| # | Issue | Why it matters | Next |
+### Blocking — proven, and each one silently destroys data or money
+
+| # | Issue | Proof | Fix |
 |---|---|---|---|
-| **F75** (half) | `picocli 4.7.6` is declared, shaded into the uber-jar, and referenced only in a comment (`Main.java:23`). Micrometer, its twin, **was** spent this session (M5.3) | Build weight and supply-chain surface for zero benefit | Spend it (M1.3) or drop it from the pom. Queue #11b |
-| **F76** | A `mvn21 clean verify` once reported BUILD SUCCESS having run only **90 tests across 15 classes**, skipping the test covering the change being gated. Did not reproduce; cause unknown and deliberately not invented | The whole discipline rests on "a green verify means the suite ran". One counter-example weakens every green-gate claim including G1's | **Watch.** Mitigation is live as gate 1 of §7. If it recurs, capture `target/surefire-reports/` **before** re-running — the re-run destroyed the evidence last time |
-| **F68** (residual) | The Kafka parity band was widened to 0.1x–10x and stays in `verify`. It measured 1.28x and 1.86x since | Resolved in practice; listed so a future red is read against its history, not as a fresh regression | None unless it reds again |
-| **N1** | For preregistered-failure scenarios (the F26 paxi wedge, DOUBLE_KILL) the writer's `error_rate > 0.5 ⇒ failed` rule could exclude exactly the preregistered evidence | Would delete a finding the thesis wants | Verify at the M6.2 pilot; if it trips, the choice is scenario-aware status vs analysis-side handling — author's call |
-| **N2** | `corpus/` tracks the signed thesis-assignment form. The GitHub repo is PRIVATE today | If ever made public, the file and its git history go too; removal then needs a history rewrite | Author's call before any public push |
+| **C1** | Every **HotStuff** cell is discarded. Its manifest carries no `error_rate`; `gateBaselineErrorRate` FAILs on a missing field; HotStuff's scenario is always `baseline`, so the SKIP never fires | **Executed**: `valid=false`, then `analyse.py` → `0 runs, 1 excluded (baseline_error_rate)`. Chapter 11 gets nothing | SKIP for the systems that have no engine-measured error rate, via the existing `hasNoThroughputSeries` seam; add `window` too |
+| **M2** | Every **CometBFT** fault run is discarded. `cmt_rounds` is a *gauge* that returns to 0 on commit, checked as a counter (`last > first`) | `export_queries.txt:38` + `ValidityChecker.java:542` | Route `tendermint` to `seriesExceedsZeroInWindow`, the branch `kafka_urp` already uses |
+| **N-16** | **Nothing deploys the observability stack.** One `cloud-init.yaml` for all roles; no `docker compose up`, no copy of `observability/` | `main.tf:157`; `scripts/` holds one file | Write `scripts/deploy_obs.sh` |
+| **N-5** | **`prometheus.yml` placeholders are never substituted**, and `NODE4` is hardcoded at n=3 | No writer anywhere in `scripts/ infra/ harness/src/main/` | Install `patches/scripts/render_obs_config.sh` |
+| **N-7** | `MatrixRunner` has **no failure ceiling** — a systemic fault bills all night and produces nothing | `MatrixRunner.java:322` | Re-implement the breaker (the shipped patch is stale, §6 P0.9) |
+| **M3** | The **"9 of 11 gates" figure is not what a `remote-run` produces** — the check runs at `:199`, `events/` is written at `:213` | file:line | Move both collectors above the check |
 
-**Decisions the author still owes** (each blocks a queue item):
+**N-16 + N-5 together are the campaign-killer.** With no Prometheus, the
+exporter writes header-only files, `hasMetrics` is true, and the §4 meta-rule
+turns every empty series into a **FAIL** — so every run is `valid: false`,
+every cell grades **C**, and `analyse.py` excludes the entire campaign. The
+run still bills in full.
 
-- **P2.6 scope** — the durability/safety oracle. It is the one remaining
-  gate that SKIPs for want of a *decision* rather than a collector.
-- **HotStuff fault preregistration** (queue #26): target semantics, the
-  `faults` field's meaning for kill scenarios, and whether the upstream
-  client survives a mid-run kill (probe locally first).
+### Serious — correctness of what gets recorded
+
+| # | Issue | Fix |
+|---|---|---|
+| **C4** | `KafkaDriver` pins RF=3 and 6 partitions, so E-SCALE does not measure what it claims | RF = cluster size, `min.insync.replicas = ⌊n/2⌋+1`, 1 partition; one declared 6-partition production-shaped cell. **Touches goldens** |
+| **N-20** | etcd runs on its **default 2 GiB backend quota** with no auto-compaction; ~1.95 M writes at 1 KB exhausts it, so any cell above ~4,000 ops/s for 480 s trips `NOSPACE` mid-run | Set the quota and auto-compaction in the etcd recipe. **Touches goldens.** Measure `etcd_mvcc_db_total_size_in_bytes` on the canary |
+| **C3** | Operations that hit the 5 s driver bound leave the histogram entirely — unevenly (Paxi loses ~100 % of its tail mass, etcd a few percent) | Second histogram at the bound; report `p99_success` **and the timed-out count** in the manifest and every fault caption |
+| **M1** | The exporter writes series-major CSV and the checker **ignores the instance column**, so the counter check compares node 1's first sample to node 3's last | Group by series before comparing |
+| **M4** | Accumulated open-loop backlog is discarded at loop exit — understates p99/max, worst for the system that stalled most, i.e. for the ranking itself | Record the remainder as `omitted_by_schedule` |
+| **M6** | Warmup is judged by *completion* time while latency is charged to *intended* time | Judge by intended. One line |
+| **M5/M8/M9** | `events_dropped` is written and no gate reads it; grade **A** is unreachable (`durability` always SKIPs); the SKIP set is read from `reports.get(0)` only | Three small fixes; see also §5 note below |
+| **N-6** | No free-disk check anywhere | `patches/scripts/disk_guard.sh` |
+| **N-17** | `analyse.py` never merges `.hlog` histograms, so figure **F3** cannot be produced and the methodology's headline latency claim is half-made | Implement the merge with a `--selftest` case first |
+| **N-18** | `runHotStuff` throws `UnsupportedOperationException` for every non-BASELINE cell — three in a row would trip the new breaker on a by-design refusal | Count unsupported cells as *skipped*, never *failed* |
+
+### Carried from before, unchanged
+
+| # | Issue | Next |
+|---|---|---|
+| **F75** (half) | `picocli` declared, shaded, used by nothing | Spend it (M1.3) or drop it. P3.11b |
+| **F76** | A `verify` once ran 90 of 177 tests and still reported success | **Watch.** Did **not** recur on 2026-09-02 (37 of 37 classes, 5:48). If it returns, capture `target/surefire-reports/` *before* re-running |
+| **N1** | `error_rate > 0.5 ⇒ failed` could exclude the preregistered paxi wedge and DOUBLE_KILL | Verify at the pilot |
+| **N2 / D-9** | `corpus/` tracks the signed application PDF with ΑΦΜ, phone and email, and the repo is private *today* | **Purge from the working tree and from history now.** The only item that strictly gets worse with delay |
+
+**Two documentation defects found in this review**, both cheap: the
+`baseline_error_rate` gate is enforced but appears in **no** methodology
+document (its `GateSpec` cites "§4.1 / F52"; neither string exists in
+`DATA_ANALYSIS_METHODOLOGY.md` or `METRICS_AND_SOURCES.md` — the mirror of
+F40), and `export_queries.txt` has **23** queries where `README.md:59` and
+`LOCAL_TESTING.md:430` say 25 — the latter as *expected output*, so following
+that doc shows a false failure.
+
+**Decisions the author still owes** — each blocks a queue item:
+
+- **P2.6 scope** — the durability oracle. The one gate that SKIPs for want of
+  a *decision*, and the reason grade **A** is unreachable.
+- **HotStuff fault preregistration** — target semantics, the `faults` field,
+  and whether the upstream client survives a mid-run kill.
+- **D-11** — Phase C on `ccx23` (2 physical cores) or `ccx33` (4), against
+  HotStuff's published 8. ≈ €9 gross. Decide *after* the pilot measures
+  whether HotStuff is crypto-bound here.
+- **D-4** — the E-CTRL deadline. If controller failover is not merged and
+  green by that date, Ch. 5 and Ch. 8 become analytical chapters with a
+  stated reason. Write that sentence *before* the deadline.
 
 ---
 
-## 6. The work queue
+## 6. The plan — six phases to the campaign
 
-Confidence = **how likely this lands as specified, first attempt, without a
-new decision.** It is *not* D13's result-confidence grade; do not let the two
-words collide.
+**The organising constraint, and it governs the whole ordering:** *anything
+that changes golden text must land before the G2 read-through.* The handoff
+pack's own plan puts C4 after G2, which would invalidate the signature the
+moment it is given — §7.2 gate 6 exists for exactly this. Phase 0 therefore
+absorbs every golden-touching change.
 
-Everything below the billing gate is **done**. What remains is either yours,
-or costs money.
+The second constraint is the old one: **do first whatever cannot be fixed
+after the VMs are billed.**
 
-| # | Item | Blocks / notes | Conf |
+Phases 0–1 cost **€0**. Phase 2 costs about the price of a coffee. Nothing is
+billed before Phase 2.
+
+### Phase 0 — free, and blocking. Everything that must precede the goldens.
+
+TDD throughout: failing test first, `mvn21 clean verify` green with the count
+read from Maven's own summary line, one commit per step.
+
+| # | Step | Touches goldens? | Done when |
 |---|---|---|---|
-| **1** | **G2 golden read-through — YOURS, no code** | **Blocks everything billed.** Read all 7 goldens in `harness/src/test/resources/goldens/` against their header checklists, then sign off here. **Three changed this session** and need re-reading: the F69 host-sweep block (all seven), `slow_node`'s derived `--timeout`, and packet-loss severity as a parameter | 90% |
-| **2** | **P3.5 price check — YOURS, ~10 min** | `hcloud server-type list` → sync `local.hourly_eur` in `main.tf` + runbook §2. Blocks first apply | 90% |
-| **3** | **P3.4 canary** — 2 VMs, one etcd cell, <€0.10 | First real-VM contact. See "what is still unproven" below | **55%** |
-| 4 | Per-system remote smokes | One short cell each on Phase-A infra | 45% |
-| 5 | **G3 / M6.1 cross-validation** | Harness vs native tools, ≤15% or explained | 40% |
-| 6 | **M6.2 pilot** | Fixes every PROVISIONAL threshold numerically. Feeds D13's grades | 55% |
-| 7 | **M6.3 campaign** | Full matrix, ~118 h ≈ 5 unattended days, ≈€61 | 35% |
-| 8 | **M6.4 / S5.3 analysis v2** | Pooled `.hlog` histograms, Holm–Bonferroni, ECDFs, the 8 figures. Largest single build left | 50% |
-| 9 | S4.2 report generator | Lowest value here — the journal is the load-bearing artifact. **Delete this item if unread after the pilot** | 55% |
-| 10 | NEXT-4 HotStuff fault scenarios | Needs the preregistration decisions in §5 | 40% |
-| 11 | P2.6 durability oracle | Needs the scope decision in §5 | 50% |
-| 11b | M1.3 picocli CLI | Closes F75's other half | 75% |
-| 12 | F8 / P2.0 scheduler scaling | **Conditional only** — build if G3 shows achieved < 99% of target. Do not build speculatively | 80% |
+| **0.1** | **C1** — HotStuff manifest gets `error_rate` and `window`, or the gate SKIPs for systems with no engine-measured rate | no | A HotStuff-shaped manifest reaches `valid: true`; a red test first, on the manifest **production actually writes** |
+| **0.2** | **M2** — `tendermint` uses the gauge witness | no | A recovered-chain fixture (rounds 0→2→0) passes gate 3 |
+| **0.3** | **M3** — collectors move above the validity check | no | A `remote-run` fixture evaluates `container_restarts` instead of SKIPping it |
+| **0.4** | **N-20** — etcd backend quota + auto-compaction | **YES** | Golden updated first as the spec, provider matches verbatim |
+| **0.5** | **C4** — Kafka RF / `min.insync.replicas` / partitions | **YES** | `rf = bootstrap.size()`; `min.insync.replicas = ⌊n/2⌋+1`; E-SCALE at 1 partition; one declared 6-partition cell |
+| **0.6** | **N-16** — write `scripts/deploy_obs.sh`: scp `observability/` + the rendered config to obs → `docker compose up -d` → wait `/-/ready` → assert **every target `up`** | no | Runs against a local Prometheus; refuses to return 0 with any target down |
+| **0.7** | **N-5** — install `patches/scripts/render_obs_config.sh` | no | Renders for n=2, 3, 4, 7; `promtool check config` green (install promtool) |
+| **0.8** | **`main.tf` hardening** — `cpx21`→`cx33`, `ccx33` 0.1923→0.2219, IPv4 line item, **cost fails closed** on an unpriced type. Patch applies clean (`infra/`, `-p1`) | no | `terraform validate`, `fmt -check`, and the 8 `tftest` runs green — install `patches/tests/` **in the same commit** |
+| **0.9** | **cloud-init hardening** — docker-daemon readiness, log ceiling, `fio`/`iperf3`/`ethtool`/`rsync`. Patch applies clean | no | `cloudinit_lint.py` exit 0 |
+| **0.10** | **N-7 + N-18** — **re-implement** the circuit breaker (the shipped patch is stale: 2/3 and 2/2 hunks fail). Abort on 3 consecutive or >25 % of ≥8 attempted; `heartbeat.json` after every cell; exit 2 | no | Breaker unit tests; `journal(...)` and `gradeCells(...)` preserved; unsupported cells counted as **skipped** |
+| **0.11** | **N-6 + collection hardening** — `disk_guard.sh`, `campaign_watchdog.sh`, `collect_block-hardening.patch` (clean), one `REMOTE_RESULTS` name shared by harness and scripts | no | The watchdog is **seen to fire once** |
+| **0.12** | **M5/M8/M9** — a gate reads `events_dropped`; the SKIP set aggregates across *all* reports, not `reports.get(0)`; grade **A** made reachable | no | A cell with heterogeneous SKIPs grades correctly — the case no test covers today |
+| **0.13** | **D-9 / N2** — purge `corpus/` of the signed application PDF, **from history** | no | `git log --all -- corpus/<file>` empty; force-push while private |
+| **0.14** | Doc corrections: query count 23, P3.4's `< €0.10`, P3.5's type list, VAT, `hcloud primary-ip list` in runbook §7, N-11's phantom `logs/`, the `baseline_error_rate` clause into the methodology | no | — |
 
-### What the canary will and will not tell you
+**Exit criteria:** `mvn21 clean verify` green with the count on Maven's own
+line and ≥ 4 minutes; `terraform validate` + `tofu/terraform test` green;
+every golden-touching change landed.
 
-Proven locally this session, so the canary is no longer the first time
-anyone sees it work:
+### Phase 1 — free. The gate and the dress rehearsal.
 
-- `HostFaultEffectTest` — on real ubuntu-24.04 containers with `NET_ADMIN`,
-  driven through the **real** `SshFaultInjector`: netem installs on the
-  *resolved* iface and heal removes it; **partition actually stops ping**
-  and heal restores it; `stress-ng` really runs and heal's `pkill` really
-  kills it; the F69 sweep clears a leaked fault.
-- `PrometheusExporterTest` — against a real `prom/prometheus:v2.53.0`, the
-  version the obs compose deploys, asserting **`ValidityChecker` can read
-  what `PrometheusExporter` wrote**.
-- `infra/probes/host-fault-tools-probe.sh` — the tc/iptables/pkill exit
-  codes, measured on the campaign's OS.
+| # | Step | Owner |
+|---|---|---|
+| **1.1** | **G2 — read all seven goldens against their header checklists and sign off, dated.** Phase 0 changed the etcd and Kafka goldens on top of the three already changed (F69 sweep, derived `slow_node` timeout, packet-loss severity) | **AUTHOR** |
+| **1.2** | **Canary Stage 0 — €0.** `hcloud server-type list` · `hcloud server-type describe cx33` · **`hcloud pricing`** · `hcloud location list` · `terraform plan -var consensus_node_count=2` | **AUTHOR** |
+| **1.3** | **P3.5** — transcribe every price from `hcloud pricing` into `local.hourly_eur`. **Any disagreement with the handoff's cost model resolves in favour of `hcloud pricing`** | **AUTHOR** |
+| **1.4** | `preflight.sh` green; one real boot of `cloud-init.yaml` under multipass/QEMU (closes N-10); record `df -h /` on the booted VM as the disk baseline | either |
 
-**Still unproven, and unprovable locally:** sudo availability under the
-cloud-init user, cloud-init timing, Hetzner private-net routing, and
-`docker`/`sshd` stderr wording on the real image. Budget one session for
-fallout; the expected shape is "adjust one probe string and its golden, TDD".
+**Pass criteria:** `cx33` appears and **`cpx21` does not** — confirming the
+blocking finding at zero cost. `terraform plan` shows exactly 12 resources.
+**If Stage 0 fails, stop.** A wrong type here is a five-minute edit; the same
+type at Stage 1 is a failed apply on the day you first spend money.
 
----
+### Phase 2 — the canary. ≈ €0.55 gross. First contact.
+
+Shape: **Phase-A topology with `consensus_node_count=2`** — 2×`ccx13` + loadgen
++ obs = 4 servers, €0.2203/h net. Two hours ≈ **€0.44 net / €0.55 gross**;
+budget three hours. The repo's old `< €0.10` is unachievable — Hetzner rounds
+partial hours **up**, so any apply at all costs one full hour.
+
+**Set a phone timer for three hours the moment you press apply.**
+
+| # | Check |
+|---|---|
+| 2.1 | `terraform apply` succeeds; 12 resources |
+| 2.2 | `deploy/inventory.env` correct; `CONSENSUS_NODE_COUNT=2` |
+| 2.3 | SSH from the laptop, no password prompt |
+| 2.4 | `cloud-init status --wait` → `done`, no failed units |
+| 2.5 | `docker chrony stress-ng xxd jq curl fio iperf3 ethtool` all resolve |
+| 2.6 | The four pinned digests are pre-pulled |
+| 2.7 | **`sudo` semantics** — one real `tc` and one real `iptables` as the harness runs them |
+| 2.8 | Private-net routing; **record the interface name** `ip -o route get` resolves |
+| 2.9 | **`deploy_obs.sh` brings Prometheus up and every target reports `up`** — the N-16/N-5 regression check |
+| 2.10 | `up{role="consensus"}` and `up{role="loadgen"}` both non-empty |
+| 2.11 | `chronyc tracking` inside the 5 ms gate on every node |
+| 2.12 | No provider command approaches the 30 s SSH bound |
+| 2.13 | **One real etcd cell end-to-end** → all four artifacts, `environment == "hetzner"`, **and `validity.json` with the metric gates actually PASSing** |
+| 2.14 | **Each fault type does what it claims** — verify the *effect*, not the exit code: `kill` → container gone and `up{}` drops · `packet_loss` → netem on the *resolved* iface, ping loss visible · `partition` → pairwise DROP rules **and the loadgen→leader path still works** · `slow_node` → `stress-ng` running, node CPU rises. Then `heal()` and confirm every rule is gone |
+| 2.15 | **`node_facts.sh` on all four VMs, committed.** fsync p50/p99, single-core scalar, inter-node RTT matrix, threads-per-core. **This expires** — after the campaign the hardware is gone and unrecoverable |
+| 2.16 | **N-20 measurement** — `etcd_mvcc_db_total_size_in_bytes` across the cell, to size the quota with evidence |
+| 2.17 | **N-15 measurement** — bytes of SUT log per node per second, and the gzip ratio, to close the one unmeasured volume term |
+| 2.18 | `terraform destroy`; **`hcloud server list` AND `hcloud primary-ip list` both empty**; record the actual cost from the console |
+
+**Green** = 2.1–2.18 pass, evidence committed to `docs/CANARY_EVIDENCE.md`,
+cluster destroyed. **Amber** (understood, local fix) — destroy, fix, re-run;
+a second canary is another €0.44 and that is the whole point of spending
+€0.55. **Never carry an amber into a €14 phase.** **Red** in the fault
+injector or the private network — destroy immediately and treat it as a code
+task.
+
+### Phase 3 — free. What the canary taught, plus what changes the record.
+
+Only now, with real numbers in hand.
+
+| # | Step |
+|---|---|
+| **3.1** | Size the etcd backend quota from 2.16; re-read that golden |
+| **3.2** | **C3** — second histogram at the driver bound; timed-out count into the manifest |
+| **3.3** | **M4** — `omitted_by_schedule` into the manifest |
+| **3.4** | **M6** — warmup judged by intended time |
+| **3.5** | **M1** — group metric CSV by series before the counter comparison |
+| **3.6** | **Hardware provenance** — `node_facts.sh` wired per apply, a 12-char `hw_fingerprint` in every manifest, and two gates: **12** intra-run homogeneity (fail-closed) and **13** cross-block continuity (warn + downgrade) |
+| **3.7** | **N-17 / M7** — implement `.hlog` merging in `analyse.py`, `--selftest` case first. Without it there is no F3 and the methodology's headline claim is half-made |
+| **3.8** | `docs/PREDICTIONS.md`, append-only, committed **before** any campaign run |
+
+### Phase 4 — G3 and the pilot. First real billing.
+
+| # | Step |
+|---|---|
+| **4.1** | Per-system remote smokes, one short cell each |
+| **4.2** | **G3** — harness vs `kafka-producer-perf-test`, `etcd benchmark`, Paxi's benchmarker. A ratio table with an explanation for every value outside 0.8–1.25× |
+| **4.3** | **M6.2 pilot** — n=2 baseline per system; fix **every** `PROVISIONAL` threshold numerically from pilot variance |
+| **4.4** | Decide **D-11** (`ccx23` vs `ccx33`) on the pilot's evidence, not on taste |
+| **4.5** | Re-check **N1** — does `error_rate > 0.5 ⇒ failed` delete the preregistered paxi wedge? |
+
+**Exit:** no `PROVISIONAL` constant remains.
+
+### Phase 5 — the campaign. ≈ €80 gross, hard cap €100.
+
+**Run the two-block design (D16), not `--simulation standard`.** Measured on
+the shipped jar: `standard` at four rates emits **120 cells** (D14's severity
+sweep doubles PACKET_LOSS), ≈20 h/system, against a cost model built on 71.
+The split costs **45**, needs **no code**, and drops only cells no planned
+figure consumes:
+
+```bash
+# block 1 — baseline across the rate sweep                    → 20 cells
+campaign-run --system <s> --scenarios baseline --rates R1,R2,R3,R4 --reps 5
+# block 2 — every fault at ONE rate                           → 25 cells
+campaign-run --system <s> --rates R3 --reps 5 \
+  --scenarios packet_loss,network_partition,slow_node,double_kill
+# block 3 — the failover distribution
+campaign-run --system <s> --simulation failover --rates R3
+```
+
+Plus **n=20 for Paxos vs EPaxos at two conflict rates** (D17) — the only cell
+pair that yields a *finding*, and the registered prediction is a crossover, so
+one rate tests neither end. Marginal ≈10 machine-hours, ≈€3–6.
+
+**No block runs without the breaker and the watchdog armed**, and the watchdog
+must have been seen to fire once (0.11).
+
+**If time runs short, cut in this order:** the 6-partition cell → PACKET_LOSS
+at 30 % → sizes 5 and 7 for KRaft → DOUBLE_KILL. **Never cut** the Level Α
+conflict sweep, the failover trials, or the baseline.
+
+**The real financial risk is not the campaign — it is a forgotten cluster.**
+Phase C at ≈€7/day costs €133 in a week, more than the entire planned
+campaign. Destroy discipline is the only cost lever that matters.
+
+### Phase 6 — analysis and writing.
+
+`M6.4` analysis v2 (pooled histograms, Holm–Bonferroni, ECDFs, the eight
+figures), then the chapters. **Five chapters and two tables are writeable
+before any measurement exists** — the handoff's `02-THESIS-SKELETON.md §5` is
+the reference, and Ch. 9 first needs the Castro & Liskov PDFs, which are not
+in `corpus/`.
+
+### What is deliberately NOT in this plan
+
+`S4.2` report generator (delete it if unread after the pilot) · `M1.3` picocli
+· HotStuff fault scenarios (needs the preregistration decisions in §5) ·
+`P2.6` durability oracle (needs the scope decision) · `F8/P2.0` scheduler
+scaling (build **only** if G3 shows achieved < 99 % of target).
 
 ## 7. Merge runbook — `eighth-review-tier1` → `main`
 
-**This is the target.** Read it fully before starting; it is short because
-the topology is simple, and the topology is simple *by construction*.
+> **STATUS, 2026-09-02 — read this before the runbook below, which was
+> written when the merge had not happened.** Three of its statements are now
+> false:
+>
+> 1. **The merge already exists**, locally, as `38eb11f` in
+>    `~/Downloads/cbt-main` — so §7.1's "`main` has **not** moved" and
+>    §7.3's steps 0–2 describe work that is done. It is **not pushed**
+>    (`origin/main` is still `9e9fbdd`, 30 behind).
+> 2. **Gate 1 now holds.** `mvn21 clean verify` on `38eb11f` → 243 tests,
+>    BUILD SUCCESS, 05:48, 37/37 classes. See the §0 header.
+> 3. **`seventh-review-tier1` is NOT a strict subset.**
+>    `git log main..seventh-review-tier1` → `81794f7`
+>    (`docs/SESSION_CLOSE_2026-08-15.md`). §7.3's step 5 deletes both
+>    branches; doing that as written **loses that file**. Cherry-pick it
+>    first, or accept the loss knowingly — its substance (F76 and the
+>    read-the-count-from-Maven mitigation) is already carried in §5 and
+>    §7.2 gate 1, so the loss is of the record, not the knowledge.
+>
+> **What still blocks the push:** gate 6, the goldens. Do not push `main`
+> and do not delete any branch until §6 Phase 0 is complete and Phase 1.1
+> (G2) is signed — Phase 0 deliberately changes two more goldens (N-20,
+> C4), so signing now would mean signing twice. Keep a `pre-merge-eighth`
+> tag until the canary is green: a deleted rollback target is not a
+> rollback target.
 
-### 7.1 The situation, verified 2026-08-15
+### 7.1 The situation as of 2026-08-15 (superseded — see the status note above)
 
 ```
 main  9e9fbdd ────────────────────────────────────────────►  (has NOT moved)
@@ -280,7 +508,7 @@ Full detail in `GIT_WORKFLOW.md`; summarised so this runbook stands alone.
 
 | # | Gate | How |
 |---|---|---|
-| 1 | **Suite green, count verified** | `cd harness && mvn21 clean verify` → BUILD SUCCESS with the count read from Maven's **`Tests run:` summary line**, ≥ 243. A suspiciously fast run (<4 min) is a FAILED gate until the count is confirmed — that is F76 |
+| 1 | **Suite green, count verified** ✅ **2026-09-02** | `cd harness && mvn21 clean verify` → BUILD SUCCESS with the count read from Maven's **`Tests run:` summary line**, ≥ 243. A suspiciously fast run (<4 min) is a FAILED gate until the count is confirmed — that is F76. **Held on `38eb11f`: 243, 05:48, 37/37 classes.** Re-run after Phase 0 |
 | 2 | **Environment could run the tests** | Docker up; `docker images \| grep -E 'paxi:6823d0b\|hotstuff:dc01ac8'` shows both |
 | 3 | **Findings ledgered with evidence** | §5 above + the archived ledger |
 | 4 | **This file updated** | §0 date, §2 state, §6 queue |
@@ -321,7 +549,10 @@ cd ..
 # 4. Publish
 git push origin main
 
-# 5. Retire the branches — eighth contains seventh, so both go together
+# 5. Retire the branches. WARNING (2026-09-02): `seventh` is NOT contained
+#    in the merge — it carries 81794f7 (docs/SESSION_CLOSE_2026-08-15.md).
+#    Check first, and cherry-pick or accept the loss deliberately:
+git log --oneline main..seventh-review-tier1     # must be EMPTY before deleting
 git push origin --delete eighth-review-tier1 seventh-review-tier1
 git branch -d eighth-review-tier1 seventh-review-tier1
 ```
@@ -391,6 +622,7 @@ consulted, not planned from.
 | `LOCAL_TESTING.md` · `PER_ALGORITHM_TEST_GUIDE.md` · `MONITORING_GUIDE.md` | Operator guides |
 | `MEASUREMENT_DIAGRAMS.md` · `JAVA_HARNESS_ASSESSMENT.md` | Architecture and rationale |
 | `examples/` · `SSH_SETUP.md` | Sample data, planned SSH switch |
+| `HANDOFF_REVIEW_2026-09-02.md` | **Evidence ledger** for the `thesis-handoff-2026-08-21` review: every finding's verdict against *this* tree, what was executed, and what was not |
 | `archive/` | **History, not guidance.** Includes the full F1–F76 findings ledger |
 
 **Authority when they conflict:** live code > `IMPLEMENTATION_PLAN` +
