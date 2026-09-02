@@ -111,6 +111,17 @@ at all. A source whose data could not be verified is marked `\unver` at
 not. `\grey` marks grey literature and `\prep` marks preprints, the same
 way.
 
+## Where to look next
+
+`docs/MEASUREMENTS.md` — which sentence of the thesis is waiting for
+which benchmark number, and which diagram each measurement becomes.
+
+`docs/REVIEW.md` — what two independent reviews found, what was fixed,
+and what is still open. The open list is the one to read before a
+defence: it is written as the questions a committee will ask.
+
+`docs/SYNC.md` — how the two editions stay level.
+
 ## Status
 
 Chapters 1 and 2 are written in both languages. The experimental
