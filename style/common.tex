@@ -65,7 +65,38 @@
 \input{style/diagrams}
 
 % ---- Maths -----------------------------------------------------------
-\usepackage{amsmath,amssymb}
+% amssymb is NOT loaded: unicode-math (below) provides every
+% symbol it defines, and loading both makes them fight over
+% \eth, \digamma, \smallsetminus and \backepsilon.
+\usepackage{amsmath}
+
+% The maths FONT.
+% Without this the text is Times (or its metric twin) and the
+% mathematics is Computer Modern, because that is what XeLaTeX uses when
+% nothing says otherwise. The two do not match, and the mismatch shows
+% wherever a symbol sits inside a sentence: "FaB needs $5f+1$ nodes"
+% printed the words in one face and the 5f+1 in another.
+%
+% TeX Gyre Termes Math is the companion of Times: same proportions, same
+% weight, designed for exactly this pairing. If it is missing the
+% document still builds, in Computer Modern maths, and says so in the
+% log rather than failing.
+%
+% NOT the text font: TeX Gyre Termes has no accented Greek — no ά, έ, ή,
+% ί, ό, ύ, ώ — so the Greek edition would be full of missing glyphs.
+% Liberation Serif has the full range, which is why it is the fallback.
+\usepackage{unicode-math}
+\IfFontExistsTF{texgyretermes-math.otf}{
+  \setmathfont{texgyretermes-math.otf}
+  % unicode-math sets upright Greek capitals by ISO style; LaTeX's own
+  % convention, and every source this thesis quotes, prints them upright.
+  \setmathfont[range=\mathup/{greek,Greek}]{texgyretermes-math.otf}
+}{
+  \PackageWarningNoLine{thesis}{TeX Gyre Termes Math not found —
+    mathematics will be Computer Modern and will not match the text.
+    Install the tex-gyre-math package}
+}
+
 
 % ---- Citations and links ---------------------------------------------
 % cite sorts and compresses numeric citations: \cite{a,b,c} -> [2]-[4].
