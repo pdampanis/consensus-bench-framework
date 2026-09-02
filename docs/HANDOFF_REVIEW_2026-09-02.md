@@ -72,7 +72,7 @@ From `reference/experimental-plan-v-final.txt` §5. These were written against
 **sharper than the pack's N-series**. Two of them delete whole systems' data
 while the suite is green.
 
-### C1 — every HotStuff cell is discarded. PROVEN BY EXECUTION.
+### C1 — every HotStuff run is discarded. PROVEN BY EXECUTION. But fixing it is not enough — see C2.
 
 `RemoteRunner.writeHotStuffResults` emits a manifest with **no `error_rate`**
 (`grep -c error_rate` over the template → 0). `gateBaselineErrorRate` treats a
@@ -101,16 +101,32 @@ C1 is a *side effect of F52/D15*, the gate the eighth review added to catch a
 author's registry did.
 
 A second defect surfaced in the same run: the HotStuff manifest also omits
-`window`, so `window_headroom` SKIPs as "pre-M5.3 format". Fix both together.
+`window`, so `window_headroom` SKIPs as "pre-M5.3 format". `window` *is*
+available from `spec.window()`; **`error_rate` is not** — `HotStuffSummary`'s
+nine fields carry no error or failed-op count, so the gate-side SKIP is the
+only implementable fix.
 
-### M2 — every CometBFT fault run is discarded. CONFIRMED.
+**And C1 alone buys nothing.** Executed with the manifest patched:
+`valid = true`, and then `analyse.py` produces
+`hotstuff,baseline,4,0.0,1000,1` — an `n` and no numbers. `analyse.py` builds
+every figure from `read_throughput`/`read_latency`; HotStuff writes neither,
+and nothing in the file opens `summary.txt`. **That is C2, and it must ship
+with C1 or Chapter 11 is no better off.**
+
+### M2 — CometBFT `kill`/`double_kill` fault runs are discarded. CONFIRMED, but narrower than stated.
 
 `export_queries.txt:38` defines `cmt_rounds` as `cometbft_consensus_rounds` —
-a **gauge** that returns to 0 once a height commits. `ValidityChecker:542`
+a **gauge** that returns to 0 once a height commits. `ValidityChecker:591-592`
 routes `tendermint` to `counterIncreasesInWindow` (`last > first`), so a chain
 that took extra rounds *and recovered* reads 0 → 0 and gate 3 FAILs. The fix
 is the branch that already exists one line away: `seriesExceedsZeroInWindow`,
 exactly as `kafka_urp` uses.
+
+**Not "every" fault run.** `:593` also passes the gate on a `node_up` drop,
+which rescues `partition` and `packet_loss`. The bite is `kill` and
+`double_kill` — where the gate's own javadoc says `node_up` cannot witness a
+`docker kill`. The first draft of this file said "every"; that was
+overstatement.
 
 ### M3 — the "9 of 11 gates" figure is not what a `remote-run` produces. CONFIRMED.
 
@@ -125,7 +141,7 @@ every `remote-run`. The campaign path is saved only because
 
 | # | Claim | Verdict |
 |---|---|---|
-| **C4** | `KafkaDriver` pins RF=3 / 6 partitions, so E-SCALE does not measure what it claims | **ACCEPTED — touches goldens, see §4** |
+| **C4** | "`KafkaDriver` pins RF=3 / 6 partitions" | **HALF WRONG, and this review propagated it.** `KafkaDriver.java:95` already does `rf = Math.min(3, bootstrap.size())` — RF is not pinned. The real defects are the **cap at 3** (a size-5/7 scalability cell still replicates to 3, so E-SCALE compares nothing) and **`PARTITIONS = 6`**. **It does NOT touch goldens** — see §4 |
 | **C3** | Ops that hit the 5 s driver bound leave the histogram entirely, unevenly by system | **ACCEPTED** — add the timed-out count to the manifest |
 | **C2** | `analyse.py` never opens `summary.txt`, so a HotStuff cell contributes `{'n': N}` | **ACCEPTED — declared, not fixed** |
 | **M1** | Exporter writes series-major CSV; the checker ignores the instance column, so the counter check compares node1's first sample to node3's last | **ACCEPTED** — `ValidityChecker`'s own javadoc admits the column is ignored |
@@ -173,15 +189,29 @@ C4's definition of done is "goldens and docs updated".
 `PROJECT_STATE §7.2` gate 6 states the rule — *"Goldens re-read if touched"* —
 and flags that it already bit us once.
 
-Two changes on the list touch golden text:
+**Exactly one** change on the list touches golden text:
 
-* **C4** — Kafka RF / `min.insync.replicas` / partition count → `kraft` and
-  `kafka_zk` goldens.
 * **N-20** — etcd `--quota-backend-bytes` / auto-compaction → both etcd
-  goldens.
+  goldens. **This one is real.**
+* **C4 does NOT** — and the first draft of this file said it did. Golden text
+  is only what `RemoteSshProvider` emits, and `RemoteSshProvider.java:352`
+  already computes `rf = Math.min(3, clusterSize)` with
+  `txnMinIsr = rf >= 3 ? 2 : 1`; at size 3 — the only size a Kafka golden
+  exists for — the corrected values are **byte-identical** to
+  `kraft-size3-start-stop.txt` (`REPLICATION_FACTOR=3`, `MIN_ISR=2`). The
+  partition count lives in `KafkaDriver.java:61`, client-side, and appears in
+  no golden.
 
-**Therefore: every golden-touching change lands *before* G2, not after.**
-This is the organising constraint of Phase 0 in `PROJECT_STATE.md` §6.
+**The rule still holds — every golden-touching change lands before G2 — but
+it binds one item, not two.** Everything else in Phase 0 is scheduled by the
+older and sounder rule: *do first whatever cannot be fixed after the VMs are
+billed*. Stating that honestly matters, because a constraint that sounds
+load-bearing and is not will be trusted the next time it is invoked.
+
+**And it cannot be fully honoured.** N-20's quota must be chosen in Phase 0,
+before canary check 2.16 measures `etcd_mvcc_db_total_size_in_bytes`. If the
+measurement contradicts the guess, that golden is re-read and re-signed. The
+plan says so at Phase 3.1 rather than hiding it.
 
 ---
 
@@ -229,15 +259,34 @@ product. Verified by executing the shipped jar's own dry run:
 
 ```
 campaign-run --system etcd --simulation standard --rates 1000,2000,3000,4000 --dry-run
-  → 120 cells:  20 BASELINE · 40 PACKET_LOSS · 20 each of the other three
+  → 120 RUNS (= 24 cells at n=5):  20 BASELINE · 40 PACKET_LOSS · 20 each of the rest
 ```
 
 It is **worse than the pack measured**, because D14's severity sweep (added
-after `9e9fbdd`) doubles PACKET_LOSS: 100 cells at `9e9fbdd`, 120 now, against
-a cost model that assumed **71**.
+after `9e9fbdd`) doubles PACKET_LOSS: 100 runs at `9e9fbdd`, 120 now.
 
-The two-block alternative needs **no code at all** — both invocations already
-exist:
+**Two corrections to the first draft of this section, both mine.**
+
+1. **"against a cost model that assumed 71" was a misreading**, inherited
+   from the pack (`08-COST-MODEL.md:53`, "71 runs each ≈ 11.2 h").
+   `EXECUTION_AND_COST_MODEL.md:170` reads **"Phase A total | ~71 h"** — that
+   is *hours across five systems*, not runs. The repo's live per-system
+   budget is the table at `:134-138`: sat-search 30 min + sat 5×10 +
+   rate-sweep 15×10 + faults 25×10 + failover 30×8 = **76 runs ≈ 12.0 h**,
+   and it **already counts both packet-loss severities**.
+2. **"cells" should read "runs" throughout.** D13 defines a cell as the n=5
+   body of evidence, and `MatrixRunner.gradeCells` groups by everything
+   except `runId`. 120 runs = **24 cells**; the alternative's 75 runs = 15
+   cells. Multiplying the wrong noun by 5 gets the budget five times wrong.
+
+So the honest claim is **not** a 62 % saving. It is: **`Simulations.standard`
+does not implement the campaign the repo costed.** The runbook's shape is
+~11.5 h against `standard`'s ~20 h, and the 45 extra runs buy fault×rate
+combinations no planned figure consumes. That is a correctness argument about
+experimental design, and it stands on its own.
+
+The runbook's shape needs **no code at all** — the invocations already exist,
+and the saturation search that *defines* R1..R3 comes first:
 
 ```
 --scenarios baseline --rates 1000,2000,3000,4000 --reps 5        → 20 cells
@@ -245,8 +294,9 @@ exist:
             --rates 3000 --reps 5                                 → 25 cells
 ```
 
-**45 cells against 120**, a 62 % reduction, and the discarded cells are ones
-no planned figure consumes. Adopt it (`PROJECT_STATE` D16).
+With the saturation block (5 runs) and the failover block (30), that is
+**75 runs ≈ 11.5 h** — reproducing the 76 ≈ 12.0 h the cost model already
+plans. Adopt it (`PROJECT_STATE` D16).
 
 ---
 
@@ -260,11 +310,57 @@ no planned figure consumes. Adopt it (`PROJECT_STATE` D16).
   never executed here.
 * **No boot of `cloud-init.yaml`.** N-10 stays plausible-not-proven.
 * **C4, C3, M1, M4, M6** were accepted from the author's registry on the
-  strength of its file:line accuracy elsewhere; they were **not** independently
-  re-executed here.
+  strength of its file:line accuracy elsewhere. **A follow-up adversarial pass
+  (§8) checked all five at file:line: C3, M4, M6 and M1 hold; C4 was half
+  wrong and is corrected above.** M4 needs restating precisely — in-flight
+  operations are *not* lost (the drain plus the `durationSecs + 6` bucket
+  array per F23); what is discarded is the *schedule* backlog, because
+  `nextIntendedNanos` stops advancing at loop exit. M1 is worse than stated:
+  because `inWindow` preserves file order, the two samples the counter check
+  compares are not even monotonic in time.
+* **No cost figure in this repo has ever been read from Hetzner.** Every
+  euro — `cx33 = 0.0136`, `ccx33 = 0.2219`, the €0.55 canary, the ≈€80
+  campaign — traces to third-party trackers via the pack, which says so
+  itself. `hcloud pricing` at Phase 1.3 is the only authority.
+* **Terraform resource counts** were taken from `LOCAL_TESTING.md §3.3`'s
+  recorded plans (11/15/12) and the `6 + N_vms` formula derived from
+  `main.tf`; no `terraform plan` was run here.
 * **The literature half (`01`–`06`) was not audited.** Its bibliography,
   chapter plan and citation verdicts are outside this pass; the only items
   taken from it are the ones with a bearing on the campaign
   (D-5 n=20, D-6 two blocks, D-9 corpus purge).
 * **The Greek-language originals** in `reference/` were read only for the
   defect registry (§5 of the plan), not in full.
+
+---
+
+## 8. The adversarial pass on THIS document, 2026-09-02
+
+This file and `PROJECT_STATE.md` §5–§6 were put through a hostile review with
+the repository as ground truth, in the same spirit as the pack's own two
+passes. It reproduced the load-bearing claims — C1 end-to-end (including that
+`MatrixRunner.gradeCells` offers **no rescue path**, since it re-runs the same
+check), the N-16/N-5 chain (built the header-only-CSV fixture: 5 FAILs, then 0
+runs analysed), the 120/20/25/30 dry-run counts, the patch table, 23 queries,
+the 243-test gate and the `main..seventh` commit.
+
+**It also found six blocking defects in my work.** All are corrected above and
+in §6 of `PROJECT_STATE.md`; recording them rather than quietly folding them
+in is the point:
+
+| # | Defect | Where it came from |
+|---|---|---|
+| 1 | `terraform plan` shows **10** resources at `consensus_node_count=2`, not 12 — the count is `6 + N_vms` | Copied the pack's 6-VM Phase-C figure. Phase 1 told the operator to **stop** on a mismatch its own arithmetic guaranteed |
+| 2 | **C4 does not touch goldens**, and "`KafkaDriver` pins RF=3" is false | Accepted from the registry without checking; then built D18's justification on it |
+| 3 | "71" is **hours**, not runs; "cells" should read **runs**; the saving is ~4 %, not 62 % | Propagated the pack's misreading of `EXECUTION_AND_COST_MODEL:170` |
+| 4 | The two-block design **deleted the saturation search** that derives its own rate points | Omission |
+| 5 | The canary is **not invocable** without `--size 2` — `Main` defaults to 3 and the provider throws | Never ran the command |
+| 6 | Fixing C1 still leaves Chapter 11 with `{n: 1}`; **C2 appeared nowhere in the plan** | Accepted C2 in §2 and forgot to schedule it |
+
+**The lesson, and it is the project's own:** this review applied an exacting
+standard to the things it already suspected, and none at all to the numbers
+the operator would stand on at the spend gate. Every one of those six was
+checkable offline in under a minute. A document whose rigorous sections make
+its unrigorous ones look trustworthy is more dangerous than one that is
+uniformly rough — so the figures in §6 and in Phase 1/2 now carry their
+provenance at the point of use, not only in this section.

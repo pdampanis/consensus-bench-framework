@@ -215,9 +215,9 @@ Rationale for each lives in `MASTER_PLAN.md` §1. Index only:
 | **D13** | Result confidence is an **ordinal grade adapted from GRADE** (Guyatt et al., BMJ 2008), never a numeric score. Grades a **CELL** (n=5), not a run. `VOID` is our addition — GRADE has no level for "cannot evidence its own claim" |
 | **D14** | Packet-loss severity is a **workload factor swept at 5% and 30%**; severity is part of run identity |
 | **D15** | Fault semantics settled: partition is pairwise IP DROP preserving the loadgen→leader path; slow_node is host `stress-ng` with a **run-shape-derived** timeout; failover trials use the runbook's 180+180 shape; EPaxos/CometBFT targeting is fixed for cells and **rotated** for failover trials |
-| **D16** | **The campaign runs a TWO-BLOCK design, not `--simulation standard`** — baseline across the rate sweep, faults at one rate. Measured: `standard` at four rates emits **120 cells** against a cost model built on 71; the split is **45**, needs no code, and drops only cells no planned figure consumes (handoff N-1/D-6; evidence in `HANDOFF_REVIEW_2026-09-02.md` §6) |
+| **D16** | **The campaign runs the runbook's shape, NOT `--simulation standard`.** `Simulations.standard` emits a full Cartesian product — measured, **120 runs** at four rates — while `EXECUTION_AND_COST_MODEL` §"per-system budget" plans **76 runs ≈ 12.0 h** (sat-search 30 min + sat 5×10 + rate-sweep 15×10 + faults 25×10 + failover 30×8). **The cost model is right and the code does not implement it.** The saving is modest (≈12 h → ≈11.5 h); the point is *correctness of shape*, not budget — `standard` spends 60 extra runs on fault×rate combinations no planned figure consumes. Beware the units: 120 **runs** = 24 **cells** at n=5, and the "71 h" in the cost model is *hours*, not runs (handoff N-1/D-6; evidence in `HANDOFF_REVIEW_2026-09-02.md` §6) |
 | **D17** | **n=20 for Paxos vs EPaxos at TWO conflict rates**, n=5 everywhere else. The registered prediction is a *crossover*, so one rate tests neither end; at n=5 Mann–Whitney bottoms out at p≈0.008 and is decorative. Marginal ≈10 machine-hours, ≈€3–6. Elsewhere: effect sizes, bootstrap CIs and printed raw points, **no significance tests** (Kalibera & Jones). The load memo's original n=10 request and its reduction to n=5 are recorded in Appendix Δ rather than silently declined |
-| **D18** | **Any change to golden text lands BEFORE the G2 read-through.** The signature is given once, against final text. This governs §6's phase ordering and is why C4 and N-20 sit in Phase 0 |
+| **D18** | **Any change to golden text lands BEFORE the G2 read-through.** The signature is given once, against final text. **Exactly one open item touches golden text: N-20** (the etcd quota). C4 does **not** — `RemoteSshProvider.java:352` already computes `rf = Math.min(3, clusterSize)` and `txnMinIsr`, which at size 3 is byte-identical to `kraft-size3-start-stop.txt`; the partition count is client-side in `KafkaDriver`. Everything else in Phase 0 is there for the older rule — *do first whatever cannot be fixed after the VMs are billed* |
 
 ---
 
@@ -227,15 +227,19 @@ Closed findings F1–F76 with their evidence live in
 `docs/archive/FINDINGS_LEDGER_F1-F76.md` — the audit trail, kept because code
 comments reference F-numbers. The 2026-09-02 review of the
 `thesis-handoff-2026-08-21` pack is in `docs/HANDOFF_REVIEW_2026-09-02.md`,
-which carries the evidence for every row below. Only what is still OPEN is
-here.
+which carries the evidence. **Read that file's §7 before trusting this
+table**: C4, C3, M1, M4, M6 were accepted from the handoff author's registry
+and re-verified at file:line by a later review pass, but the *rest* of §5's
+rows are backed by an executed command and these five were not, originally.
+Only what is still OPEN is here.
 
 ### Blocking — proven, and each one silently destroys data or money
 
 | # | Issue | Proof | Fix |
 |---|---|---|---|
-| **C1** | Every **HotStuff** cell is discarded. Its manifest carries no `error_rate`; `gateBaselineErrorRate` FAILs on a missing field; HotStuff's scenario is always `baseline`, so the SKIP never fires | **Executed**: `valid=false`, then `analyse.py` → `0 runs, 1 excluded (baseline_error_rate)`. Chapter 11 gets nothing | SKIP for the systems that have no engine-measured error rate, via the existing `hasNoThroughputSeries` seam; add `window` too |
-| **M2** | Every **CometBFT** fault run is discarded. `cmt_rounds` is a *gauge* that returns to 0 on commit, checked as a counter (`last > first`) | `export_queries.txt:38` + `ValidityChecker.java:542` | Route `tendermint` to `seriesExceedsZeroInWindow`, the branch `kafka_urp` already uses |
+| **C1** | Every **HotStuff** run is discarded. Its manifest carries no `error_rate`; `gateBaselineErrorRate` FAILs on a missing field; HotStuff's scenario is always `baseline`, so the SKIP never fires | **Executed**: `valid=false`, then `analyse.py` → `0 runs, 1 excluded (baseline_error_rate)` | SKIP for the systems that have no engine-measured error rate, via the existing `hasNoThroughputSeries` seam; add `window`, which *is* available from `spec.window()`. **An `error_rate` field is NOT implementable** — `HotStuffSummary`'s nine fields carry no error or failed-op count, so the SKIP branch is the only real option |
+| **C2** | **Fixing C1 alone still gives Chapter 11 nothing.** `analyse.py` never opens `summary.txt`; every number it builds comes from `read_throughput`/`read_latency`, and HotStuff writes neither | **Executed** with C1 patched: `valid=true`, and `cells.csv` → `hotstuff,baseline,4,0.0,1000,1` — an `n` and nothing else | Add a `summary.txt` reader and a **separate** HotStuff table. No shared latency figure (Level Γ) |
+| **M2** | **CometBFT `kill`/`double_kill` fault runs are discarded.** `cmt_rounds` is a *gauge* that returns to 0 on commit, checked as a counter (`last > first`) | `export_queries.txt:38` + `ValidityChecker.java:591-592`. **Not "every" fault run** — `:593` also passes on a `node_up` drop, which rescues partition and packet_loss; kill and double_kill are the bite, and the gate's own javadoc says `node_up` cannot witness a `docker kill` | Route `tendermint` to `seriesExceedsZeroInWindow`, the branch `kafka_urp` already uses |
 | **N-16** | **Nothing deploys the observability stack.** One `cloud-init.yaml` for all roles; no `docker compose up`, no copy of `observability/` | `main.tf:157`; `scripts/` holds one file | Write `scripts/deploy_obs.sh` |
 | **N-5** | **`prometheus.yml` placeholders are never substituted**, and `NODE4` is hardcoded at n=3 | No writer anywhere in `scripts/ infra/ harness/src/main/` | Install `patches/scripts/render_obs_config.sh` |
 | **N-7** | `MatrixRunner` has **no failure ceiling** — a systemic fault bills all night and produces nothing | `MatrixRunner.java:322` | Re-implement the breaker (the shipped patch is stale, §6 P0.9) |
@@ -251,7 +255,7 @@ run still bills in full.
 
 | # | Issue | Fix |
 |---|---|---|
-| **C4** | `KafkaDriver` pins RF=3 and 6 partitions, so E-SCALE does not measure what it claims | RF = cluster size, `min.insync.replicas = ⌊n/2⌋+1`, 1 partition; one declared 6-partition production-shaped cell. **Touches goldens** |
+| **C4** | E-SCALE does not measure what it claims. **The finding as written is half wrong** — `KafkaDriver.java:95` already does `rf = Math.min(3, bootstrap.size())`, so RF is not "pinned at 3". The two real defects are the **cap at 3** (so a size-5 or size-7 scalability cell still replicates to 3 and E-SCALE compares nothing) and **`PARTITIONS = 6`** (`KafkaDriver.java:61`), which measures six Raft groups against etcd's one | Remove the cap; `min.insync.replicas = ⌊n/2⌋+1`; 1 partition for E-SCALE plus one *declared* 6-partition production-shaped cell. **Client-side only — does NOT touch goldens** |
 | **N-20** | etcd runs on its **default 2 GiB backend quota** with no auto-compaction; ~1.95 M writes at 1 KB exhausts it, so any cell above ~4,000 ops/s for 480 s trips `NOSPACE` mid-run | Set the quota and auto-compaction in the etcd recipe. **Touches goldens.** Measure `etcd_mvcc_db_total_size_in_bytes` on the canary |
 | **C3** | Operations that hit the 5 s driver bound leave the histogram entirely — unevenly (Paxi loses ~100 % of its tail mass, etcd a few percent) | Second histogram at the bound; report `p99_success` **and the timed-out count** in the manifest and every fault caption |
 | **M1** | The exporter writes series-major CSV and the checker **ignores the instance column**, so the counter check compares node 1's first sample to node 3's last | Group by series before comparing |
@@ -315,11 +319,12 @@ read from Maven's own summary line, one commit per step.
 
 | # | Step | Touches goldens? | Done when |
 |---|---|---|---|
-| **0.1** | **C1** — HotStuff manifest gets `error_rate` and `window`, or the gate SKIPs for systems with no engine-measured rate | no | A HotStuff-shaped manifest reaches `valid: true`; a red test first, on the manifest **production actually writes** |
+| **0.1** | **C1** — the gate SKIPs for systems with no engine-measured error rate (`error_rate` is **not** derivable from the HotStuff SUMMARY); add `window` from `spec.window()` | no | A HotStuff-shaped manifest reaches `valid: true`; a red test first, on the manifest **production actually writes**. **Not done until 0.5b too** — `valid: true` alone still yields a cell of `{n: 1}` |
 | **0.2** | **M2** — `tendermint` uses the gauge witness | no | A recovered-chain fixture (rounds 0→2→0) passes gate 3 |
 | **0.3** | **M3** — collectors move above the validity check | no | A `remote-run` fixture evaluates `container_restarts` instead of SKIPping it |
-| **0.4** | **N-20** — etcd backend quota + auto-compaction | **YES** | Golden updated first as the spec, provider matches verbatim |
-| **0.5** | **C4** — Kafka RF / `min.insync.replicas` / partitions | **YES** | `rf = bootstrap.size()`; `min.insync.replicas = ⌊n/2⌋+1`; E-SCALE at 1 partition; one declared 6-partition cell |
+| **0.4** | **N-20** — etcd backend quota + auto-compaction. **The only golden-touching item in the plan.** Size it from published guidance now and accept that canary 2.16 may revise it (see the note under Phase 3) | **YES** | Golden updated first as the spec, provider matches verbatim |
+| **0.5** | **C4** — remove `KafkaDriver`'s RF cap at 3, set `min.insync.replicas = ⌊n/2⌋+1`, 1 partition for E-SCALE plus one declared 6-partition cell | no — client-side | A size-5 cell replicates to 5; `kraft-size3` golden **unchanged** (verify by running the golden test, do not assume) |
+| **0.5b** | **C2** — `analyse.py` reads `summary.txt`; HotStuff gets its own table | no | A HotStuff cell yields real numbers, not `{n: 1}` |
 | **0.6** | **N-16** — write `scripts/deploy_obs.sh`: scp `observability/` + the rendered config to obs → `docker compose up -d` → wait `/-/ready` → assert **every target `up`** | no | Runs against a local Prometheus; refuses to return 0 with any target down |
 | **0.7** | **N-5** — install `patches/scripts/render_obs_config.sh` | no | Renders for n=2, 3, 4, 7; `promtool check config` green (install promtool) |
 | **0.8** | **`main.tf` hardening** — `cpx21`→`cx33`, `ccx33` 0.1923→0.2219, IPv4 line item, **cost fails closed** on an unpriced type. Patch applies clean (`infra/`, `-p1`) | no | `terraform validate`, `fmt -check`, and the 8 `tftest` runs green — install `patches/tests/` **in the same commit** |
@@ -344,22 +349,30 @@ every golden-touching change landed.
 | **1.4** | `preflight.sh` green; one real boot of `cloud-init.yaml` under multipass/QEMU (closes N-10); record `df -h /` on the booted VM as the disk baseline | either |
 
 **Pass criteria:** `cx33` appears and **`cpx21` does not** — confirming the
-blocking finding at zero cost. `terraform plan` shows exactly 12 resources.
+blocking finding at zero cost. `terraform plan` shows **`6 + N_vms`**
+resources (6 singletons + one `hcloud_server` per VM), so the canary's
+`consensus_node_count=2` → 4 VMs → **10 to add**. `LOCAL_TESTING.md §3.3`
+records the formula by execution: 11 at n=3, 15 at n=7, 12 at n=4. **Do not
+expect 12** — that figure belongs to the 6-VM Phase-C shape.
 **If Stage 0 fails, stop.** A wrong type here is a five-minute edit; the same
 type at Stage 1 is a failed apply on the day you first spend money.
 
 ### Phase 2 — the canary. ≈ €0.55 gross. First contact.
 
 Shape: **Phase-A topology with `consensus_node_count=2`** — 2×`ccx13` + loadgen
-+ obs = 4 servers, €0.2203/h net. Two hours ≈ **€0.44 net / €0.55 gross**;
-budget three hours. The repo's old `< €0.10` is unachievable — Hetzner rounds
++ obs = 4 servers. **€0.2203/h for the VMs alone; €0.2230/h once Phase 0.8's
+patch adds the primary-IPv4 line item**, which is what `terraform plan` will
+print — expect the second number, not the first. Two hours ≈ €0.45 net /
+€0.55 gross; **budget three hours = €0.67 net / €0.83 gross** and plan for
+that, not for the two-hour figure. Every euro here depends on prices this
+project has **never read from Hetzner** — Phase 1.3 replaces them all. The repo's old `< €0.10` is unachievable — Hetzner rounds
 partial hours **up**, so any apply at all costs one full hour.
 
 **Set a phone timer for three hours the moment you press apply.**
 
 | # | Check |
 |---|---|
-| 2.1 | `terraform apply` succeeds; 12 resources |
+| 2.1 | `terraform apply -var consensus_node_count=2` succeeds; **10** resources (`6 + N_vms`, see Phase 1) |
 | 2.2 | `deploy/inventory.env` correct; `CONSENSUS_NODE_COUNT=2` |
 | 2.3 | SSH from the laptop, no password prompt |
 | 2.4 | `cloud-init status --wait` → `done`, no failed units |
@@ -371,8 +384,8 @@ partial hours **up**, so any apply at all costs one full hour.
 | 2.10 | `up{role="consensus"}` and `up{role="loadgen"}` both non-empty |
 | 2.11 | `chronyc tracking` inside the 5 ms gate on every node |
 | 2.12 | No provider command approaches the 30 s SSH bound |
-| 2.13 | **One real etcd cell end-to-end** → all four artifacts, `environment == "hetzner"`, **and `validity.json` with the metric gates actually PASSing** |
-| 2.14 | **Each fault type does what it claims** — verify the *effect*, not the exit code: `kill` → container gone and `up{}` drops · `packet_loss` → netem on the *resolved* iface, ping loss visible · `partition` → pairwise DROP rules **and the loadgen→leader path still works** · `slow_node` → `stress-ng` running, node CPU rises. Then `heal()` and confirm every rule is gone |
+| 2.13 | **One real etcd cell end-to-end** → all four artifacts, `environment == "hetzner"`, **and `validity.json` with the metric gates actually PASSing**. **`--size 2` is mandatory and is not the default**: `Main.java:101` defaults `--size` to `SystemUnderTest.ETCD.defaultClusterSize()` = 3, and `RemoteSshProvider.java:126` then throws `clusterSize must be 1..2 (provisioned nodes), got 3`. Verified by execution against a 2-IP inventory |
+| 2.14 | **Each fault type does what it claims — MECHANICS ONLY at n=2.** Quorum on two nodes is two, so `kill` leaves *zero* quorum and `partition` gives a 1\|1 split with no majority: "the loadgen→leader path still works" is vacuous here, because the leader can commit nothing. `DOUBLE_KILL` would kill both. This checks that the rules are installed and healed, **not** the D15 semantics — those wait for Phase 4's smokes at size 3. Verify the *effect*, not the exit code: `kill` → container gone and `up{}` drops · `packet_loss` → netem on the *resolved* iface, ping loss visible · `partition` → pairwise DROP rules **and the loadgen→leader path still works** · `slow_node` → `stress-ng` running, node CPU rises. Then `heal()` and confirm every rule is gone |
 | 2.15 | **`node_facts.sh` on all four VMs, committed.** fsync p50/p99, single-core scalar, inter-node RTT matrix, threads-per-core. **This expires** — after the campaign the hardware is gone and unrecoverable |
 | 2.16 | **N-20 measurement** — `etcd_mvcc_db_total_size_in_bytes` across the cell, to size the quota with evidence |
 | 2.17 | **N-15 measurement** — bytes of SUT log per node per second, and the gzip ratio, to close the one unmeasured volume term |
@@ -391,7 +404,7 @@ Only now, with real numbers in hand.
 
 | # | Step |
 |---|---|
-| **3.1** | Size the etcd backend quota from 2.16; re-read that golden |
+| **3.1** | **Only if canary 2.16 contradicts 0.4's figure**: resize the etcd backend quota. This is the one place the plan can be forced to break **D18**, and pretending otherwise would be worse than saying it: 0.4 must pick a quota before anyone has measured `etcd_mvcc_db_total_size_in_bytes`. Mitigation — size 0.4 generously enough that measurement is expected to *confirm* it; if it does not, the etcd golden is re-read and **re-signed**, and that is a known, bounded cost, not a surprise |
 | **3.2** | **C3** — second histogram at the driver bound; timed-out count into the manifest |
 | **3.3** | **M4** — `omitted_by_schedule` into the manifest |
 | **3.4** | **M6** — warmup judged by intended time |
@@ -414,21 +427,35 @@ Only now, with real numbers in hand.
 
 ### Phase 5 — the campaign. ≈ €80 gross, hard cap €100.
 
-**Run the two-block design (D16), not `--simulation standard`.** Measured on
-the shipped jar: `standard` at four rates emits **120 cells** (D14's severity
-sweep doubles PACKET_LOSS), ≈20 h/system, against a cost model built on 71.
-The split costs **45**, needs **no code**, and drops only cells no planned
-figure consumes:
+**Run the runbook's shape (D16), not `--simulation standard`.** Measured on
+the shipped jar: `standard` at four rates emits **120 runs** (D14's severity
+sweep doubles PACKET_LOSS), ≈20 h/system. `EXECUTION_AND_COST_MODEL`'s
+per-system budget plans **76 runs ≈ 12.0 h** and already counts both
+packet-loss severities. The code does not implement the plan; the plan is
+right. Units matter: 120 **runs** = 24 **cells** at n=5.
+
+**The saturation search comes first and is not optional** — the sweep rates
+R1..R4 are 25/50/75 % of a *measured* saturation, which is why
+`Simulations.java` keeps rates an operator input. Budget it:
 
 ```bash
-# block 1 — baseline across the rate sweep                    → 20 cells
-campaign-run --system <s> --scenarios baseline --rates R1,R2,R3,R4 --reps 5
-# block 2 — every fault at ONE rate                           → 25 cells
-campaign-run --system <s> --rates R3 --reps 5 \
+# block 0 — saturation search, THEN saturation at n=5. R1..R4 are derived
+#           from its result (25/50/75% + saturation). ~30 min + 5x10 min.
+campaign-run --system <s> --scenarios baseline --rates 0 --reps 5
+
+# block 1 — baseline across the derived rate sweep              → 15 runs
+campaign-run --system <s> --scenarios baseline --rates R1,R2,R3 --reps 5
+# block 2 — every fault at ONE rate (packet_loss x2 severities) → 25 runs
+campaign-run --system <s> --rates R2 --reps 5 \
   --scenarios packet_loss,network_partition,slow_node,double_kill
-# block 3 — the failover distribution
-campaign-run --system <s> --simulation failover --rates R3
+# block 3 — the failover distribution                           → 30 runs
+campaign-run --system <s> --simulation failover --rates R2
 ```
+
+That is 5 + 15 + 25 + 30 = **75 runs ≈ 11.5 h**, against the cost model's 76
+≈ 12.0 h — i.e. this reproduces the plan the repo already costed, which is
+the point. It is **not** a budget saving; `--simulation standard`'s extra 45
+runs buy fault×rate combinations no figure consumes.
 
 Plus **n=20 for Paxos vs EPaxos at two conflict rates** (D17) — the only cell
 pair that yields a *finding*, and the registered prediction is a crossover, so
