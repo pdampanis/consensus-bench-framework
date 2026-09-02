@@ -84,7 +84,11 @@ def uses():
                 continue
             path = os.path.join(d, name)
             for i, line in enumerate(open(path, encoding='utf-8'), 1):
-                for m in USE.finditer(line):
+                # A commented-out use is not a use. Without this, D01
+                # reported a build error for a key LaTeX never sees, and
+                # D02's "not used anywhere" was silenced by a comment —
+                # the one line that says "check again before submission".
+                for m in USE.finditer(strip_comment(line)):
                     found.setdefault(m.group(1), []).append(
                         '%s/%s:%d' % (os.path.basename(d), name, i))
     return found

@@ -14,7 +14,9 @@ checks make that impossible to do by accident.
        end up different sizes)
   G04  a \\fl{} label key used in a figure but missing from one of the
        two dictionaries — the figure would render blank in that edition
-  G05  a label key defined but never used
+  G05  a label key defined but never used. A NOTE, not a failure: a key
+       added ahead of the figure that will use it is normal while the
+       thesis is being written
   G06  the two dictionaries do not define the same key set
   G07  Greek text inside a figure source (figures are language-neutral;
        text belongs in the two dictionaries)
@@ -88,10 +90,19 @@ def main():
         for m in re.finditer(r'\\definecolor\{([^}]*)\}', src):
             bad.append('G01 %s defines colour %s — the palette lives in '
                        'style/diagrams.tex' % (name, m.group(1)))
-        for m in re.finditer(r'\b(c[A-Z][A-Za-z]+)\b', src):
-            if m.group(1) not in PALETTE:
-                bad.append('G01 %s uses colour name %s, which is not in the '
-                           'palette' % (name, m.group(1)))
+        # A colour NAME used where a palette name belongs. The earlier
+        # version looked for the shape c[A-Z]..., which no palette name
+        # has — so its "not in the palette" test was true for everything
+        # it matched and false for everything it did not. It caught
+        # neither `draw=red` nor `draw=dgRed`.
+        for m in re.finditer(r'(?:draw|fill|text|color)\s*=\s*'
+                             r'([A-Za-z][A-Za-z0-9]*)', src):
+            base = m.group(1)
+            if base in PALETTE or base in ('none', 'white', 'black'):
+                continue
+            bad.append('G01 %s uses colour "%s" — the palette is %s, and it '
+                       'lives in style/diagrams.tex'
+                       % (name, base, ', '.join(sorted(PALETTE))))
 
         # G02 — the two kinds, and nothing else
         envs = set(re.findall(r'\\begin\{(\w+)\}', src))
@@ -104,8 +115,13 @@ def main():
             bad.append('G02 %s uses none of dgdata/dgbarchart/dgflow' % name)
 
         # G03 — geometry and type belong to the standard
-        for pat, what in ((r'\bwidth\s*=\s*[\d.]+\s*(cm|mm|pt|in)\b', 'width'),
-                          (r'\bheight\s*=\s*[\d.]+\s*(cm|mm|pt|in)\b', 'height'),
+        # "line width=" must not be read as "width=", and a relative
+        # width (0.8\textwidth) is the ordinary way to set one, so it has
+        # to be caught too.
+        for pat, what in ((r'(?<!line )\bwidth\s*=\s*[\d.]+\s*'
+                           r'(cm|mm|pt|in|\\[a-zA-Z]+)', 'width'),
+                          (r'\bheight\s*=\s*[\d.]+\s*'
+                           r'(cm|mm|pt|in|\\[a-zA-Z]+)', 'height'),
                           (r'font\s*=\s*\\(tiny|scriptsize|footnotesize|small|'
                            r'normalsize|large|Large)\b', 'font size'),
                           (r'line width\s*=\s*[\d.]+', 'line width')):
@@ -154,7 +170,8 @@ def main():
                 continue
             s = strip_comments(open(os.path.join(d, name),
                                     encoding='utf-8').read())
-            for env in ('tikzpicture', 'axis', 'dgdata', 'dgflow'):
+            for env in ('tikzpicture', 'axis', 'groupplot', 'semilogyaxis',
+                        'loglogaxis', 'dgdata', 'dgbarchart', 'dgflow'):
                 if '\\begin{%s}' % env in s:
                     bad.append('G02 content/%s/%s draws a figure inline — '
                                'figures live in figures/src so both editions '

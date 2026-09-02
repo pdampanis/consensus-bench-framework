@@ -177,7 +177,7 @@ that is you pay for not knowing when stability begins.}
 \textbf{Kind of fault} & \textbf{Synchronous} & \textbf{Asynchronous} &
 \textbf{Partially synchronous} \\
 \midrule
-Crash with detection (fail-stop) & $t$ & $\infty$ & $2t+1$ \\
+Fail-stop (in the sense of the source) & $t$ & $\infty$ & $2t+1$ \\
 Omission                  & $t$      & $\infty$ & $2t+1$ \\
 Byzantine with authentication & $t$  & $\infty$ & $3t+1$ \\
 Byzantine                 & $3t+1$   & $\infty$ & $3t+1$ \\
@@ -196,8 +196,22 @@ that this thesis uses. The paper itself is outside the corpus. The
 MIT (\texttt{groups.csail.mit.edu/tds/papers/Lynch/jacm88.pdf}). From
 there we read the quantities of the table, the definitions of $\Delta$
 and $\Phi$, the two forms of partial synchrony and the term GST. Nothing
-is quoted verbatim. The original names the first row fail-stop and not
-crash. The distinction of Section~\ref{sec:faults} is kept here.
+is quoted verbatim.
+
+\smallskip
+\textbf{One word, two meanings.} The source names the first row
+\emph{fail-stop}, and defines it as a processor that executes correctly
+and can stop at any time, and once stopped cannot restart. There is
+\textbf{no clause about detection}. That is not the sense in which
+Section~\ref{sec:faults} of this chapter uses the word, following
+\cite{schneider1990implementing}, where fail-stop adds that the other
+nodes detect the stop \emph{reliably}. The difference decides the
+asynchronous column: reliable detection is a strictly stronger
+assumption than the one this table makes, and the $\infty$ in that column
+belongs to the weaker assumption of the source. The row is therefore
+labelled as the source labels it, and the reader is told which of the
+two meanings is in force. This is the same trap as
+Section~\ref{sec:smr}: one word, two counts.
 \end{minipage}
 \end{table}
 
@@ -524,8 +538,8 @@ belongs to \cite{pease1980reaching}.
 \subsection{Intersection is required less than we thought}
 
 %%blk background.quorums.04
-From Paxos onward, the majority quorum was considered necessary for
-almost three decades. Howard, Malkhi and Spiegelman show that it is not
+From Paxos onward, the majority quorum was taken to be necessary.
+Howard, Malkhi and Spiegelman show that it is not
 \cite{howard2016flexiblepaxos}. In Paxos, intersection is required only
 \emph{between} the two phases. The quorums of Phase~1 do not need to
 intersect with each other, and neither do the quorums of Phase~2.

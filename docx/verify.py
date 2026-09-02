@@ -2,10 +2,25 @@
 # -*- coding: utf-8 -*-
 """Checks that thesis-<lang>.docx says THE SAME as thesis-<lang>.pdf.
 
-This is not decoration: every V0x compares the .docx against the SOURCE
-(the .aux files, the .bbl, the body .tex) and exits 1 if anything has
-drifted. The two renderings of the thesis are not allowed to say
-different things.
+This is not decoration. Sixteen checks compare the .docx against the
+SOURCE — the .aux files, the .bbl, the chapter .tex — and the script
+exits 1 if any of them finds a difference. The two renderings of the
+thesis are not allowed to say different things.
+
+  V01 headings   V02 figures    V03 tables     V04 table borders
+  V05 citations  V06 bibliography              V07 page order
+  V08 page numbering            V09 Word fields
+  V10 equations  V11 fonts      V12 abbreviations
+  V15 nothing lost              V18 nothing typed
+  V19 nothing reordered         V20 the numbers shown before F9
+
+docx/selftest.py damages the .docx once per check and requires the
+matching check to catch it. All sixteen do.
+
+TWO THINGS HERE ARE REPORTS, NOT CHECKS, and they say so: V14 (length
+against the PDF) and V16 (short captions) have no failure path, because
+neither has a threshold that means anything on its own. They print, and
+the author judges. So do the length, abstract and keyword lines.
 
     python3 docx/verify.py en
 """
@@ -825,6 +840,42 @@ def main():
         ok('V19', '%d symbols (long words and equations) in the SAME order '
            'as the LaTeX — similarity %.4f; no sentence reads backwards'
            % (len(doc_sym), ratio))
+
+    # -- V20 the numbers a reader sees BEFORE pressing F9 -----------------
+    # The whole design rests on one sentence in the README: "every field
+    # carries the number LaTeX computed as its cached result, so the
+    # document reads correctly before anyone presses F9." Nothing checked
+    # it. V18 proves each REF points at a bookmark that exists; it does
+    # not look at the number displayed. V15 and V19 tokenise on long words
+    # and equations, so a number is invisible to both. A cached "9.9"
+    # where LaTeX says "1.2" passed every other check.
+    v20, n20 = [], 0
+    for m in re.finditer(r'REF\s+(\S+?)(\s+\\r)?\s+\\h\s*'
+                         r'</w:instrText>.*?<w:fldChar w:fldCharType="separate"/>'
+                         r'.*?<w:t[^>]*>([^<]*)</w:t>', xml, re.S):
+        name, shown = m.group(1), m.group(3)
+        n20 += 1
+        # The bookmark name is the label with every non-ASCII-alphanumeric
+        # character replaced, so recover the label by matching the shape.
+        want = None
+        for key, val in labels.items():
+            if WN.safe_bookmark_name(key) == name:
+                want = val[0]
+                break
+        if want is None:
+            v20.append('%s: no label produces this bookmark name' % name)
+        elif want != shown:
+            v20.append('%s: the .docx shows "%s", LaTeX computed "%s"'
+                       % (name, shown, want))
+    if n20 == 0:
+        fail('V20', 'no REF field carries a cached result — the .docx opens '
+                    'with blank cross-references')
+    elif v20:
+        for x in v20[:8]:
+            fail('V20', 'cross-reference reads wrong before F9 — ' + x)
+    else:
+        ok('V20', '%d cross-references show the number LaTeX computed, '
+           'before anyone presses F9' % n20)
 
     # -- V16 short captions: the one difference that is NOT bridged -------
     long_list = man.get('long_list', [])

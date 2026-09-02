@@ -2,8 +2,15 @@
 """Everything in the .docx pipeline that depends on which language.
 
 The pipeline runs twice, once per edition, and the two runs must not see
-each other's files. So every path and every fixed string lives here, and
-nothing else in docx/ hard-codes a language.
+each other's files. So every PATH and every string the pipeline itself
+prints lives here.
+
+What does NOT live here, and should not: the handful of places where a
+check has to know something about a language rather than about a file —
+the regular expression for "a long word" in verify.py, the words that
+introduce the keywords line in frontmatter.py. Those are properties of
+Greek and English, not of this build, and they are commented where they
+are.
 
 Select the language once, at the top of a script:
 

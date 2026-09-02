@@ -159,6 +159,16 @@ def main():
             print('  ok  P05/P06 %d sections, %d subsections, %d figures, '
                   '%d tables' % (a['sections'], a['subsections'],
                                  a['figures'], a['tables']))
+        # P07 said nothing at all when it passed, so "P07 is fine" and
+        # "P07 never ran" looked identical. While no chapter uses \meas
+        # it compares two empty counters, and it says so rather than
+        # implying it checked something.
+        if a['meas'] == b['meas']:
+            n = sum(a['meas'].values())
+            print('  ok  P07 %s'
+                  % ('%d measurement slots, the same in both editions' % n
+                     if n else 'no \\meas slots in this chapter yet — '
+                               'nothing to compare'))
     print('\n%s' % ('PARITY OK' if not bad
                     else '%d parity problem(s)' % bad))
     return 1 if bad else 0

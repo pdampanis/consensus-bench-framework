@@ -73,11 +73,46 @@ def parse(path):
     return out
 
 
+def prologue(path):
+    """Prose that sits BEFORE the first block, and is therefore tracked by
+    nothing.
+
+    The report used to say "every block translated and stamped", which
+    was literally true and said nothing about how much of the file was
+    inside a block. A paragraph written above the first marker was 100%
+    untracked and 0% reported.
+    """
+    if not os.path.exists(path):
+        return 0
+    src = open(path, encoding='utf-8').read()
+    m = BLOCK.search(src)
+    head = src[:m.start()] if m else src
+    head = re.sub(r'(?<!\\)%.*', '', head)          # comments do not count
+    return len(head.split())
+
+
+def duplicates(blocks):
+    seen, dup = set(), []
+    for bid, _h, _b, line in blocks:
+        if bid in seen:
+            dup.append((bid, line))
+        seen.add(bid)
+    return dup
+
+
 def chapters():
-    """Every .tex file that exists on the English side, in name order."""
-    if not os.path.isdir(EN):
-        return []
-    return sorted(f for f in os.listdir(EN) if f.endswith('.tex'))
+    """Every chapter file on EITHER side, in name order.
+
+    Listing only the English side meant a Greek chapter with no English
+    counterpart passed every check: the loop never looked at it. It is
+    the same failure as an untranslated English chapter, in the other
+    direction, and it has to be as visible.
+    """
+    names = set()
+    for d in (EN, EL):
+        if os.path.isdir(d):
+            names |= set(f for f in os.listdir(d) if f.endswith('.tex'))
+    return sorted(names)
 
 
 def report():
@@ -93,6 +128,20 @@ def report():
         if not en:
             unmarked.append('%s: no %%%%blk markers on the English side'
                             % name)
+        for path, lang in ((os.path.join(EN, name), 'en'),
+                           (os.path.join(EL, name), 'el')):
+            n = prologue(path)
+            if n > 12:
+                unmarked.append('%s (%s): %d words sit above the first '
+                                '%%%%blk marker and are tracked by nothing'
+                                % (name, lang, n))
+        for blocks, lang in ((en, 'en'), (el, 'el')):
+            for bid, line in duplicates(blocks):
+                unmarked.append('%s (%s) line %d: a second block with the '
+                                'id "%s". Ids must be unique — the second '
+                                'one silently replaces the first, and '
+                                '--stamp then writes its hash over the '
+                                'real one' % (name, lang, line, bid))
 
         for bid, _h, body, line in en:
             if bid not in elmap:

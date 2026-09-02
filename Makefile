@@ -8,7 +8,13 @@
 #      make check      every check, no building
 #
 #  English is the master. Greek follows it. `make sync` says how far
-#  behind the Greek is; `make check` fails while any block is stale.
+#  behind the Greek is.
+#
+#  WHICH TARGET FAILS. `make check` REPORTS and always exits 0, so that
+#  one noisy linter cannot stop you working. `make check-strict` is the
+#  one to put in CI: it exits non-zero on a stale block, a parity
+#  difference, a broken diagram standard, an undeclared measurement, a
+#  bad citation or a .docx that disagrees with its PDF.
 # =====================================================================
 
 LANGS   = en el
@@ -56,6 +62,7 @@ check:
 	@python3 tools/sync.py || true
 	@echo "\n=== the two editions make the same commitments ==="
 	@python3 tools/parity.py || true
+	@python3 tools/mainparity.py || true
 	@echo "\n=== one diagram standard ==="
 	@python3 tools/diagram-check.py || true
 	@echo "\n=== your own measurements ==="
@@ -75,14 +82,18 @@ check:
 check-strict:
 	@python3 tools/sync.py
 	@python3 tools/parity.py
+	@python3 tools/mainparity.py
 	@python3 tools/diagram-check.py
 	@python3 tools/data-check.py
+	@python3 tools/cite-check.py content/en/*.tex --bib bib/references.bib
+	@python3 tools/cite-check.py content/el/*.tex --bib bib/references.bib
 
 sync:
 	@python3 tools/sync.py
 
 parity:
 	@python3 tools/parity.py
+	@python3 tools/mainparity.py
 
 diagrams:
 	@python3 tools/diagram-check.py
@@ -100,7 +111,7 @@ clean:
 	@latexmk -C -jobname=thesis-en main-en.tex >/dev/null 2>&1 || true
 	@latexmk -C -jobname=thesis-el main-el.tex >/dev/null 2>&1 || true
 	@rm -f thesis-*.bbl thesis-*.blg thesis-*.out thesis-*.run.xml
-	@rm -rf figures/out/* docx/build/figtex docx/build/toc
+	@rm -rf figures/out/* docx/build/figtex-* docx/build/toc-*
 
 distclean: clean
 	@rm -rf docx/build

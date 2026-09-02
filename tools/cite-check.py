@@ -148,11 +148,23 @@ def check_bib(path, entries, order, cited):
                 add(ln, 'C12', 'WARN',
                     '%s: το verification δεν περιέχει κανέναν γνωστό κωδικό (%s)'
                     % (key, ', '.join(VERIF_CODES)))
-            # C13 — UNVERIFIED και παραπέμπεται ΧΩΡΙΣ σήμανση \unver.
-            # Η παραπομπή σε ανεπαλήθευτη πηγή δεν είναι σφάλμα· το
-            # σφάλμα είναι να μην το ξέρει ο αναγνώστης. Αρκεί λοιπόν να
-            # φέρει κάθε σημείο χρήσης τη σήμανση \unver (κανόνας R15).
-            if 'UNVERIFIED' in v and key in cited:
+            # C13 — ΟΛΟΚΛΗΡΩΣ ανεπαλήθευτη πηγή που παραπέμπεται ΧΩΡΙΣ
+            # σήμανση \unver. Η παραπομπή σε ανεπαλήθευτη πηγή δεν είναι
+            # σφάλμα· το σφάλμα είναι να μην το ξέρει ο αναγνώστης.
+            #
+            # ΜΕΡΙΚΩΣ επαληθευμένη εγγραφή ΔΕΝ ζητά σήμανση. Το \unver
+            # σημαίνει ένα πράγμα — «τα βιβλιογραφικά στοιχεία πάρθηκαν
+            # από τον κατάλογο αναφορών άλλης εργασίας». Μια εγγραφή που
+            # λέει «VERIFIED-PDF ως προς τίτλο και συγγραφείς· σελίδες
+            # UNVERIFIED» δεν είναι αυτό, και αν έμπαινε σήμανση εκεί, η
+            # σήμανση θα κουβαλούσε τρεις διαφορετικές σημασίες.
+            partial = bool(re.search(r'VERIFIED-(?:PDF|INDEX)', v))
+            if partial and 'UNVERIFIED' in v and key in cited:
+                add(ln, 'C15', 'INFO',
+                    '%s: μερικώς επαληθευμένη (%s) — δεν ζητείται \\unver, '
+                    'αλλά συμπλήρωσε τα στοιχεία που λείπουν πριν την '
+                    'κατάθεση' % (key, 'ό,τι λέει το verification'))
+            if 'UNVERIFIED' in v and not partial and key in cited:
                 unmarked = [pl for pl in cited[key] if not pl[2]]
                 if unmarked:
                     add(ln, 'C13', 'WARN',
@@ -204,10 +216,18 @@ def check_tex(path, cited, bib, F):
     # \grey ή \prep μέσα σε ±MARK_WINDOW χαρακτήρες.
     for m in re.finditer(r'\\cite(?:\[[^\]]*\])?\{([^}]+)\}', body):
         near = body[max(0, m.start() - MARK_WINDOW): m.end() + MARK_WINDOW]
+        line_no = body[:m.start()].count('\n') + 1
+        # Collected HERE, in the same pass and with the same window, so
+        # that C13 and C14 apply one rule and not two. Doing it in the
+        # line loop below made C13 demand \unver glued to the closing
+        # brace, which C14's own comment says the rule does not ask for.
+        unver_near = bool(re.search(r'\\unver\b', near))
+        for k in m.group(1).split(','):
+            cited[k.strip()].append((path, line_no, unver_near))
+
         marked = bool(re.search(r'\\(?:grey|prep)\b', near))
         if marked:
             continue
-        line_no = body[:m.start()].count('\n') + 1
         for k in m.group(1).split(','):
             k = k.strip()
             e = bib.get(k)
@@ -228,13 +248,6 @@ def check_tex(path, cited, bib, F):
                                            MARK_WINDOW))
 
     for i, ln in enumerate(lines, 1):
-        for m in re.finditer(r'\\cite(?:\[[^\]]*\])?\{([^}]+)\}', ln):
-            # Third element: does this use site carry the \unver marker?
-            # C13 asks not "is it cited" but "is the reader told".
-            marked = ln[m.end():m.end() + 8].startswith('\\unver')
-            for k in m.group(1).split(','):
-                cited[k.strip()].append((path, i, marked))
-
         # C11 — η παραπομπή χρησιμοποιείται ως ουσιαστικό
         for pat, label in NOUN_PATTERNS:
             if re.search(pat, ln):
@@ -246,7 +259,7 @@ def check_tex(path, cited, bib, F):
     # C01 — παραπομπή σε ανύπαρκτο κλειδί
     for k, places in cited.items():
         if k not in bib:
-            p, i = places[0]
+            p, i = places[0][0], places[0][1]
             add_f = Finding(p, i, 'C01', 'WARN', 'παραπομπή σε ανύπαρκτο κλειδί «%s»' % k)
             F.append(add_f)
 

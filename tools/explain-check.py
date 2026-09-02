@@ -210,18 +210,26 @@ def main():
     ap.add_argument('--json', action='store_true')
     a = ap.parse_args()
 
-    labels, refs = collections.defaultdict(list), set()
+    # E02 is asked ONCE PER EDITION. Pooling the two meant a Greek \ref
+    # excused an orphaned float in the English edition, and the finding
+    # was reported against whichever file sorted first — sending the
+    # author to the wrong language.
     F = []
-    for f in a.files:
-        if os.path.exists(f):
+    for lang in ('en', 'el'):
+        files = [f for f in a.files
+                 if os.path.exists(f) and lang_of(f) == lang]
+        if not files:
+            continue
+        labels, refs = collections.defaultdict(list), set()
+        for f in files:
             F += check(f, a.min_caption, a.max_sent, labels, refs)
-
-    for k, places in sorted(labels.items()):
-        if k not in refs:
-            p, i = places[0]
-            F.append(Finding(p, i, 'E02', 'WARN',
-                             'no sentence points at \\label{%s}: either write '
-                             'the sentence or delete the float' % k))
+        for k, places in sorted(labels.items()):
+            if k not in refs:
+                p, i = places[0]
+                F.append(Finding(p, i, 'E02', 'WARN',
+                                 'no sentence points at \\label{%s}: either '
+                                 'write the sentence or delete the float'
+                                 % k))
     F.sort(key=lambda x: (x.file, x.line))
 
     if a.json:

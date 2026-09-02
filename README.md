@@ -80,13 +80,20 @@ exists because something went wrong once.
 | `explain-check.py`| does the structure make explanation possible |
 | `ste-check.py`    | English prose against Simplified Technical English |
 | `ate-check.py`    | the Greek mirror of the above |
-| `docx/verify.py`  | 20 checks: does the .docx say the same as the PDF |
-| `docx/selftest.py`| damages the .docx 11 ways; each check must catch its own |
+| `mainparity.py`   | do the two editions have the same page order |
+| `docx/verify.py`  | 16 checks: does the .docx say the same as the PDF |
+| `docx/selftest.py`| damages the .docx 16 ways; each check must catch its own |
 
 That last one matters more than it looks. A check that cannot fail is
 worse than no check, because it produces confidence instead of
 information. Three of these checks were once exactly that, and the
 self-test is what found them.
+
+**Which target fails.** `make check` reports and always exits 0, so one
+noisy linter cannot stop you working. `make check-strict` is the one for
+CI: it exits non-zero on a stale block, a parity difference, a page order
+that differs between the editions, a broken diagram standard, an
+undeclared measurement or a bad citation.
 
 ## Two rules this thesis follows
 

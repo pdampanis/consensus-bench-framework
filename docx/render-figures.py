@@ -49,9 +49,15 @@ def main():
     # preamble. Hashing only the figure meant a font change left every
     # image stale while the script cheerfully reported "unchanged".
     deps = ''
+    # EVERY file the template \inputs, not a subset. Leaving meta.tex and
+    # measurements.tex out was latent only because no figure uses \meas
+    # yet — and the first figure that plots a measured value is exactly
+    # when a stale cache would matter most.
     for f in (os.path.join(config.ROOT, 'style', 'common.tex'),
               os.path.join(config.ROOT, 'style', 'diagrams.tex'),
               os.path.join(config.ROOT, 'style', 'lang-%s.tex' % config.LANG),
+              os.path.join(config.ROOT, 'frontmatter', 'meta.tex'),
+              os.path.join(config.ROOT, 'data', 'measurements.tex'),
               config.labels_file()):
         deps += open(f, encoding='utf-8').read()
 
