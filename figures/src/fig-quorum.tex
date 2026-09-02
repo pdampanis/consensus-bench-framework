@@ -1,0 +1,23 @@
+% fig-quorum — required n as a function of tolerated faults f. Pure arithmetic
+% from bounds stated in the literature; no measurements.
+% Data figure: dgdata. The five series are plotted in the order that makes the
+% standard cycle list hand them their meanings: dgCFT crash, dgBFT Byzantine,
+% then dgAux / dgSand / dgPurple for the three further bounds.
+\begin{dgdata}[
+  xlabel={\fl{quorum.xlabel} $f$},
+  ylabel={\fl{quorum.ylabel} $n$},
+  xmin=0.7, xmax=5.3, ymin=0, ymax=28,
+  xtick={1,2,3,4,5}, ytick={0,5,10,15,20,25},
+  legend style={at={(0.5,-0.30)}, anchor=north}, legend columns=1,
+]
+\addplot coordinates {(1,3)(2,5)(3,7)(4,9)(5,11)};
+  \addlegendentry{$2f{+}1$ — \fl{quorum.crash}}
+\addplot coordinates {(1,4)(2,7)(3,10)(4,13)(5,16)};
+  \addlegendentry{$3f{+}1$ — \fl{quorum.byzantine}}
+\addplot coordinates {(1,5)(2,9)(3,13)(4,17)(5,21)};
+  \addlegendentry{$4f{+}1$ — \fl{quorum.fairorder} ($\gamma=1$)}
+\addplot coordinates {(1,6)(2,11)(3,16)(4,21)(5,26)};
+  \addlegendentry{$5f{+}1$ — \fl{quorum.onephaseless} (FaB)}
+\addplot coordinates {(1,4)(2,9)(3,14)(4,19)(5,24)};
+  \addlegendentry{$5f{-}1$ — \fl{quorum.twostep}}
+\end{dgdata}

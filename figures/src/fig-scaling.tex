@@ -1,0 +1,37 @@
+% fig-scaling — the same experiment, two deployment topologies. Two panels, so
+% two dgbarchart environments stacked: the standard fixes every figure at
+% \dgwidth, which leaves no room to set them side by side.
+% All seven protocols are Byzantine, so the LAN series is dgBFT in both panels.
+% Panel (b)'s second series is a second DEPLOYMENT of the same Byzantine
+% protocols, so it takes a further-series colour (dgAux) — dgCFT would claim
+% these are crash-fault protocols.
+\begin{dgbarchart}[
+  title={\fl{scaling.panel.lan}},
+  ylabel={\fl{scaling.ylabel} (\%)},
+  ymax=78,
+  symbolic x coords={PBFT,FaB,SBFT,HotStuff,PoE,FTB,Kauri}, xtick=data,
+  nodes near coords, every node near coord/.append style={dgtag, fill=dgPaper},
+]
+\addplot[dgBFT, fill=dgBFT] coordinates
+  {(PBFT,65) (FaB,63) (SBFT,55) (HotStuff,45) (PoE,39) (FTB,32) (Kauri,31)};
+\end{dgbarchart}
+
+\par\vspace{5mm}
+
+\begin{dgbarchart}[
+  title={\fl{scaling.panel.geo}},
+  ylabel={\fl{scaling.ylabel} (\%)},
+  ymax=104,
+  symbolic x coords={PBFT,PoE,FTB}, xtick=data,
+  legend pos=north east,
+  nodes near coords, every node near coord/.append style={dgtag, fill=dgPaper},
+]
+\addplot[dgBFT, fill=dgBFT,
+         every node near coord/.append style={xshift=-2pt}]
+  coordinates {(PBFT,65) (PoE,39) (FTB,32)};
+  \addlegendentry{LAN}
+\addplot[dgAux, fill=dgAux,
+         every node near coord/.append style={xshift=2pt}]
+  coordinates {(PBFT,84) (PoE,51) (FTB,36)};
+  \addlegendentry{\fl{scaling.legend.geo}}
+\end{dgbarchart}

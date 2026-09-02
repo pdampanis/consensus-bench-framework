@@ -1,0 +1,33 @@
+% =====================================================================
+%  lang-en.tex — the English edition.
+%
+%  English is the MASTER language of this thesis. content/en/*.tex is
+%  where text is written; content/el/*.tex follows it. See docs/SYNC.md.
+% =====================================================================
+\setmainlanguage{english}
+\setotherlanguage[numerals=arabic]{greek}
+
+% \gr{...} is the mirror of \en{...} in the Greek edition: a Greek word
+% inside English text, hyphenated by Greek rules.
+\newcommand{\gr}[1]{\textgreek{#1}}
+
+% In the English edition an "English term" macro is a no-op, but it must
+% still exist: the two editions share figure sources and table bodies,
+% and those use \en{} freely.
+\newcommand{\en}[1]{\emph{#1}}
+\newcommand{\enup}[1]{#1}
+
+\newcommand{\dgblankleaftext}{(This page is intentionally blank)}
+
+% Names. Called explicitly from main-en.tex after \begin{document},
+% because polyglossia rewrites them inside \AtBeginDocument and would
+% otherwise have the last word.
+\newcommand{\thesisnames}{%
+  \renewcommand{\chaptername}{CHAPTER}%
+  \renewcommand{\figurename}{Figure}%
+  \renewcommand{\tablename}{Table}%
+  \renewcommand{\bibname}{REFERENCES}%
+  \renewcommand{\contentsname}{TABLE OF CONTENTS}%
+  \renewcommand{\listfigurename}{LIST OF FIGURES}%
+  \renewcommand{\listtablename}{LIST OF TABLES}%
+}

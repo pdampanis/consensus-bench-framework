@@ -1,0 +1,36 @@
+% =====================================================================
+%  probe.tex — renders every figure in figures/src/ on its own page, so
+%  a human can look at all six before they go anywhere near a chapter.
+%
+%  Run from the thesis root, so that \input{style/...} resolves:
+%
+%      xelatex -output-directory=figures/out figures/probe.tex
+%      xelatex -output-directory=figures/out "\def\probelang{el}\input{figures/probe}"
+%
+%  Both editions must compile with zero errors AND be looked at:
+%      pdftoppm -png -r 110 figures/out/probe.pdf /tmp/probe
+% =====================================================================
+\documentclass[11pt,a4paper]{report}
+\providecommand{\probelang}{en}
+\input{style/common}
+\input{style/lang-\probelang}
+\input{figures/labels-\probelang}
+
+\pagestyle{empty}
+\begin{document}
+\thesisnames
+
+\newcommand{\probe}[1]{%
+  \begin{center}
+    {\ttfamily\small figures/src/#1.tex \quad(\probelang)}\par\vspace{6mm}
+    \input{figures/src/#1}
+  \end{center}
+  \clearpage}
+
+\probe{fig-timeline}
+\probe{fig-quorum}
+\probe{fig-scaling}
+\probe{fig-synchrony}
+\probe{fig-equivocation}
+\probe{fig-smr}
+\end{document}

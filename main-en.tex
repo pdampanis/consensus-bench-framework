@@ -1,0 +1,75 @@
+% =====================================================================
+%  Evolution and Comparison of Consensus Protocols in Distributed Systems
+%  Panagiotis Dampanis — 711070095
+%  Department of Informatics and Computer Engineering, UNIWA
+%
+%  THIS IS THE MASTER EDITION. Text is written in content/en/*.tex.
+%  content/el/*.tex follows it; `make sync` reports what has fallen
+%  behind. See docs/SYNC.md.
+%
+%  >>> COMPILE WITH XeLaTeX <<<   (Overleaf: Menu -> Compiler -> XeLaTeX)
+%
+%  Page order follows the department template (docs/PROTYPO-TMPY.docx).
+%  Change it here and in docx/assemble.py together — check V07 compares
+%  the two.
+% =====================================================================
+\documentclass[11pt,a4paper,oneside]{report}
+
+\input{style/common}
+\input{style/lang-en}
+\input{figures/labels-en}
+\input{frontmatter/meta}
+\input{data/measurements}
+\input{data/abbreviations}
+\newcommand{\abbrentry}[4]{}
+
+\begin{document}
+\thesisnames
+
+% --- Part 1: FRONT MATTER --------------------------------------------
+\pagenumbering{roman}
+\setcounter{page}{1}
+
+\include{frontmatter/en/cover}
+\blankleaf
+\include{frontmatter/en/titlepage}
+\blankleaf
+\include{frontmatter/en/declaration}
+\blankleaf
+\include{frontmatter/en/acknowledgements}
+\blankleaf
+\include{frontmatter/en/abstract}
+
+% The Guidelines require the summary in BOTH languages. This is the same
+% text as the Greek edition's summary — one source, read in here rather
+% than copied, so the two cannot drift apart.
+\cleardoublepage
+\begin{greek}
+\input{frontmatter/el/abstract}
+\end{greek}
+
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{chapter}{Table of Contents}
+\tableofcontents
+
+\include{frontmatter/en/lists}
+
+% --- Part 2: BODY -----------------------------------------------------
+\cleardoublepage
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\include{content/en/ch1}
+\include{content/en/ch2}
+
+% --- Part 3: END MATTER -----------------------------------------------
+% Not numbered as a chapter, but it does belong in the table of contents
+% (Guidelines, "Table of Contents").
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{chapter}{References}
+\bibliographystyle{IEEEtran}
+\bibliography{bib/references}
+
+\end{document}

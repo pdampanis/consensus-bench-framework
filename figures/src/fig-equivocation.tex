@@ -1,0 +1,37 @@
+% fig-equivocation — crash versus equivocation. Structure figure: dgflow.
+% Left panel is the crash model, so every mark in it is dgCFT; right panel is
+% the Byzantine model, so every mark in it is dgBFT. K1/K3 are ordinary nodes
+% in both panels and stay dgbox grey. The two panels are 6 cm apart so that
+% the pair comes out at \dgwidth.
+\begin{dgflow}
+  % ---- left: crash ------------------------------------------------------
+  \node[text=dgCFT] at (1.5,3.35) {\textbf{\fl{equivocation.crash.title}}};
+  \node[dgboxkey] (c2) at (0.0,1.2) {$K_2$};
+  \node[dgbox]    (c1) at (3.0,2.4) {$K_1$};
+  \node[dgbox]    (c3) at (3.0,0.0) {$K_3$};
+  \draw[dgarrowkey] (c2) -- (c1)
+        node[dgtag, fill=dgPaper, sloped, above, pos=0.5]
+        {\fl{quote.open}$v=5$\fl{quote.close}};
+  \draw[dgarrowkey] (c2) -- (c3)
+        node[dgtag, fill=dgPaper, sloped, below, pos=0.5]
+        {\fl{quote.open}$v=5$\fl{quote.close}};
+  % K2 is gone: the cross sits just under the box it kills.
+  \draw[dgarrowkey,-] (-0.30,0.65) -- (0.30,0.05);
+  \draw[dgarrowkey,-] (-0.30,0.05) -- (0.30,0.65);
+  \node[dgnote, anchor=north, align=center] at (1.5,-0.55)
+       {\fl{equivocation.crash.note}};
+
+  % ---- right: Byzantine -------------------------------------------------
+  \node[text=dgBFT] at (7.5,3.35) {\textbf{\fl{equivocation.byzantine.title}}};
+  \node[dgboxbad] (b2) at (6.0,1.2) {$K_2$};
+  \node[dgbox]    (b1) at (9.0,2.4) {$K_1$};
+  \node[dgbox]    (b3) at (9.0,0.0) {$K_3$};
+  \draw[dgarrowbad] (b2) -- (b1)
+        node[dgtag, fill=dgPaper, sloped, above, pos=0.5]
+        {\fl{quote.open}$v=5$\fl{quote.close}};
+  \draw[dgarrowbad] (b2) -- (b3)
+        node[dgtag, fill=dgPaper, sloped, below, pos=0.5]
+        {\fl{quote.open}$v=7$\fl{quote.close}};
+  \node[dgnote, anchor=north, align=center] at (7.5,-0.55)
+       {\fl{equivocation.byzantine.note}};
+\end{dgflow}

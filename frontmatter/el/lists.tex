@@ -1,0 +1,24 @@
+% Σελίδες που απαιτεί το Πρότυπο ΤΜΠΥ ανάμεσα στα περιεχόμενα και το
+% Κεφάλαιο 1.
+
+\frontheading{ΚΑΤΑΛΟΓΟΣ ΕΙΚΟΝΩΝ}{Κατάλογος εικόνων}
+Η εργασία δεν περιέχει φωτογραφίες ή στιγμιότυπα οθόνης. Όλα τα οπτικά
+στοιχεία είναι σχήματα και παρατίθενται στον επόμενο κατάλογο.
+
+\clearpage
+\phantomsection
+\addcontentsline{toc}{chapter}{Κατάλογος σχημάτων}
+\listoffigures
+
+\clearpage
+\phantomsection
+\addcontentsline{toc}{chapter}{Κατάλογος πινάκων}
+\listoftables
+
+\clearpage
+\frontheading{ΣΥΝΤΟΜΟΓΡΑΦΙΕΣ}{Συντομογραφίες}
+\renewcommand{\abbrentry}[4]{\item[\textbf{#1}] #3}
+\begin{description}[leftmargin=!,labelwidth=1.9cm,labelsep=0.6em,
+                    style=sameline,itemsep=0.35em]
+\abbrlist
+\end{description}

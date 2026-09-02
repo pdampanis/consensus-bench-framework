@@ -1,0 +1,55 @@
+% =====================================================================
+%  meta.tex — the facts about this thesis, written once.
+%
+%  Both editions and both .docx files read this file. A title or a name
+%  changed here changes everywhere; a title changed anywhere else changes
+%  in one place and silently disagrees with the other three.
+%
+%  docx/frontmatter.py parses this file directly. Keep the
+%  \newcommand{\th...}{...} shape.
+% =====================================================================
+\newcommand{\thTitleEN}{Evolution and Comparison of Consensus Protocols
+                        in Distributed Systems}
+\newcommand{\thTitleEL}{Εξέλιξη και Σύγκριση Πρωτοκόλλων Συναίνεσης
+                        σε Κατανεμημένα Συστήματα}
+
+\newcommand{\thAuthorEN}{Panagiotis Dampanis}
+\newcommand{\thAuthorEL}{Παναγιώτης Δαμπάνης}
+\newcommand{\thAM}{711070095}
+
+\newcommand{\thSupervisorEN}{Grammati Pantziou, Professor}
+\newcommand{\thSupervisorEL}{Γραμματή Παντζιού, Καθηγήτρια}
+
+\newcommand{\thUniversityEN}{UNIVERSITY OF WEST ATTICA}
+\newcommand{\thUniversityEL}{ΠΑΝΕΠΙΣΤΗΜΙΟ ΔΥΤΙΚΗΣ ΑΤΤΙΚΗΣ}
+
+% The official English names of the School and the Department are not in
+% any document we hold. "University of West Attica" is readable on the
+% institution's own emblem (assets/pada-logo.png); the other two are not.
+% Project rule R1 forbids writing what cannot be sourced, so they stay
+% marked until you copy them from ice.uniwa.gr.
+\newcommand{\thSchoolEN}{\thTODO{SCHOOL NAME IN ENGLISH — take it from ice.uniwa.gr}}
+\newcommand{\thSchoolEL}{ΣΧΟΛΗ ΜΗΧΑΝΙΚΩΝ}
+\newcommand{\thDepartmentEN}{\thTODO{DEPARTMENT NAME IN ENGLISH — take it from ice.uniwa.gr}}
+\newcommand{\thDepartmentEL}{ΤΜΗΜΑ ΜΗΧΑΝΙΚΩΝ ΠΛΗΡΟΦΟΡΙΚΗΣ ΚΑΙ ΥΠΟΛΟΓΙΣΤΩΝ}
+
+% Examination committee — filled in when the committee is appointed.
+\newcommand{\thExamA}{\thTODO{NAME, SURNAME, RANK}}
+\newcommand{\thExamB}{\thTODO{NAME, SURNAME, RANK}}
+\newcommand{\thExamC}{\thTODO{NAME, SURNAME, RANK}}
+
+\newcommand{\thBlank}[1]{\rule{#1}{0.4pt}}
+\newcommand{\thExamDateEN}{Date of examination
+  \thBlank{1.2cm}/\thBlank{1.2cm}/\thBlank{2cm}}
+\newcommand{\thExamDateEL}{Ημερομηνία εξέτασης
+  \thBlank{1.2cm}/\thBlank{1.2cm}/\thBlank{2cm}}
+
+% Anything not yet known is marked, not guessed. tools/todo-check.py
+% counts these and the build prints the count, so a placeholder cannot
+% reach the examiners unnoticed.
+\newcommand{\thTODO}[1]{\textbf{\color{dgBFT}$\langle$#1$\rangle$}}
+
+\newcommand{\thScientificAreaEN}{Distributed systems --- consensus
+  protocols and performance evaluation}
+\newcommand{\thScientificAreaEL}{Κατανεμημένα συστήματα ---
+  πρωτόκολλα συναίνεσης και αποτίμηση επιδόσεων}

@@ -1,0 +1,746 @@
+% =====================================================================
+%  references.bib — Κεφάλαιο 1
+%  Εξέλιξη και Σύγκριση Πρωτοκόλλων Συναίνεσης σε Κατανεμημένα Συστήματα
+%  Παναγιώτης Δαμπάνης (ΑΜ 711070095) — ΠΑΔΑ, Τμ. Μηχ. Πληροφορικής & Υπολογιστών
+%
+%  ΔΥΟ ΠΕΔΙΑ ΠΟΥ ΔΕΝ ΕΙΝΑΙ ΤΥΠΟΠΟΙΗΜΕΝΑ — διάβασε αυτό πρώτα
+%
+%  note         → ΤΥΠΩΝΕΤΑΙ στη βιβλιογραφία. Περιέχει μόνο ό,τι ανήκει σε
+%                 μια παραπομπή: αναγνωριστικό preprint, χαρακτηρισμό
+%                 γκρίζας βιβλιογραφίας, «extended abstract» κ.λπ.
+%  verification → ΔΕΝ τυπώνεται (το BibTeX αγνοεί άγνωστα πεδία). Είναι το
+%                 μητρώο τεκμηρίωσης: από πού ξέρουμε ότι η εγγραφή είναι
+%                 σωστή.
+%
+%  Κωδικοί του πεδίου verification:
+%    [corpus NN]  αντιστοιχεί στον αριθμό NN του ενιαίου καταλόγου [1]-[47]
+%                 του σκελετού και του πειραματικού πλάνου
+%    VERIFIED-PDF διαβάστηκε από το ίδιο το PDF στο corpus/
+%    VERIFIED-DOI επαληθεύτηκε μέσω Crossref API στο δηλωμένο DOI
+%    VERIFIED-IDX επαληθεύτηκε μέσω άλλου αυθεντικού ευρετηρίου
+%    UNVERIFIED   ΔΕΝ επαληθεύτηκε ανεξάρτητα — έλεγξέ το πριν την κατάθεση
+%
+%  ΣΗΜΕΙΩΣΗ: το BibTeX αριθμεί με τη σειρά εμφάνισης στο κείμενο, ΟΧΙ με
+%  την αρίθμηση [1]-[47] των εγγράφων εργασίας. Η αντιστοίχιση ζει στο
+%  πεδίο verification.
+% =====================================================================
+
+% ---------------------------------------------------------------- Θεμέλια
+@article{lamport1978time,
+  author  = {Lamport, Leslie},
+  title   = {Time, Clocks, and the Ordering of Events in a Distributed System},
+  journal = {Communications of the ACM},
+  volume  = {21},
+  number  = {7},
+  pages   = {558--565},
+  year    = {1978},
+  month   = jul,
+  doi     = {10.1145/359545.359563},
+  verification = {[corpus 1] VERIFIED-PDF}
+}
+
+@article{fischer1985impossibility,
+  author  = {Fischer, Michael J. and Lynch, Nancy A. and Paterson, Michael S.},
+  title   = {Impossibility of Distributed Consensus with One Faulty Process},
+  journal = {Journal of the ACM},
+  volume  = {32},
+  number  = {2},
+  pages   = {374--382},
+  year    = {1985},
+  month   = apr,
+  doi     = {10.1145/3149.214121},
+  verification = {[corpus 2] VERIFIED-PDF (τίτλος, τεύχος, σελίδες και το
+                  παρατιθέμενο χωρίο διαβάστηκαν από το PDF)}
+}
+
+@article{lamport1982byzantine,
+  author  = {Lamport, Leslie and Shostak, Robert and Pease, Marshall},
+  title   = {The {Byzantine} Generals Problem},
+  journal = {ACM Transactions on Programming Languages and Systems},
+  volume  = {4},
+  number  = {3},
+  pages   = {382--401},
+  year    = {1982},
+  doi     = {10.1145/357172.357176},
+  verification = {[corpus 44] VERIFIED-DOI ως προς τα βιβλιογραφικά. ΕΚΤΟΣ
+                  CORPUS. Το φράγμα n>=3f+1 αποδεικνύεται εδώ για ΠΡΟΦΟΡΙΚΑ
+                  (μη αυθεντικοποιημένα) μηνύματα, αλγόριθμος OM(m). Το
+                  ΠΕΡΙΕΧΟΜΕΝΟ που χρησιμοποιεί το Κεφ. 2 (§4: το θεώρημα για
+                  τον SM(m) και η ρήτρα "The problem is vacuous if there are
+                  fewer than m+2 generals") διαβάστηκε από το αντίτυπο του
+                  ίδιου του συγγραφέα lamport.azurewebsites.net/pubs/byz.pdf.
+                  Δεν παρατίθεται τίποτα αυτούσιο}
+}
+
+@article{dwork1988consensus,
+  author  = {Dwork, Cynthia and Lynch, Nancy and Stockmeyer, Larry},
+  title   = {Consensus in the Presence of Partial Synchrony},
+  journal = {Journal of the ACM},
+  volume  = {35},
+  number  = {2},
+  pages   = {288--323},
+  year    = {1988},
+  doi     = {10.1145/42282.42283},
+  verification = {[corpus 45] VERIFIED-DOI ως προς τα βιβλιογραφικά. ΕΚΤΟΣ
+                  CORPUS. Το ΠΕΡΙΕΧΟΜΕΝΟ (§1.1 ορισμοί Delta/Phi, §1.2 οι δύο
+                  μορφές μερικής συγχρονίας και ο ίδιος ο όρος "global
+                  stabilization time (GST)", Πίνακας I) διαβάστηκε από το
+                  ανοικτό θεσμικό αντίτυπο
+                  groups.csail.mit.edu/tds/papers/Lynch/jacm88.pdf, το οποίο
+                  δηλώνεται ως το ΑΝΤΙΤΥΠΟ ΑΝΑΦΟΡΑΣ και κατονομάζεται και στη
+                  σημείωση του Πίνακα 2.1. Ο Πίνακας I έχει ΠΕΝΤΕ στήλες
+                  δεδομένων· το κείμενο αναπαράγει τρεις και το δηλώνει. Δεν
+                  παρατίθεται τίποτα αυτούσιο}
+}
+
+@article{schneider1990implementing,
+  author  = {Schneider, Fred B.},
+  title   = {Implementing Fault-Tolerant Services Using the State Machine
+             Approach: A Tutorial},
+  journal = {ACM Computing Surveys},
+  volume  = {22},
+  number  = {4},
+  pages   = {299--319},
+  year    = {1990},
+  doi     = {10.1145/98163.98167},
+  verification = {[corpus 46] VERIFIED-DOI ως προς τα βιβλιογραφικά. ΕΚΤΟΣ
+                  CORPUS. Το ΠΕΡΙΕΧΟΜΕΝΟ (ορισμός fail-stop, οι συνθήκες
+                  Agreement και Order, η υπόθεση ντετερμινισμού, το ζεύγος
+                  t+1 για fail-stop και 2t+1 για βυζαντινό) διαβάστηκε από το
+                  ανοικτό αντίτυπο του ίδιου του συγγραφέα
+                  www.cs.cornell.edu/fbs/publications/SMSurvey.pdf. Δεν
+                  παρατίθεται τίποτα αυτούσιο}
+}
+
+@article{herlihy1990linearizability,
+  author  = {Herlihy, Maurice P. and Wing, Jeannette M.},
+  title   = {Linearizability: A Correctness Condition for Concurrent Objects},
+  journal = {ACM Transactions on Programming Languages and Systems},
+  volume  = {12},
+  number  = {3},
+  pages   = {463--492},
+  year    = {1990},
+  doi     = {10.1145/78969.78972},
+  verification = {[corpus 47] VERIFIED-DOI ως προς τα βιβλιογραφικά. ΕΚΤΟΣ
+                  CORPUS. Το ΠΕΡΙΕΧΟΜΕΝΟ (τοπικότητα, μη φραγή, και ο
+                  χαρακτηρισμός ως ειδική περίπτωση της ΑΥΣΤΗΡΗΣ
+                  σειριοποιησιμότητας) διαβάστηκε από το ανοικτό αντίτυπο του
+                  συγγραφέα cs.brown.edu/people/mph/HerlihyW90/p463-herlihy.pdf.
+                  Δεν παρατίθεται τίποτα αυτούσιο}
+}
+
+% ---------------------------------------------------- Οικογένεια crash-fault
+@inproceedings{oki1988viewstamped,
+  author    = {Oki, Brian M. and Liskov, Barbara H.},
+  title     = {Viewstamped Replication: A New Primary Copy Method to Support
+               Highly-Available Distributed Systems},
+  booktitle = {Proc. 7th Annual ACM Symposium on Principles of Distributed
+               Computing (PODC '88)},
+  pages     = {8--17},
+  year      = {1988},
+  doi       = {10.1145/62546.62549},
+  verification = {[corpus 38] VERIFIED-DOI. Εκτός corpus. Η εγγραφή Crossref
+                  φέρει διαφορετική διατύπωση τίτλου: "Viewstamped
+                  replication: a general primary copy"}
+}
+
+@article{lamport1998parttime,
+  author  = {Lamport, Leslie},
+  title   = {The Part-Time Parliament},
+  journal = {ACM Transactions on Computer Systems},
+  volume  = {16},
+  number  = {2},
+  pages   = {133--169},
+  year    = {1998},
+  month   = may,
+  doi     = {10.1145/279227.279229},
+  verification = {[corpus 3] VERIFIED-PDF. Το τεύχος τυπώνει "Received:
+                  January 1990; accepted: March 1998". Η τεχνική αναφορά
+                  SRC RR-49 (1989) ΔΕΝ εντοπίστηκε ως τεκμήριο}
+}
+
+@inproceedings{moraru2013epaxos,
+  author    = {Moraru, Iulian and Andersen, David G. and Kaminsky, Michael},
+  title     = {There Is More Consensus in Egalitarian Parliaments},
+  booktitle = {Proc. 24th ACM Symposium on Operating Systems Principles (SOSP '13)},
+  pages     = {358--372},
+  year      = {2013},
+  doi       = {10.1145/2517349.2517350},
+  verification = {[corpus 5] VERIFIED-PDF}
+}
+
+@inproceedings{ongaro2014raft,
+  author    = {Ongaro, Diego and Ousterhout, John},
+  title     = {In Search of an Understandable Consensus Algorithm},
+  booktitle = {Proc. USENIX Annual Technical Conference (ATC '14)},
+  pages     = {305--319},
+  year      = {2014},
+  verification = {[corpus 6] VERIFIED-PDF. Το §2 διατυπώνει την ανοχή ως
+                  πλειοψηφία ("a typical cluster of five servers can tolerate
+                  the failure of any two"), όχι ως τύπο 2f+1}
+}
+
+@article{howard2015raftrefloated,
+  author  = {Howard, Heidi and Schwarzkopf, Malte and Madhavapeddy, Anil and
+             Crowcroft, Jon},
+  title   = {Raft Refloated: Do We Have Consensus?},
+  journal = {ACM SIGOPS Operating Systems Review},
+  volume  = {49},
+  number  = {1},
+  pages   = {12--21},
+  year    = {2015},
+  doi     = {10.1145/2723872.2723876},
+  verification = {[corpus 7] VERIFIED-PDF}
+}
+
+@inproceedings{howard2020paxosraft,
+  author    = {Howard, Heidi and Mortier, Richard},
+  title     = {Paxos vs {Raft}: Have We Reached Consensus on Distributed
+               Consensus?},
+  booktitle = {Proc. 7th Workshop on Principles and Practice of Consistency
+               for Distributed Data (PaPoC '20)},
+  pages     = {1--9},
+  year      = {2020},
+  doi       = {10.1145/3380787.3393681},
+  verification = {[corpus 8] Κείμενο: VERIFIED-PDF από το preprint
+                  arXiv:2004.05074v2. Venue/σελίδες/DOI: VERIFIED-DOI —
+                  δεν προκύπτουν από το preprint}
+}
+
+@inproceedings{tollman2021epaxosrevisited,
+  author    = {Tollman, Sarah and Park, Seo Jin and Ousterhout, John K.},
+  title     = {{EPaxos} Revisited},
+  booktitle = {Proc. 18th USENIX Symposium on Networked Systems Design and
+               Implementation (NSDI '21)},
+  pages     = {613--632},
+  year      = {2021},
+  verification = {[corpus 9] VERIFIED-PDF}
+}
+
+@inproceedings{matte2021wasteful,
+  author    = {Matte, Venkata Swaroop and Charapko, Aleksey and Aghayev, Abutalib},
+  title     = {Scalable but Wasteful: Current State of Replication in the Cloud},
+  booktitle = {Proc. 13th ACM Workshop on Hot Topics in Storage and File
+               Systems (HotStorage '21)},
+  pages     = {42--49},
+  year      = {2021},
+  doi       = {10.1145/3465332.3470882},
+  verification = {[corpus 10] VERIFIED-PDF. Οι συγγραφείς είναι Matte,
+                  Charapko, Aghayev — ΟΧΙ "Charapko, Ailijiang, Demirbas"
+                  όπως κυκλοφορεί σε ορισμένους καταλόγους}
+}
+
+@inproceedings{ailijiang2019dissecting,
+  author    = {Ailijiang, Ailidani and Charapko, Aleksey and Demirbas, Murat},
+  title     = {Dissecting the Performance of Strongly-Consistent Replication
+               Protocols},
+  booktitle = {Proc. 2019 International Conference on Management of Data
+               (SIGMOD '19)},
+  pages     = {1696--1710},
+  year      = {2019},
+  doi       = {10.1145/3299869.3319893},
+  verification = {[corpus 11] VERIFIED-PDF}
+}
+
+@inproceedings{junqueira2011zab,
+  author    = {Junqueira, Flavio P. and Reed, Benjamin C. and Serafini, Marco},
+  title     = {{Zab}: High-Performance Broadcast for Primary-Backup Systems},
+  booktitle = {Proc. IEEE/IFIP 41st International Conference on Dependable
+               Systems and Networks (DSN '11)},
+  pages     = {245--256},
+  year      = {2011},
+  doi       = {10.1109/DSN.2011.5958223},
+  verification = {[corpus 40] VERIFIED-IDX μέσω OpenAlex στο δηλωμένο DOI.
+                  Εκτός corpus — το άρθρο ΔΕΝ διαβάστηκε. Κρίσιμο για το
+                  Κεφ. 5, όπου το ZAB μετριέται: απόκτησέ το}
+}
+
+@misc{kafka2019kip500,
+  author       = {{Apache Kafka}},
+  title        = {{KIP-500}: Replace {ZooKeeper} with a Self-Managed Metadata
+                  Quorum},
+  howpublished = {Apache Software Foundation wiki},
+  year         = {2019},
+  note         = {Τεχνική τεκμηρίωση (γκρίζα βιβλιογραφία)· γενική διάθεση
+                  στο Apache Kafka 3.3 (2022)},
+  verification = {[corpus 42] GREY. Δεν είναι δημοσίευση με κρίση}
+}
+
+% ------------------------------------------------------ Οικογένεια Byzantine
+@inproceedings{castro1999pbft,
+  author    = {Castro, Miguel and Liskov, Barbara},
+  title     = {Practical {Byzantine} Fault Tolerance},
+  booktitle = {Proc. 3rd USENIX Symposium on Operating Systems Design and
+               Implementation (OSDI '99)},
+  pages     = {173--186},
+  year      = {1999},
+  verification = {[corpus 36] VERIFIED-IDX (USENIX/ACM DL) ως προς τίτλο και
+                  σελίδες. ΕΚΤΟΣ CORPUS — το άρθρο ΔΕΝ διαβάστηκε, ενώ
+                  στηρίζει τη θέση του PBFT στο Σχ. 1.1, το φράγμα 3f+1 και
+                  τη γραμμή PBFT του Πίν. 1.1. ΥΨΗΛΗ ΠΡΟΤΕΡΑΙΟΤΗΤΑ ΑΠΟΚΤΗΣΗΣ}
+}
+
+@article{castro2002pbftrecovery,
+  author  = {Castro, Miguel and Liskov, Barbara},
+  title   = {Practical {Byzantine} Fault Tolerance and Proactive Recovery},
+  journal = {ACM Transactions on Computer Systems},
+  volume  = {20},
+  number  = {4},
+  pages   = {398--461},
+  year    = {2002},
+  doi     = {10.1145/571637.571640},
+  verification = {[corpus 37] VERIFIED-DOI. Εκτός corpus}
+}
+
+@misc{kwon2014tendermint,
+  author       = {Kwon, Jae},
+  title        = {Tendermint: Consensus without Mining},
+  howpublished = {Whitepaper},
+  year         = {2014},
+  note         = {Whitepaper (γκρίζα βιβλιογραφία)},
+  verification = {[corpus 43] GREY. Χρησιμοποιείται μόνο για τη χρονολογία,
+                  ποτέ ως αλγοριθμική πηγή}
+}
+
+@misc{buchman2018gossip,
+  author       = {Buchman, Ethan and Kwon, Jae and Milosevic, Zarko},
+  title        = {The Latest Gossip on {BFT} Consensus},
+  howpublished = {Preprint, arXiv:1807.04938},
+  year         = {2018},
+  note         = {Δεν εντοπίστηκε δημοσίευση με κρίση},
+  verification = {[corpus 14] VERIFIED-PDF. PREPRINT. Το κείμενο φέρει
+                  ημερομηνία 24 Σεπ. 2018· τρέχουσα έκδοση v3 (22 Νοε. 2019)}
+}
+
+@inproceedings{cason2021tendermint,
+  author    = {Cason, Daniel and Fynn, Enrique and Milosevic, Nenad and
+               Milosevic, Zarko and Buchman, Ethan and Pedone, Fernando},
+  title     = {The Design, Architecture and Performance of the {Tendermint}
+               Blockchain Network},
+  booktitle = {Proc. 40th International Symposium on Reliable Distributed
+               Systems (SRDS 2021)},
+  pages     = {23--33},
+  year      = {2021},
+  doi       = {10.1109/SRDS53918.2021.00012},
+  verification = {[corpus 15] VERIFIED-PDF ως προς τίτλο και συγγραφείς·
+                  σελίδες/DOI UNVERIFIED}
+}
+
+@inproceedings{yin2019hotstuff,
+  author    = {Yin, Maofan and Malkhi, Dahlia and Reiter, Michael K. and
+               {Golan Gueta}, Guy and Abraham, Ittai},
+  title     = {{HotStuff}: {BFT} Consensus with Linearity and Responsiveness},
+  booktitle = {Proc. 2019 ACM Symposium on Principles of Distributed
+               Computing (PODC '19)},
+  pages     = {347--356},
+  year      = {2019},
+  doi       = {10.1145/3293611.3331591},
+  verification = {[corpus 17] VERIFIED-PDF. Η ΚΡΙΘΕΙΣΑ εκδοχή. Ο Πίνακας 1
+                  και η φράση "the epicenter of replication" υπάρχουν και
+                  εδώ — γι' αυτό δεν χρειάζεται το preprint [corpus 18]}
+}
+
+@misc{yin2019hotstufflens,
+  author       = {Yin, Maofan and Malkhi, Dahlia and Reiter, Michael K. and
+                  {Golan Gueta}, Guy and Abraham, Ittai},
+  title        = {{HotStuff}: {BFT} Consensus in the Lens of Blockchain},
+  howpublished = {Preprint, arXiv:1803.05069v6},
+  year         = {2019},
+  note         = {Εκτενής εκδοχή με τις αποδείξεις· διακριτός τίτλος},
+  verification = {[corpus 18] VERIFIED-PDF. PREPRINT. ΔΕΝ παρατίθεται στο
+                  Κεφ. 1: όπου χρειάστηκε, χρησιμοποιήθηκε η κριθείσα
+                  εκδοχή [corpus 17]}
+}
+
+@article{jalalzai2023fasthotstuff,
+  author  = {Jalalzai, Mohammad M. and Niu, Jianyu and Feng, Chen and
+             Gai, Fangyu},
+  title   = {Fast-{HotStuff}: A Fast and Robust {BFT} Protocol for Blockchains},
+  journal = {IEEE Transactions on Dependable and Secure Computing},
+  volume  = {21},
+  number  = {4},
+  pages   = {2478--2493},
+  year    = {2024},
+  doi     = {10.1109/TDSC.2023.3308848},
+  note    = {Αντίτυπο: preprint arXiv:2010.11454v10 (3 Νοε. 2022)},
+  verification = {[corpus 19] Κείμενο και τίτλος: VERIFIED-PDF — ο τίτλος
+                  είναι "Robust", ΟΧΙ "Resilient". Τόμος/τεύχος/σελίδες
+                  στο TDSC: VERIFIED-IDX (OpenAlex, στο δηλωμένο DOI) —
+                  21(4):2478-2493. Το έτος διαφέρει ανά ευρετήριο: το
+                  OpenAlex δίνει 2023 (early access), το τεύχος 21(4) του
+                  TDSC ανήκει στο 2024. Εδώ δηλώνεται το έτος του τεύχους}
+}
+
+@misc{malkhi2023hotstuff2,
+  author       = {Malkhi, Dahlia and Nayak, Kartik},
+  title        = {Extended Abstract: {HotStuff-2}: Optimal Two-Phase
+                  Responsive {BFT}},
+  howpublished = {IACR Cryptology ePrint Archive, Report 2023/397},
+  year         = {2023},
+  note         = {Εκτεταμένη περίληψη· δεν έχει περάσει από κρίση},
+  verification = {[corpus 20] VERIFIED-PDF. PREPRINT. Ο Πίνακας 1.1 του
+                  κεφαλαίου αναπαράγει τον Πίνακα 1 του άρθρου μαζί με την
+                  υποσημείωσή του}
+}
+
+% ------------------------------------------- Ενιαίες πλατφόρμες & αποτιμήσεις
+@inproceedings{amiri2024bedrock,
+  author    = {Amiri, Mohammad Javad and Wu, Chenyuan and Agrawal, Divyakant
+               and {El Abbadi}, Amr and Loo, Boon Thau and Sadoghi, Mohammad},
+  title     = {The Bedrock of {Byzantine} Fault Tolerance: A Unified Platform
+               for {BFT} Protocols Analysis, Implementation, and
+               Experimentation},
+  booktitle = {Proc. 21st USENIX Symposium on Networked Systems Design and
+               Implementation (NSDI '24)},
+  pages     = {371--400},
+  year      = {2024},
+  verification = {[corpus 21] VERIFIED-PDF: τίτλος, συγγραφείς, σελίδες, και
+                  ΚΑΘΕ αριθμός που παρατίθεται στο Κεφ. 1 (§6.1 για τα LAN
+                  ποσοστά, Παράρτ. D για τα γεωκατανεμημένα, §3.2 E1 και
+                  Παράρτ. A O7 για τα φράγματα). Η διάκριση Outstanding Paper
+                  προκύπτει από τη σελίδα του NSDI '24, όχι από το PDF}
+}
+
+@inproceedings{alqahtani2021bottlenecks,
+  author    = {Alqahtani, Salem and Demirbas, Murat},
+  title     = {Bottlenecks in Blockchain Consensus Protocols},
+  booktitle = {Proc. IEEE International Conference on Omni-Layer Intelligent
+               Systems (COINS 2021)},
+  year      = {2021},
+  doi       = {10.1109/COINS51742.2021.9524210},
+  note      = {Αντίτυπο: preprint arXiv:2103.04234v4},
+  verification = {[corpus 22] Κείμενο: VERIFIED-PDF από το preprint.
+                  Venue/DOI: UNVERIFIED. Μετρά PBFT, Tendermint, Streamlet,
+                  HotStuff ΚΑΙ Paxos στο ίδιο πλαίσιο (PaxiBFT) — γι' αυτό
+                  το §1.3 δεν ισχυρίζεται ότι οι δύο οικογένειες δεν έχουν
+                  μετρηθεί ποτέ με το ίδιο όργανο}
+}
+
+@inproceedings{berger2023simulation,
+  author    = {Berger, Christian and {Ben Toumia}, Sadok and Reiser, Hans P.},
+  title     = {Scalable Performance Evaluation of {Byzantine} Fault-Tolerant
+               Systems Using Network Simulation},
+  booktitle = {Proc. 28th IEEE Pacific Rim International Symposium on
+               Dependable Computing (PRDC 2023)},
+  pages     = {180--190},
+  year      = {2023},
+  publisher = {IEEE},
+  doi       = {10.1109/PRDC59308.2023.00030},
+  note      = {Τα αποτελέσματα παράγονται με προσομοίωση δικτύου, όχι με
+               μέτρηση σε υλικό},
+  verification = {[corpus 23] VERIFIED-DOI. ΠΡΟΣΟΧΗ: το αντίτυπο του corpus
+                  είναι το preprint arXiv:2309.17245v1 και θα δηλωνόταν
+                  λανθασμένα ως μη κριθέν· η κριθείσα εκδοχή υπάρχει
+                  (PRDC 2023) και επαληθεύτηκε μέσω Crossref}
+}
+
+@mastersthesis{sondhi2021empirical,
+  author = {Sondhi, Shrey},
+  title  = {Empirical Performance Evaluation of Consensus Algorithms in
+            Permissioned Blockchain Platforms},
+  school = {University of Windsor},
+  year   = {2021},
+  verification = {[corpus 24] VERIFIED-PDF (114 σ.). Δεν παρατίθεται στο
+                  Κεφ. 1· χρήσιμο ως μεθοδολογικό προηγούμενο}
+}
+
+@article{zhang2024byzantineempire,
+  author  = {Zhang, Gengrui and Pan, Fei and Mao, Yunhao and Tijanic, Sofia
+             and Dang'ana, Michael and Motepalli, Shashank and Zhang, Shiquan
+             and Jacobsen, Hans-Arno},
+  title   = {Reaching Consensus in the {Byzantine} Empire: A Comprehensive
+             Review of {BFT} Consensus Algorithms},
+  journal = {ACM Computing Surveys},
+  year    = {2024},
+  doi     = {10.1145/3636553},
+  verification = {[corpus 25] VERIFIED-PDF ως προς τίτλο και συγγραφείς·
+                  DOI UNVERIFIED. Ανασκόπηση — ποτέ ως πρωτογενής πηγή}
+}
+
+% --- Πρωτογενείς πηγές των φραγμάτων του Σχήματος 1.2 ------------------
+% Τα στοιχεία των τριών επόμενων εγγραφών αντιγράφηκαν από τον κατάλογο
+% αναφορών του amiri2024bedrock (refs [190], [161], [150]). Κανένα από τα
+% τρία δεν υπάρχει στο corpus και κανένα δεν επαληθεύτηκε ανεξάρτητα.
+@article{martin2006fab,
+  author  = {Martin, Jean-Philippe and Alvisi, Lorenzo},
+  title   = {Fast {Byzantine} Consensus},
+  journal = {IEEE Transactions on Dependable and Secure Computing},
+  volume  = {3},
+  number  = {3},
+  pages   = {202--215},
+  year    = {2006},
+  verification = {UNVERIFIED — στοιχεία από τον κατάλογο αναφορών του
+                  amiri2024bedrock. Πρωτογενής πηγή του φράγματος 5f+1 (FaB)}
+}
+
+@inproceedings{kuznetsov2021optimal,
+  author    = {Kuznetsov, Petr and Tonkikh, Andrei and Zhang, Yan X.},
+  title     = {Revisiting Optimal Resilience of Fast {Byzantine} Consensus},
+  booktitle = {Proc. ACM Symposium on Principles of Distributed Computing
+               (PODC '21)},
+  pages     = {343--353},
+  year      = {2021},
+  verification = {UNVERIFIED — στοιχεία από τον κατάλογο αναφορών του
+                  amiri2024bedrock. Πρωτογενής πηγή του κάτω φράγματος 5f-1}
+}
+
+@inproceedings{kelkar2020orderfairness,
+  author    = {Kelkar, Mahimna and Zhang, Fan and Goldfeder, Steven and
+               Juels, Ari},
+  title     = {Order-Fairness for {Byzantine} Consensus},
+  booktitle = {Annual International Cryptology Conference (CRYPTO 2020)},
+  pages     = {451--480},
+  year      = {2020},
+  publisher = {Springer},
+  verification = {UNVERIFIED — στοιχεία από τον κατάλογο αναφορών του
+                  amiri2024bedrock. Πρωτογενής πηγή του φράγματος 4f+1}
+}
+
+% ------------------------------------------------ Μεθοδολογία μετρήσεων
+@inproceedings{schroeder2006openclosed,
+  author    = {Schroeder, Bianca and Wierman, Adam and Harchol-Balter, Mor},
+  title     = {Open Versus Closed: A Cautionary Tale},
+  booktitle = {Proc. 3rd USENIX Symposium on Networked Systems Design and
+               Implementation (NSDI '06)},
+  year      = {2006},
+  verification = {[corpus 26] UNVERIFIED. Εκτός corpus. Η κριθείσα πηγή για
+                  τη διαφορά ανοιχτού/κλειστού βρόχου}
+}
+
+@inproceedings{hoefler2015benchmarking,
+  author    = {Hoefler, Torsten and Belli, Roberto},
+  title     = {Scientific Benchmarking of Parallel Computing Systems: Twelve
+               Ways to Tell the Masses When Reporting Performance Results},
+  booktitle = {Proc. International Conference for High Performance Computing,
+               Networking, Storage and Analysis (SC '15)},
+  year      = {2015},
+  doi       = {10.1145/2807591.2807644},
+  verification = {[corpus 27] UNVERIFIED. Εκτός corpus, παρά το ότι το
+                  docs/ του repo το δηλώνει ως παρόν. Δεν παρατίθεται στο
+                  Κεφ. 1· απαραίτητο για το κεφάλαιο μεθοδολογίας}
+}
+
+@inproceedings{abraham2021goodcase,
+  author    = {Abraham, Ittai and Nayak, Kartik and Ren, Ling and Xiang, Zhuolun},
+  title     = {Good-Case Latency of {Byzantine} Broadcast: A Complete
+               Categorization},
+  booktitle = {Proc. ACM Symposium on Principles of Distributed Computing
+               (PODC '21)},
+  pages     = {331--341},
+  year      = {2021},
+  verification = {UNVERIFIED — στοιχεία από τον κατάλογο αναφορών του
+                  amiri2024bedrock [12]. Δεύτερη πηγή που το amiri2024bedrock
+                  παραθέτει για το κάτω φράγμα 5f-1, μαζί με το [161]}
+}
+
+% =====================================================================
+%  ΠΡΟΣΘΗΚΕΣ ΓΙΑ ΤΟ ΚΕΦΑΛΑΙΟ 2
+% =====================================================================
+
+@article{pease1980reaching,
+  author  = {Pease, Marshall and Shostak, Robert and Lamport, Leslie},
+  title   = {Reaching Agreement in the Presence of Faults},
+  journal = {Journal of the ACM},
+  volume  = {27},
+  number  = {2},
+  pages   = {228--234},
+  year    = {1980},
+  doi     = {10.1145/322186.322188},
+  verification = {VERIFIED-IDX (OpenAlex). ΕΚΤΟΣ CORPUS. Είναι η ΠΡΩΤΗ
+                  διατύπωση του φράγματος n >= 3m+1, ΔΥΟ ΕΤΗ πριν από την
+                  αλληγορία των βυζαντινών στρατηγών (JACM 1980 -> TOPLAS
+                  1982). ΠΡΟΣΟΧΗ: το ίδιο αυτό άρθρο εξετάζει ΗΔΗ και την
+                  αυθεντικοποιημένη περίπτωση (ελαττωματικοί που σιωπούν
+                  αλλά δεν παραποιούν όσα αναμεταδίδουν), όπου το φράγμα δεν
+                  ισχύει· ο σχολιασμός του ίδιου του Lamport στη σελίδα των
+                  δημοσιεύσεών του το επιβεβαιώνει. Το αποτέλεσμα των
+                  υπογραφών ΔΕΝ είναι συνεισφορά του 1982. Το κείμενο του
+                  Κεφ. 2 ΔΕΝ παραθέτει τίποτα αυτούσιο: το OCR του
+                  διαθέσιμου αντιτύπου είναι κατεστραμμένο και η φορά της
+                  ανισότητας στο θεώρημα αδυνατότητας δεν διαβάζεται
+                  αξιόπιστα. Δωρεάν αντίτυπο:
+                  lamport.azurewebsites.net/pubs/reaching.pdf}
+}
+
+@article{dolev1985bounds,
+  author  = {Dolev, Danny and Reischuk, R{\"u}diger},
+  title   = {Bounds on Information Exchange for {Byzantine} Agreement},
+  journal = {Journal of the ACM},
+  volume  = {32},
+  number  = {1},
+  pages   = {191--204},
+  year    = {1985},
+  doi     = {10.1145/2455.214112},
+  verification = {VERIFIED-IDX (dblp/OpenAlex) ως προς τα βιβλιογραφικά.
+                  ΕΚΤΟΣ CORPUS και ΕΠΙ ΠΛΗΡΩΜΗ. Το περιεχόμενο ελέγχθηκε
+                  στην ΠΡΟΓΕΝΕΣΤΕΡΗ εκδοχή συνεδρίου (ACM 1982, σελίδα του
+                  ίδιου του Dolev), όπου το φράγμα μηνυμάτων τυπώνεται ως
+                  max{(n-1)/2, (1+t/2)^2} και η υπόθεση του θεωρήματος ΔΕΝ
+                  περιέχει ρήτρα αυθεντικοποίησης. Το ΜΟΝΤΕΛΟ ΟΜΩΣ ΕΙΝΑΙ
+                  ΝΤΕΤΕΡΜΙΝΙΣΤΙΚΟ: καμία αναφορά σε τυχαιοποίηση δεν υπάρχει
+                  στην εκδοχή του 1982, και το κείμενο του Κεφ. 2 δηλώνει τη
+                  ρήτρα. Το ίδιο άρθρο δίνει ΧΩΡΙΣΤΟ φράγμα υπογραφών για την
+                  αυθεντικοποιημένη περίπτωση. Η αρίθμηση θεωρημάτων μπορεί
+                  να διαφέρει στην εκδοχή του περιοδικού}
+}
+
+@inproceedings{howard2016flexiblepaxos,
+  author    = {Howard, Heidi and Malkhi, Dahlia and Spiegelman, Alexander},
+  title     = {Flexible {Paxos}: Quorum Intersection Revisited},
+  booktitle = {Proc. 20th International Conference on Principles of
+               Distributed Systems (OPODIS 2016)},
+  series    = {LIPIcs},
+  volume    = {70},
+  pages     = {25:1--25:14},
+  year      = {2017},
+  publisher = {Schloss Dagstuhl -- Leibniz-Zentrum f{\"u}r Informatik},
+  doi       = {10.4230/LIPIcs.OPODIS.2016.25},
+  verification = {VERIFIED-IDX (DROPS, ανοικτής πρόσβασης). ΕΚΤΟΣ CORPUS.
+                  ΚΡΙΘΕΙΣΑ δημοσίευση, ΟΧΙ preprint: δεν φέρει \prep. Το
+                  συνέδριο είναι OPODIS 2016· ο τόμος LIPIcs 70 φέρει έτος
+                  έκδοσης 2017, και γι' αυτό year=2017 με booktitle 2016. Το
+                  περιεχόμενο διαβάστηκε από το ανοικτό PDF των LIPIcs· δεν
+                  παρατίθεται τίποτα αυτούσιο}
+}
+
+@inproceedings{abraham2019ccba,
+  author    = {Abraham, Ittai and Chan, T.-H. Hubert and Dolev, Danny and
+               Nayak, Kartik and Pass, Rafael and Ren, Ling and Shi, Elaine},
+  title     = {Communication Complexity of {Byzantine} Agreement, Revisited},
+  booktitle = {Proc. ACM Symposium on Principles of Distributed Computing
+               (PODC '19)},
+  pages     = {317--326},
+  year      = {2019},
+  doi       = {10.1145/3293611.3331629},
+  verification = {VERIFIED-DOI. ΕΚΤΟΣ CORPUS. Το ΠΕΡΙΕΧΟΜΕΝΟ (Theorem 1:
+                  Omega(f^2) επικοινωνία ΚΑΙ για τυχαιοποιημένα πρωτόκολλα,
+                  υπό ισχυρά προσαρμοστικό αντίπαλο με after-the-fact
+                  removal) διαβάστηκε από το ανοικτό θεσμικό αντίτυπο
+                  users.cs.duke.edu/~kartik/papers/podc2019.pdf. Δεν
+                  παρατίθεται τίποτα αυτούσιο}
+}
+
+% =====================================================================
+%  ΠΡΟΣΘΗΚΕΣ 28-08-2026 — άρθρα που ΗΔΗ ΒΡΙΣΚΟΝΤΑΝ στο corpus/ και δεν
+%  ήταν καταχωρημένα, συν το δεύτερο αντίτυπο του Raft.
+%
+%  ΚΑΝΟΝΑΣ ΠΟΥ ΤΗΡΗΘΗΚΕ: κάθε πεδίο που ΤΥΠΩΝΕΤΑΙ διαβάστηκε από την
+%  πρώτη σελίδα του ίδιου του PDF. Όπου το αντίτυπο δεν τυπώνει venue,
+%  ΔΕΝ συμπληρώθηκε venue — ο τύπος έμεινε misc και το verification λέει
+%  τι λείπει. Μη τα αναβαθμίσεις σε article/inproceedings πριν τα
+%  επαληθεύσεις σε ευρετήριο.
+%
+%  ΠΡΟΣΟΧΗ: μη γράψεις ποτέ τον χαρακτήρα "at" μέσα σε σχόλιο αυτού του
+%  αρχείου. Το BibTeX τον διαβάζει ως αρχή εγγραφής ΑΚΟΜΗ ΚΑΙ σε γραμμή
+%  σχολίου, και σταματά με "I was expecting a { or a (".
+% =====================================================================
+
+% --- Raft, εκτεταμένη εκδοχή ----------------------------------------
+% ΔΕΥΤΕΡΟ ΑΝΤΙΤΥΠΟ, όχι διπλότυπο: 18 σελ. έναντι 16 των πρακτικών.
+@misc{ongaro2014raftextended,
+  author       = {Ongaro, Diego and Ousterhout, John},
+  title        = {In Search of an Understandable Consensus Algorithm
+                  (Extended Version)},
+  howpublished = {Stanford University},
+  year         = {2014},
+  verification = {VERIFIED-PDF (corpus/): τίτλος, συγγραφείς και ίδρυμα
+                  από τη σελίδα 1. 18 σελίδες, έναντι 16 της εκδοχής των
+                  πρακτικών ATC '14 [corpus 6].
+                  ΤΟ ΕΤΟΣ ΔΕΝ ΤΥΠΩΝΕΤΑΙ στη σελίδα 1. Το 2014 προκύπτει
+                  από την κριθείσα εκδοχή ATC '14 [corpus 6], της οποίας
+                  αυτό είναι η εκτεταμένη μορφή με ίδιο τίτλο και ίδιους
+                  συγγραφείς, και συμφωνεί με τη ModDate του αντιτύπου
+                  (Μάιος 2014). Συναγωγή, όχι ανάγνωση -- δηλώνεται.
+                  ΕΛΕΓΧΘΗΚΕ ΡΗΤΑ: τα δύο
+                  χωρία που παραθέτει η εργασία -- το §5.3 "a new entry
+                  can be replicated with a single round of RPCs to a
+                  majority of the cluster" (λεζάντα Πίν. 2.4) και το §2
+                  "a typical cluster of five servers can tolerate the
+                  failure of any two" (πεδίο verification του
+                  ongaro2014raft) -- υπάρχουν ΚΑΙ ΣΤΑ ΔΥΟ αντίτυπα, στην
+                  ίδια ενότητα. ΠΡΟΣΟΧΗ: η σελιδοποίηση ΔΙΑΦΕΡΕΙ.
+                  Χρησιμοποίησέ το μόνο για το §6 (μεταβολή σύνθεσης
+                  συστάδας) και τις αποδείξεις· αλλού κράτα το
+                  ongaro2014raft}
+}
+
+% --- Paxos Made Simple ----------------------------------------------
+% ΗΤΑΝ ΗΔΗ ΣΤΟ corpus/ ΚΑΙ ΔΕΝ ΗΤΑΝ ΚΑΤΑΧΩΡΗΜΕΝΟ.
+@misc{lamport2001simple,
+  author       = {Lamport, Leslie},
+  title        = {Paxos Made Simple},
+  year         = {2001},
+  verification = {VERIFIED-PDF ως προς τίτλο, συγγραφέα και ημερομηνία:
+                  η πρώτη σελίδα τυπώνει ΜΟΝΟ "Paxos Made Simple /
+                  Leslie Lamport / 01 Nov 2001". ΤΟ VENUE ΔΕΝ
+                  ΕΠΑΛΗΘΕΥΤΗΚΕ και γι' αυτό ΔΕΝ συμπληρώθηκε: το
+                  αντίτυπο δεν αναφέρει περιοδικό, τόμο, τεύχος ή
+                  σελίδες. Βρες το σε OpenAlex/DBLP και τότε κάνε το
+                  @article. Ο σκελετός το ζητά για το Κεφ. 4}
+}
+
+% --- Tendermint: η ΚΡΙΘΕΙΣΑ πηγή που έλειπε από το Κεφ. 10 ----------
+@misc{buchman2022revisiting,
+  author       = {Buchman, Ethan and Guerraoui, Rachid and Komatovic,
+                  Jovan and Milosevic, Zarko and Seredinschi,
+                  Dragos-Adrian and Widder, Josef},
+  title        = {Revisiting {Tendermint}: Design Tradeoffs,
+                  Accountability, and Practical Use},
+  verification = {VERIFIED-PDF ως προς τίτλο και ΚΑΙ ΤΟΥΣ ΕΞΙ συγγραφείς
+                  με τα ιδρύματά τους (Informal Systems, EPFL), από τη
+                  σελίδα 1.
+                  ΤΟ VENUE ΚΑΙ ΤΟ ΕΤΟΣ ΔΕΝ ΕΠΑΛΗΘΕΥΤΗΚΑΝ ΚΑΙ ΔΕΝ
+                  ΣΥΜΠΛΗΡΩΘΗΚΑΝ. Το "DSN 2022" προκύπτει ΜΟΝΟ από το
+                  όνομα αρχείου (Accountable_Tendermint___DSN_2022.pdf)
+                  και από τη CreationDate των μεταδεδομένων -- κανένα από
+                  τα δύο δεν είναι τεκμήριο. Το ίδιο το αντίτυπο δεν
+                  τυπώνει πουθενά ημερομηνία· η νεότερη παραπομπή του
+                  είναι του 2021. Δεν είναι βέβαιο ούτε αν πρόκειται για
+                  το κύριο συνέδριο ή για workshop (DSN-W/DSN-S).
+                  ΔΙΟΡΘΩΣΗ 28-08-2026: η εγγραφή τύπωνε year=2022 ενώ το
+                  ίδιο αυτό πεδίο δήλωνε ότι η πηγή του δεν είναι
+                  τεκμήριο -- παράβαση του R1. Το year αφαιρέθηκε.
+                  ΠΡΙΝ ΤΟ ΠΑΡΑΠΕΜΨΕΙΣ: βρες venue, έτος και σελίδες σε
+                  OpenAlex/DBLP και κάν᾽ το inproceedings.
+                  Είναι κριθείσα πηγή για το Tendermint -- το Κεφ. 10
+                  σήμερα δεν έχει άλλη πέρα από preprint και whitepaper}
+}
+
+% --- Tendermint MASc thesis -----------------------------------------
+@mastersthesis{buchman2016masc,
+  author       = {Buchman, Ethan},
+  title        = {Tendermint: {Byzantine} Fault Tolerance in the Age of
+                  Blockchains},
+  school       = {University of Guelph},
+  address      = {Guelph, Ontario, Canada},
+  year         = {2016},
+  verification = {VERIFIED-PDF (corpus/): τίτλος, συγγραφέας, ίδρυμα,
+                  τμήμα (Engineering Systems and Computing), βαθμίδα
+                  (Master of Applied Science) και ημερομηνία (Ιούνιος
+                  2016) διαβάστηκαν από τη σελίδα τίτλου. Δεν είναι
+                  κριθείσα δημοσίευση αλλά διπλωματική· δηλώνεται ως
+                  thesis στο σημείο χρήσης, χωρίς \prep}
+}
+
+% --- Caesar: στο corpus/, χωρίς παραπομπή πουθενά --------------------
+% Ή θα το παραπέμψεις στο Κεφ. 6 δίπλα στο EPaxos, ή σβήσε το αρχείο.
+@misc{arun2019caesar,
+  author       = {Arun, Balaji and Peluso, Sebastiano and Palmieri,
+                  Roberto and Losa, Giuliano and Ravindran, Binoy},
+  title        = {Speeding up Consensus by Chasing Fast Decisions},
+  year         = {2019},
+  note         = {Preprint (Extended Technical Report),
+                  arXiv:1704.03319v2, 23 Δεκ. 2019},
+  verification = {VERIFIED-PDF ως προς τίτλο, τους πέντε συγγραφείς, το
+                  ίδρυμα (ECE, Virginia Tech) και τη γραμμή
+                  "arXiv:1704.03319v2 [cs.DC] 23 Dec 2019" -- όλα τυπωμένα
+                  στη σελίδα 1. PREPRINT: το αντίτυπο δηλώνει τον εαυτό του
+                  ως "[Extended Technical Report]", άρα φέρει \prep στο
+                  σημείο χρήσης.
+                  ΔΙΟΡΘΩΣΗ 28-08-2026: η εγγραφή έγραφε year=2017,
+                  παραγόμενο από το πρόθεμα του arXiv id (που χρονολογεί
+                  το v1). Το ΑΝΤΙΤΥΠΟ τυπώνει 23 Δεκ. 2019 και αυτό
+                  ισχύει. Το κλειδί άλλαξε από arun2017caesar.
+                  Υπάρχει κριθείσα εκδοχή (DSN)· ΔΕΝ επαληθεύτηκε εδώ,
+                  ούτε το έτος της}
+}

@@ -1,0 +1,37 @@
+% fig-synchrony — the three timing models, one vertical stroke per message.
+% Structure figure: dgflow. dgCFT marks a message that arrives inside a known
+% bound, dgBFT one that does not — the standard's own key/bad pairing.
+% The axis is 7.5 cm long so that the whole figure, row labels included, comes
+% out at \dgwidth like every other figure; the message positions are the
+% original ones scaled by 7.5/9.6.
+\begin{dgflow}
+  % --- synchronous -------------------------------------------------------
+  \draw[dgaxis] (0,3.0) -- (7.5,3.0);
+  \node[anchor=east, inner sep=4pt] at (-0.1,3.0) {\fl{sync.model.synchronous}};
+  \node[dgnote, anchor=north west] at (0,2.84) {\fl{sync.note.synchronous}};
+  \foreach \x in {0.781,1.875,2.969,4.063,5.156,6.250}{
+    \draw[dgarrow,-,draw=dgCFT] (\x,2.88) -- (\x,3.12);}
+
+  % --- asynchronous ------------------------------------------------------
+  \draw[dgaxis] (0,1.6) -- (7.5,1.6);
+  \node[anchor=east, inner sep=4pt] at (-0.1,1.6) {\fl{sync.model.asynchronous}};
+  \node[dgnote, anchor=north west] at (0,1.44) {\fl{sync.note.asynchronous}};
+  \foreach \x in {0.469,0.859,2.344,5.078,5.313,6.719}{
+    \draw[dgarrow,-,draw=dgBFT] (\x,1.48) -- (\x,1.72);}
+
+  % --- partially synchronous --------------------------------------------
+  \draw[dgaxis] (0,0.2) -- (7.5,0.2);
+  \node[anchor=east, inner sep=4pt] at (-0.1,0.2) {\fl{sync.model.partial}};
+  \foreach \x in {0.469,1.172,2.031,2.891}{
+    \draw[dgarrow,-,draw=dgBFT] (\x,0.08) -- (\x,0.32);}
+  \foreach \x in {4.063,4.922,5.781,6.641}{
+    \draw[dgarrow,-,draw=dgCFT] (\x,0.08) -- (\x,0.32);}
+  % The dashed line stops above the note: in the original it ran through it.
+  \draw[dgaxis,-,dashed] (3.594,-0.45) -- (3.594,0.85);
+  \node[dgtag, fill=dgPaper, text=dgAux, anchor=south] at (3.594,0.85) {\textbf{GST}};
+  \node[dgtag, fill=dgPaper, text=dgBFT, anchor=north] at (1.62,-0.05)
+       {\fl{sync.liveness.none}};
+  \node[dgtag, fill=dgPaper, text=dgCFT, anchor=north] at (5.60,-0.05)
+       {$\le\Delta$, \fl{sync.liveness.guaranteed}};
+  \node[dgnote, anchor=north west] at (-1.2,-0.75) {\fl{sync.note.safety}};
+\end{dgflow}
