@@ -1,0 +1,320 @@
+<title>Consensus Bench Campaign Plan</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,600;1,6..72,400&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#f6f8f7; --surface:#fff; --sunk:#eef1f0;
+  --ink:#11171a; --ink-2:#3d4a46; --muted:#66736e;
+  --rule:#d6dcd9; --rule-soft:#e7ebe9;
+  --accent:#0f6e5c; --accent-soft:#e2efeb;
+  --fail:#a3391f; --fail-soft:#f6e7e2;
+  --warn:#8a6512; --warn-soft:#f7efdd;
+  --pass:#0f6e5c; --pass-soft:#e2efeb;
+  --shadow:0 1px 2px rgba(17,23,26,.05);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --ground:#0d1113; --surface:#141a1c; --sunk:#101618;
+    --ink:#e5ebe8; --ink-2:#b3c0bb; --muted:#7e8d87;
+    --rule:#27312e; --rule-soft:#1d2624;
+    --accent:#57c7aa; --accent-soft:#122c26;
+    --fail:#e08163; --fail-soft:#2c1913;
+    --warn:#d6a94a; --warn-soft:#2a2212;
+    --pass:#57c7aa; --pass-soft:#122c26;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0d1113; --surface:#141a1c; --sunk:#101618;
+  --ink:#e5ebe8; --ink-2:#b3c0bb; --muted:#7e8d87;
+  --rule:#27312e; --rule-soft:#1d2624;
+  --accent:#57c7aa; --accent-soft:#122c26;
+  --fail:#e08163; --fail-soft:#2c1913;
+  --warn:#d6a94a; --warn-soft:#2a2212;
+  --pass:#57c7aa; --pass-soft:#122c26;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+body{
+  background:var(--ground); color:var(--ink);
+  font:400 16.5px/1.62 "IBM Plex Sans",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:53rem;margin:0 auto;padding:3rem 1.5rem 6rem}
+h1,h2,h3{text-wrap:balance;margin:0}
+h1{font:600 2.7rem/1.1 Newsreader,Georgia,serif;letter-spacing:-.015em}
+h2{font:600 1.55rem/1.2 Newsreader,Georgia,serif;letter-spacing:-.01em}
+h3{font:600 1rem/1.35 "IBM Plex Sans",sans-serif}
+p{margin:0}
+code,.mono{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:.855em}
+code{background:var(--sunk);padding:.1em .34em;border-radius:3px;color:var(--ink-2)}
+a{color:var(--accent)}
+.eyebrow{
+  font:500 .72rem/1 "IBM Plex Mono",monospace;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--muted);
+}
+header{border-bottom:2px solid var(--ink);padding-bottom:1.6rem;display:flex;flex-direction:column;gap:.85rem}
+.sub{font:400 1.08rem/1.55 "IBM Plex Sans",sans-serif;color:var(--ink-2);max-width:44rem}
+.meta{display:flex;flex-wrap:wrap;gap:.45rem 1.4rem;font:400 .78rem/1.4 "IBM Plex Mono",monospace;color:var(--muted)}
+
+section{margin-top:3.4rem;display:flex;flex-direction:column;gap:1.15rem}
+.lede{color:var(--ink-2);max-width:44rem}
+
+/* status strip */
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(9.5rem,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:5px;overflow:hidden}
+.strip div{background:var(--surface);padding:.85rem 1rem;display:flex;flex-direction:column;gap:.3rem}
+.strip .v{font:500 1.32rem/1 "IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.strip .k{font:400 .7rem/1.3 "IBM Plex Mono",monospace;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+
+/* verdict tags — the harness's own vocabulary */
+.tag{display:inline-block;font:500 .68rem/1.5 "IBM Plex Mono",monospace;letter-spacing:.08em;padding:.08em .5em;border-radius:3px;white-space:nowrap;vertical-align:.08em}
+.t-fail{background:var(--fail-soft);color:var(--fail)}
+.t-warn{background:var(--warn-soft);color:var(--warn)}
+.t-pass{background:var(--pass-soft);color:var(--pass)}
+
+/* tables */
+.tw{overflow-x:auto;border:1px solid var(--rule);border-radius:5px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:34rem}
+th,td{text-align:left;padding:.7rem .9rem;border-bottom:1px solid var(--rule-soft);vertical-align:top;font-size:.9rem}
+th{font:500 .7rem/1.3 "IBM Plex Mono",monospace;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);background:var(--sunk);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.id{font-family:"IBM Plex Mono",monospace;font-size:.82rem;white-space:nowrap;color:var(--ink)}
+td.ev{font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:var(--muted)}
+
+/* phase spine */
+.phases{display:flex;flex-direction:column;gap:0}
+.phase{display:grid;grid-template-columns:3.1rem 1fr;gap:0 1.15rem;padding:1.35rem 0;border-top:1px solid var(--rule)}
+.phase:last-child{border-bottom:1px solid var(--rule)}
+.pn{font:500 1.5rem/1 "IBM Plex Mono",monospace;color:var(--muted);font-variant-numeric:tabular-nums;padding-top:.1rem}
+.phase.done .pn{color:var(--pass)}
+.pbody{display:flex;flex-direction:column;gap:.6rem;min-width:0}
+.phead{display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem .8rem}
+.phead h3{font-size:1.12rem}
+.cost{font:500 .78rem/1 "IBM Plex Mono",monospace;color:var(--accent);background:var(--accent-soft);padding:.22em .5em;border-radius:3px}
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.4rem}
+.steps li{display:grid;grid-template-columns:3.6rem 1fr;gap:.8rem;font-size:.885rem;color:var(--ink-2)}
+.steps .s{font-family:"IBM Plex Mono",monospace;font-size:.78rem;color:var(--muted);padding-top:.15em}
+
+.note{border-left:3px solid var(--accent);background:var(--surface);padding:.9rem 1.1rem;border-radius:0 4px 4px 0;font-size:.92rem;color:var(--ink-2);box-shadow:var(--shadow)}
+.note.alert{border-left-color:var(--fail)}
+.note strong{color:var(--ink)}
+
+pre{margin:0;background:var(--surface);border:1px solid var(--rule);border-radius:5px;padding:.9rem 1rem;overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:.8rem;line-height:1.6;color:var(--ink-2)}
+footer{margin-top:4rem;padding-top:1.4rem;border-top:1px solid var(--rule);font-size:.82rem;color:var(--muted);display:flex;flex-direction:column;gap:.5rem}
+ul.plain{margin:0;padding-left:1.15rem;display:flex;flex-direction:column;gap:.4rem;color:var(--ink-2);font-size:.92rem}
+</style>
+
+<div class="wrap">
+<header>
+  <span class="eyebrow">Evidence ledger &amp; route to the campaign</span>
+  <h1>Consensus Bench Campaign Plan</h1>
+  <p class="sub">Seven consensus systems, one harness, one thesis. What is proven, what is
+  blocked, and the six phases from here to a billed campaign — with the command behind
+  every claim.</p>
+  <div class="meta">
+    <span>2026-09-03</span><span>branch ninth-review-handoff</span>
+    <span>a537926</span><span>€0 spent to date</span>
+  </div>
+</header>
+
+<section>
+  <div class="strip">
+    <div><span class="v">247</span><span class="k">tests green</span></div>
+    <div><span class="v">37/37</span><span class="k">test classes</span></div>
+    <div><span class="v">05:23</span><span class="k">verify wall clock</span></div>
+    <div><span class="v">7 / 9</span><span class="k">merge gate held</span></div>
+    <div><span class="v">€1.10</span><span class="k">first deploy, 3 h</span></div>
+  </div>
+  <p class="lede">The suite is green and the merge gate holds on seven of nine items.
+  Gate 6 — the author's read-through of the seven SSH goldens — is open, and it is the
+  one thing keeping <code>main</code> unpushed. Nothing here has cost money yet.</p>
+</section>
+
+<section>
+  <span class="eyebrow">01 — What is blocked</span>
+  <h2>Three tiers, in the order they bite</h2>
+  <p class="lede">Tier 1 fails <em>after</em> <code>terraform apply</code>, on billed time.
+  Items B-1 to B-3 were found by asking a question no document had asked: what does the
+  loadgen actually need in order to run the harness at all?</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>#</th><th>Blocker</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr><td class="id">B-1</td><td><strong>No JRE on any VM.</strong> The harness can only run <em>on</em> the loadgen — it SSHes to <code>10.0.0.11+</code> — and cloud-init installs no Java</td><td class="ev">grep -rniE 'jdk|openjdk' infra/ scripts/ → 0</td></tr>
+      <tr><td class="id">B-2</td><td><strong>The loadgen has no private key.</strong> Terraform installs only the public one, while <code>Inventory</code> hands the private path to <code>SshjExecutor</code></td><td class="ev">main.tf:43 · archive/HONEST_REVIEW_V6.md:36</td></tr>
+      <tr><td class="id">B-3</td><td><strong>Nothing ships the jar.</strong> And <code>export_queries.txt</code> is read relative to CWD while the javadoc credits a script that copies the other way</td><td class="ev">RemoteRunner.java:388</td></tr>
+      <tr><td class="id">N-16</td><td>Nothing deploys the observability stack</td><td class="ev">scripts/ holds one file</td></tr>
+      <tr><td class="id">N-5</td><td><code>prometheus.yml</code> ships with literal <code>PRIVATE_NODE1</code> placeholders; nothing substitutes them</td><td class="ev">no writer in infra/ scripts/ harness/</td></tr>
+      <tr><td class="id">C1</td><td>Every <strong>HotStuff</strong> run is discarded — its manifest carries no <code>error_rate</code>, and the gate never SKIPs</td><td class="ev">executed: analyse.py → 0 runs, 1 excluded</td></tr>
+      <tr><td class="id">C2</td><td>Fixing C1 alone still yields <code>{n:1}</code> — <code>analyse.py</code> never opens <code>summary.txt</code></td><td class="ev">executed with C1 patched</td></tr>
+      <tr><td class="id">M2</td><td><strong>CometBFT</strong> <code>kill</code>/<code>double_kill</code> discarded: <code>cmt_rounds</code> is a gauge checked as a counter</td><td class="ev">ValidityChecker.java:591</td></tr>
+      <tr><td class="id">N-7</td><td><code>MatrixRunner</code> has no failure ceiling — a systemic fault bills all night for nothing</td><td class="ev">MatrixRunner.java:322</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="note alert"><strong>N-16 and N-5 together are the campaign-killer.</strong>
+  With no Prometheus the exporter writes header-only CSVs; <code>hasMetrics</code> is true;
+  the §4 meta-rule turns every empty series into a <span class="tag t-fail">FAIL</span>;
+  every run is <code>valid:false</code>; <code>analyse.py</code> excludes the entire
+  campaign. The run still bills in full.</div>
+</section>
+
+<section>
+  <span class="eyebrow">02 — Fixed this session</span>
+  <h2>Two defects that would have degraded the canary itself</h2>
+  <div class="tw"><table>
+    <thead><tr><th>#</th><th>Was</th><th>Now</th></tr></thead>
+    <tbody>
+      <tr><td class="id">M1</td><td>The counter check compared the <em>first</em> CSV row to the <em>last</em>. The exporter writes <strong>series-major</strong> rows, so those are two different nodes — wrong in both directions, and silent. On an etcd <code>leader_kill</code> cell there is no rescue: <code>docker kill</code> leaves node_exporter running, so <code>up{job="node"}</code> never drops</td><td>Groups by series; requires the rise <em>within</em> one. Three tests, including the exporter's real four-column layout</td></tr>
+      <tr><td class="id">M3</td><td>The validity check ran at <code>RemoteRunner:199</code>, the events audit was written at <code>:213</code>. Gate 4 SKIPped on every cell for want of a directory the next statement created</td><td><code>finishRun()</code> — export, collect logs, collect events, <em>then</em> judge. Red first, on the production string</td></tr>
+    </tbody>
+  </table></div>
+  <p class="lede"><strong>M1 was scheduled for Phase 3 — after the canary.</strong> It breaks
+  the canary's own headline gate, so it moved to Phase 0.</p>
+</section>
+
+<section>
+  <span class="eyebrow">03 — The route</span>
+  <h2>Six phases</h2>
+  <p class="lede">The organising constraint governs the whole ordering: anything that
+  changes golden text lands <em>before</em> the G2 read-through, or it invalidates the
+  signature the moment it is given.</p>
+
+  <div class="phases">
+    <div class="phase">
+      <span class="pn">0</span>
+      <div class="pbody">
+        <div class="phead"><h3>Free, and blocking</h3><span class="cost">€0</span><span class="tag t-warn">IN PROGRESS</span></div>
+        <p class="lede">Everything that must precede the goldens. TDD throughout; one commit per step.</p>
+        <ul class="steps">
+          <li><span class="s">0.1/0.5b</span><span>C1 + C2 together — <code>valid:true</code> alone still leaves Chapter 11 with an <em>n</em> and no numbers</span></li>
+          <li><span class="s">0.2</span><span>M2 — route <code>tendermint</code> to the gauge witness</span></li>
+          <li><span class="s">0.3</span><span class="tag t-pass">DONE</span></li>
+          <li><span class="s">0.3b</span><span class="tag t-pass">DONE</span></li>
+          <li><span class="s">0.4</span><span>N-20 — etcd backend quota. <strong>The only golden-touching item</strong></span></li>
+          <li><span class="s">0.5</span><span>C4 — remove the RF cap at 3; one partition for E-SCALE. Client-side, touches no golden</span></li>
+          <li><span class="s">0.6/0.7</span><span><code>deploy_obs.sh</code> and <code>render_obs_config.sh</code> — the campaign-killer pair</span></li>
+          <li><span class="s">0.8/0.9</span><span><code>main.tf</code> and cloud-init hardening; cost fails closed on an unpriced type</span></li>
+          <li><span class="s">0.10/0.11</span><span>Circuit breaker, disk guard, watchdog — seen to fire once</span></li>
+          <li><span class="s">0.13</span><span>Purge the signed application PDF from history</span></li>
+          <li><span class="s">0.15</span><span><code>bootstrap_loadgen.sh</code> — B-1, B-2, B-3</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="phase">
+      <span class="pn">1</span>
+      <div class="pbody">
+        <div class="phead"><h3>The gate and the dress rehearsal</h3><span class="cost">€0</span></div>
+        <ul class="steps">
+          <li><span class="s">1.1</span><span><strong>G2 — read all seven goldens against their checklists and sign off, dated.</strong> The author's, never delegated</span></li>
+          <li><span class="s">1.2</span><span>Stage 0 — <code>hcloud server-type list -o json</code>. Every euro in this repo was written down from a web page and never read back from Hetzner</span></li>
+          <li><span class="s">1.4</span><span><code>terraform plan</code> shows <strong>6 + N_vms</strong>. At n=3 that is <strong>11</strong>, the figure <code>LOCAL_TESTING.md:373</code> already records by execution</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="phase">
+      <span class="pn">2</span>
+      <div class="pbody">
+        <div class="phead"><h3>The canary, driven by hand</h3><span class="cost">≈ €1.10 gross</span></div>
+        <p class="lede">Performed manually at n=3, S0–S13, 18 checks. The hand walk and the
+        canary are <em>one</em> session — running both would pay twice for one answer.</p>
+        <ul class="steps">
+          <li><span class="s">why n=3</span><span>Quorum on two nodes is two, so <code>LEADER_KILL</code> at n=2 leaves <em>zero</em> quorum: the cluster commits nothing and the simulation demonstrates a hang, not a failover. n=3 also makes the SSH sequence diffable against <code>etcd-size3-start-stop.txt</code>. Cost of the difference: €0.26</span></li>
+          <li><span class="s">2.13</span><span>One real etcd cell end-to-end. <code>--size 2</code> is <em>not</em> the default and <code>Main.java:101</code> will hand you 3</span></li>
+          <li><span class="s">2.15</span><span><code>node_facts.sh</code> on every VM. <strong>This expires</strong> — after the campaign the hardware is gone</span></li>
+          <li><span class="s">2.18</span><span><code>terraform destroy</code>, then <code>hcloud server list</code> <em>and</em> <code>primary-ip list</code> both empty</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="phase">
+      <span class="pn">3</span>
+      <div class="pbody">
+        <div class="phead"><h3>What the canary taught</h3><span class="cost">€0</span></div>
+        <ul class="steps">
+          <li><span class="s">3.2</span><span>C3 — a second histogram at the driver bound. Ops that hit the 5 s bound leave the histogram entirely, so the fault run's p99 is computed only over what survived</span></li>
+          <li><span class="s">3.3</span><span>M4 — the open-loop backlog is discarded at loop exit, understating the same tail again</span></li>
+          <li><span class="s">3.6</span><span>Hardware provenance: <code>hw_fingerprint</code> in every manifest, plus two new gates</span></li>
+          <li><span class="s">3.7</span><span>N-17 — <code>.hlog</code> merging. Without it there is no F3 and the headline latency claim is half-made</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="phase">
+      <span class="pn">4</span>
+      <div class="pbody">
+        <div class="phead"><h3>G3 and the pilot</h3><span class="cost">first real billing</span></div>
+        <ul class="steps">
+          <li><span class="s">4.2</span><span>G3 — harness vs <code>kafka-producer-perf-test</code>, <code>etcd benchmark</code>, Paxi's benchmarker. Every ratio outside 0.8–1.25× gets an explanation</span></li>
+          <li><span class="s">4.3</span><span>Fix every <code>PROVISIONAL</code> threshold from measured pilot variance</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="phase">
+      <span class="pn">5</span>
+      <div class="pbody">
+        <div class="phead"><h3>The campaign</h3><span class="cost">≈ €80, hard cap €100</span></div>
+        <ul class="steps">
+          <li><span class="s">block 0</span><span>Saturation search first, and it is not optional — R1..R4 are 25/50/75 % of a <em>measured</em> saturation</span></li>
+          <li><span class="s">1–3</span><span>5 + 15 + 25 + 30 = <strong>75 runs ≈ 11.5 h</strong> per system, against the cost model's 76 ≈ 12.0 h</span></li>
+          <li><span class="s">D17</span><span>n=20 for Paxos vs EPaxos at two conflict rates — the registered prediction is a crossover, so one rate tests neither end</span></li>
+        </ul>
+        <div class="note"><strong>The real financial risk is not the campaign — it is a
+        forgotten cluster.</strong> Phase C at ≈€7/day costs €133 in a week, more than the
+        entire planned campaign. Destroy discipline is the only cost lever that matters.</div>
+      </div>
+    </div>
+
+    <div class="phase">
+      <span class="pn">6</span>
+      <div class="pbody">
+        <div class="phead"><h3>Analysis and writing</h3></div>
+        <p class="lede">Pooled histograms, Holm–Bonferroni, ECDFs, the eight figures — then
+        the chapters. Chapters 1 and 2 are written in both languages; the experimental
+        chapters wait on the numbers above, and <code>\meas{}</code> prints
+        <strong>[PENDING]</strong> until they arrive.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <span class="eyebrow">04 — Honesty</span>
+  <h2>What has <em>not</em> been verified</h2>
+  <ul class="plain">
+    <li><strong>No cost figure in this repo has ever been read from Hetzner.</strong> Every euro came from a web page in July 2026. Phase 1.2 is the only authority, and it is free.</li>
+    <li><code>terraform validate</code> has never run on this machine — terraform is not installed. <code>infra/</code> is byte-identical to the merge commit.</li>
+    <li>The thesis PDFs cannot be built here: no <code>xelatex</code>, <code>latexmk</code> or <code>pandoc</code>. The Python checks need none of them and all pass.</li>
+    <li><code>cloud-init.yaml</code> has never booted. Phase 1.4 or the canary closes that.</li>
+    <li>The signed application PDF is <strong>already on GitHub</strong> — it went up in the initial commit. The exposure has happened; the fix needs a history rewrite <em>and</em> a GC request, since a rewrite alone leaves the blob fetchable by SHA.</li>
+  </ul>
+  <div class="note"><strong>The lesson this plan is built on.</strong> An earlier draft of
+  it applied an exacting standard to what was already suspected, and none at all to the
+  numbers governing the money — a wrong resource count in the canary's own stop-gate, a
+  62 % "saving" that was a units error, and a canary command that could not be invoked.
+  Every one was checkable offline in under a minute.</div>
+</section>
+
+<section>
+  <span class="eyebrow">05 — Waiting on you</span>
+  <h2>Open decisions</h2>
+  <div class="tw"><table>
+    <thead><tr><th>Item</th><th>Question</th></tr></thead>
+    <tbody>
+      <tr><td class="id">0.13</td><td>Purge the signed application PDF from history now, while the repo is private?</td></tr>
+      <tr><td class="id">D-4</td><td>A date for the E-CTRL deadline. Chapters 5 and 8 cannot be scheduled without it</td></tr>
+      <tr><td class="id">G2</td><td>The golden read-through. Seven files, the author's signature, blocks everything billed</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<footer>
+  <p>Sources: <code>docs/PROJECT_STATE.md</code> §5–§6 (the driving document) ·
+  <code>docs/HANDOFF_REVIEW_2026-09-02.md</code> (the evidence ledger) ·
+  <code>docs/FIRST_MANUAL_DEPLOY.md</code> (S0–S13, command by command).</p>
+  <p>Every figure on this page traces to a command in one of those three files.
+  Where a claim was accepted rather than executed, §7 of the ledger says so.</p>
+</footer>
+</div>

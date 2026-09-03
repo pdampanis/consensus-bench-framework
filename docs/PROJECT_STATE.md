@@ -308,6 +308,11 @@ that doc shows a false failure.
 
 ## 6. The plan — six phases to the campaign
 
+> **Published as one page:** [https://claude.ai/code/artifact/466a87d7-247c-4dbd-a128-752d0bf33c46](https://claude.ai/code/artifact/466a87d7-247c-4dbd-a128-752d0bf33c46)
+> — §5's blockers and this section's six phases, with the evidence behind each.
+> Source: `docs/artifact/plan.html`. Republish from that path to keep the URL.
+
+
 **The organising constraint, and it governs the whole ordering:** *anything
 that changes golden text must land before the G2 read-through.* The handoff
 pack's own plan puts C4 after G2, which would invalidate the signature the
@@ -679,6 +684,8 @@ consulted, not planned from.
 | `examples/` · `SSH_SETUP.md` | Sample data, planned SSH switch |
 | **`FIRST_MANUAL_DEPLOY.md`** | **The Phase 2 session, command by command.** The author's hand-driven canary at n=3: tooling, key, token, price gate, apply, loadgen bootstrap, obs by hand, one baseline + one `leader_kill` cell, collection, analysis, destroy |
 | `HANDOFF_REVIEW_2026-09-02.md` | **Evidence ledger** for the `thesis-handoff-2026-08-21` review: every finding's verdict against *this* tree, what was executed, and what was not |
+| **`../thesis/`** | **The document this benchmark produces.** Bilingual LaTeX, its own checks, its own README. Governed by §9.7: no code or corpus change lands without an alignment review |
+| `../scripts/check_alignment.sh` · `../corpus/MANIFEST.tsv` | The alignment check and the corpus index it reads |
 | `archive/` | **History, not guidance.** Includes the full F1–F76 findings ledger |
 
 **Authority when they conflict:** live code > `IMPLEMENTATION_PLAN` +
@@ -707,5 +714,12 @@ wins on *what to do next*; those two win on *how it must be done*.
    advance on confidence — the evidence must exist.
 6. **Never `terraform apply`** before G2. Laptop numbers are never thesis
    data.
-7. **Update this file at session end.** It is the only thing a fresh session
+7. **Every change to `harness/`, `analysis/` or `corpus/` is followed by a
+   thesis-alignment review, in the same session.** `thesis/` is the document
+   this benchmark exists to produce, not a separate concern. Run
+   `./scripts/check_alignment.sh`, then state which chapters you checked and
+   what you found — *"no thesis impact"* is a finding and must be written
+   down; it is not the same as not looking. The three couplings and what the
+   script cannot see are in `CLAUDE.md`.
+8. **Update this file at session end.** It is the only thing a fresh session
    reads first.

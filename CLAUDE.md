@@ -59,6 +59,50 @@ on **how it must be done** (acceptance criteria, statistics, validity).
 6. **Update PROJECT_STATE at session end** — it is the only thing a fresh
    session reads first.
 
+## The thesis is part of this repo — keep it aligned
+
+`thesis/` is the document this benchmark exists to produce. It is a full
+bilingual LaTeX build with its own checks (`thesis/README.md`), and it is
+**not** a separate concern.
+
+**The rule, and it has no exceptions:**
+
+> **Every change to `harness/`, `analysis/` or `corpus/` requires a review of
+> the thesis chapters for alignment, in the same session as the change.**
+
+Run this — it is fast, needs no LaTeX, and is the first thing to do after a
+change lands:
+
+```bash
+./scripts/check_alignment.sh            # reports; add --strict for CI
+```
+
+It checks the three couplings that go stale silently:
+
+| coupling | what breaks | what catches it |
+|---|---|---|
+| `corpus/` ↔ `thesis/bib/references.bib` | a source the bib says was `VERIFIED-PDF` no longer has the file it was verified from | `scripts/corpus.py verify` against `corpus/MANIFEST.tsv` |
+| harness output ↔ `thesis/data/measurements.tex` | a `\meas{}` key names a number the harness no longer produces, so a sentence waits forever | `thesis/tools/data-check.py` |
+| EN ↔ EL editions, and the citations | the two editions stop making the same commitments | `parity.py`, `mainparity.py`, `cite-check.py` |
+
+**What the script cannot check, and you must.** If a change altered *what*
+is measured or *how* — a metric, a scenario, a cluster size, a validity
+gate, a default — then a sentence in the thesis may now be false while every
+check stays green. Re-read `thesis/data/measurements.tex` and §1.4's
+research questions, and say in your session note which chapters you checked
+and what you found. "No thesis impact" is a finding and must be stated; it
+is not the same as not looking.
+
+**Two rules the thesis enforces on itself**, worth knowing before you touch
+it: no number appears in the text that was not measured (`\meas{}` prints
+**[PENDING]** until the campaign fills it), and nothing is cited unsourced
+(`\unver`, `\grey`, `\prep` at every point of use, checked by
+`cite-check.py`). Do not defeat either one to make a draft read better.
+
+Building the PDFs needs `xelatex`, `latexmk` and `pandoc`, which are **not
+installed on this machine** — `cd thesis && make` will fail here. The Python
+checks above do not need them and are what CI should run.
+
 ## Hard safety rules
 
 - **Never `terraform apply`** (G2 gate). `validate` / dummy-token `plan` are
@@ -79,7 +123,7 @@ cd harness && mvn21 clean verify   # ~/tools/maven/mvn21.sh if no alias
 **Read the count from Maven's own `Tests run:` summary line**, never from
 arithmetic over report files, and treat a suspiciously fast run as a FAILED
 gate until the count is confirmed — see F76 in PROJECT_STATE §5.
-Current baseline: **243 tests**, ~5–7 min.
+Current baseline: **247 tests**, ~5–7 min.
 
 ## Branches and worktrees
 
@@ -101,6 +145,12 @@ messages, or worse, redoing it.
 
 The 9-item merge gate is in `docs/GIT_WORKFLOW.md`; the step-by-step runbook
 to `main` is `docs/PROJECT_STATE.md` §7.
+
+## The plan, as one page
+
+[https://claude.ai/code/artifact/466a87d7-247c-4dbd-a128-752d0bf33c46](https://claude.ai/code/artifact/466a87d7-247c-4dbd-a128-752d0bf33c46) — the six phases, the tiered blockers, and what has
+deliberately *not* been verified. Source in `docs/artifact/plan.html`;
+republish that same path to update the same link.
 
 ## Next task
 

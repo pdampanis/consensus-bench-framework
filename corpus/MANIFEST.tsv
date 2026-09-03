@@ -1,0 +1,43 @@
+file	sha256_16	bytes	identifier	title_page1	bibkey
+1704.03319v2.pdf	71ba6f832794ebc4	2562934	arXiv:1704.03319	Speeding up Consensus by Chasing Fast Decisions	arun2019caesar
+1803.05069v6.pdf	e7a52b76977841c5	1670446	arXiv:1803.05069	HotStuff: BFT Consensus in the Lens of Blockchain	yin2019hotstufflens
+2010.11454v10.pdf	9296c0218944b0d1	1622920	arXiv:2010.11454	Fast-HotStuff: A Fast and Robust BFT Protocol for	jalalzai2023fasthotstuff
+2023-397.pdf	14cc63505cded829	477938		HotStuff-2: Optimal Two-Phase Responsive BFT	
+2103.04234v4.pdf	7a545e78143faf55	906967	arXiv:2103.04234	Bottlenecks in Blockchain Consensus Protocols	alqahtani2021bottlenecks
+2309.17245v1.pdf	c5a07fcd2291c6b2	831418	arXiv:2309.17245	Christian Berger	
+2517349.2517350.pdf	16569648040657bf	681075	doi:10.1145/2517349.2517350	There Is More Consensus in Egalitarian Parliaments	moraru2013epaxos
+2723872.2723876.pdf	5203eef75db2f9d6	251561		Raft Reﬂoated: Do We Have Consensus?	howard2015raftrefloated
+279227.279229.pdf	7c0fbfbd09a63e9f	494479		The Part-Time Parliament	lamport1998parttime
+3299869.3319893.pdf	9168b1824b1305d1	2792447	doi:10.1145/3299869.3319893	Research 17: Scalability	
+Accountable_Tendermint___DSN_2022.pdf	d479399c42ee4ce2	379861		Revisiting Tendermint: Design Tradeoffs,	buchman2022revisiting
+Ailijiang et al. - 2019 - Dissecting the Performance of Strongly-Consistent Replication Protocols.pdf	9168b1824b1305d1	2792447	doi:10.1145/3299869.3319893	Research 17: Scalability	
+Alqahtani and Demirbas - 2021 - Bottlenecks in Blockchain Consensus Protocols.pdf	7a545e78143faf55	906967	arXiv:2103.04234	Bottlenecks in Blockchain Consensus Protocols	alqahtani2021bottlenecks
+Amiri et al. - 2024 - The Bedrock of Byzantine Fault Tolerance.pdf	b1942b30d0aa9cd1	7755873		The Bedrock of Byzantine Fault Tolerance:	amiri2024bedrock
+Arun et al. - 2019 - Speeding up Consensus by Chasing Fast Decisions.pdf	71ba6f832794ebc4	2562934	arXiv:1704.03319	Speeding up Consensus by Chasing Fast Decisions	arun2019caesar
+Berger et al. - 2023 - Scalable Performance Evaluation of Byzantine Fault-Tolerant Systems Using Network Simulation.pdf	c5a07fcd2291c6b2	831418	arXiv:2309.17245	Christian Berger	
+Buchman - Tendermint Byzantine Fault Tolerance in the Age of Blockchains.pdf	04e25c84f3169929	695058		Tendermint: Byzantine Fault Tolerance in the Age of	buchman2016masc
+Buchman et al. - 2018 - The Latest Gossip on BFT Consensus.pdf	1225e75c096d51ce	169757	arXiv:1807.04938	The latest gossip on BFT consensus	buchman2018gossip
+Buchman et al. - 2022 - Revisiting Tendermint Design Tradeoffs, Accountability, and Practical Use.pdf	d479399c42ee4ce2	379861		Revisiting Tendermint: Design Tradeoffs,	buchman2022revisiting
+Buchman_Ethan_201606_Msater+thesis.pdf	04e25c84f3169929	695058		Tendermint: Byzantine Fault Tolerance in the Age of	buchman2016masc
+Cason et al. - 2021 - The design, architecture and performance of the Tendermint Blockchain Network.pdf	c95d5494795539b2	275326		The design, architecture and performance of the	cason2021tendermint
+Charapko et al. - 2021 - Scalable but Wasteful Current State of Replication in the Cloud.pdf	c77261f4713faf07	639492		Scalable but Wasteful: Current State of	matte2021wasteful
+Fischer et al. - 1985 - Impossibility of Distributed Consensus with One Faulty Process.pdf	80e1c33be45362d6	725701		Impossibility of Distributed Consensus with One Faulty	fischer1985impossibility
+HotStuff_BFT_Consensus_with_Linearity_and_Responsi.pdf	058622d714ec7621	1303210	doi:10.1145/3293611.3331591	PODC ’19, July 29–August 2, 2019, Toronto, ON, Canada	
+Howard and Mortier - 2020 - Paxos vs Raft Have we reached consensus on distributed consensus.pdf	f94910b6a8b42687	179743	arXiv:2004.05074	Paxos vs Raft: Have we reached consensus on	howard2020paxosraft
+Howard et al. - 2015 - Raft Refloated Do We Have Consensus.pdf	5203eef75db2f9d6	251561		Raft Reﬂoated: Do We Have Consensus?	howard2015raftrefloated
+Jalalzai et al. - 2024 - Fast-HotStuff A Fast and Resilient HotStuff Protocol.pdf	9296c0218944b0d1	1622920	arXiv:2010.11454	Fast-HotStuff: A Fast and Robust BFT Protocol for	jalalzai2023fasthotstuff
+Lamport - 1998 - The Part-Time Parliament.pdf	cd9544e9615bcd41	568998		The Part-Time Parliament	lamport1998parttime
+Lamport - 2001 - Paxos Made Simple.pdf	c83b5141257730d6	95019		Paxos Made Simple	lamport2001simple
+Malkhi and Nayak - HotStuff-2 Optimal Two-Phase Responsive BFT.pdf	14cc63505cded829	477938		HotStuff-2: Optimal Two-Phase Responsive BFT	
+Moraru et al. - 2013 - There is more consensus in Egalitarian parliaments.pdf	16569648040657bf	681075	doi:10.1145/2517349.2517350	There Is More Consensus in Egalitarian Parliaments	moraru2013epaxos
+Ongaro and Ousterhout - In Search of an Understandable Consensus Algorithm.pdf	e6345fcba31cbc74	609953		In Search of an Understandable	
+Pedone_2021_IEEE_SRDS.pdf	c95d5494795539b2	275326		The design, architecture and performance of the	cason2021tendermint
+Sondhi - Empirical Performance Evaluation Of Consensus Algorithms In Permissioned Blockchain Platforms.pdf	356c20a306d59d02	3169972		Empirical Performance Evaluation Of	sondhi2021empirical
+Sondhi_uwindsor_0115O_12677.pdf	356c20a306d59d02	3169972		Empirical Performance Evaluation Of	sondhi2021empirical
+Tollman et al. - 2021 - EPaxos Revisited.pdf	456fd98e324ec884	19165525		EPaxos Revisited	tollman2021epaxosrevisited
+Yin et al. - 2019 - HotStuff BFT Consensus in the Lens of Blockchain.pdf	e7a52b76977841c5	1670446	arXiv:1803.05069	HotStuff: BFT Consensus in the Lens of Blockchain	yin2019hotstufflens
+Yin et al. - 2019 - HotStuff BFT Consensus with Linearity and Responsiveness.pdf	058622d714ec7621	1303210	doi:10.1145/3293611.3331591	PODC ’19, July 29–August 2, 2019, Toronto, ON, Canada	
+Zhang et al. - 2024 - Reaching Consensus in the Byzantine Empire.pdf	91634d1ededc274b	2265869	arXiv:2204.03181	Reaching Consensus in the Byzantine Empire: A Comprehensive	zhang2024byzantineempire
+atc14-paper-ongaro.pdf	e6345fcba31cbc74	609953		In Search of an Understandable	
+time-clocks.pdf	c55e7cab4230aa3d	854562		R. Stockton Gaines	
+ΕΝ42.10-3_Αίτηση-ανάληψης-διπλωματικής_πτυχιακής_-εργασίας-v6-09-05-2018_Dampanis-signed (1).pdf	e42229881f7436a0	398316		Αίτηση Ανάληψης Διπλωματικής/Πτυχιακής Εργασίας	
