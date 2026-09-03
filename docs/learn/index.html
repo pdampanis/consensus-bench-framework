@@ -85,6 +85,10 @@ th,td{text-align:left;padding:.6rem .85rem;border-bottom:1px solid var(--rule-so
 th{font-family:Archivo,sans-serif;font-size:.66rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);background:var(--sunk);white-space:nowrap}
 tr:last-child td{border-bottom:0}
 ul{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:.42rem;color:var(--ink-2);font-size:.96rem}
+figure{margin:0;display:flex;flex-direction:column;gap:.6rem}
+figure svg{max-width:100%;height:auto;display:block;background:var(--surface);border:1px solid var(--rule);border-radius:5px}
+figcaption{font-size:.87rem;color:var(--muted);line-height:1.5}
+.fig-hi{color:var(--check)}
 footer{margin-top:4rem;padding-top:1.4rem;border-top:1px solid var(--rule);font-size:.85rem;color:var(--muted);display:flex;flex-direction:column;gap:.6rem}
 </style>
 
@@ -266,6 +270,63 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
     (line 98): a 1 s stall in a 3 s run must push p90 above 300 ms.</p>
   </div>
 
+  <figure>
+    <svg viewBox="0 0 720 330" role="img" aria-label="Three timelines. The top shows ten evenly spaced scheduled departure times. A shaded band marks a one-second stall covering four of them. The middle timeline, a closed-loop client, sends nothing during the stall and records a single slow sample. The bottom timeline, this engine, records four samples, each measured from its own scheduled departure, so each carries its own queueing delay.">
+      <defs>
+        <marker id="ar" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="7" markerHeight="7" orient="auto">
+          <path d="M0 0 L8 4 L0 8 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <rect x="250" y="26" width="210" height="272" fill="currentColor" opacity="0.055"/>
+      <text x="355" y="20" text-anchor="middle" font-size="11" fill="currentColor" opacity="0.7">the system is frozen for 1s</text>
+
+      <text x="40" y="48" font-size="12" font-weight="600" fill="currentColor">Scheduled departures — fixed before the run starts</text>
+      <line x1="40" y1="72" x2="690" y2="72" stroke="currentColor" stroke-width="1" opacity="0.35"/>
+      <g stroke="currentColor" stroke-width="2">
+        <line x1="60" y1="64" x2="60" y2="80"/><line x1="126" y1="64" x2="126" y2="80"/>
+        <line x1="192" y1="64" x2="192" y2="80"/><line x1="258" y1="64" x2="258" y2="80"/>
+        <line x1="324" y1="64" x2="324" y2="80"/><line x1="390" y1="64" x2="390" y2="80"/>
+        <line x1="456" y1="64" x2="456" y2="80"/><line x1="522" y1="64" x2="522" y2="80"/>
+        <line x1="588" y1="64" x2="588" y2="80"/><line x1="654" y1="64" x2="654" y2="80"/>
+      </g>
+
+      <text x="40" y="132" font-size="12" font-weight="600" fill="currentColor">Closed loop — the client waits for a reply before sending again</text>
+      <line x1="40" y1="156" x2="690" y2="156" stroke="currentColor" stroke-width="1" opacity="0.35"/>
+      <g stroke="currentColor" stroke-width="2">
+        <line x1="60" y1="148" x2="60" y2="164"/><line x1="126" y1="148" x2="126" y2="164"/>
+        <line x1="192" y1="148" x2="192" y2="164"/>
+        <line x1="522" y1="148" x2="522" y2="164"/><line x1="588" y1="148" x2="588" y2="164"/>
+        <line x1="654" y1="148" x2="654" y2="164"/>
+      </g>
+      <line x1="258" y1="156" x2="452" y2="156" stroke="currentColor" stroke-width="5" marker-end="url(#ar)"/>
+      <text x="466" y="160" font-size="11" fill="currentColor">1 slow sample</text>
+      <text x="258" y="182" font-size="11" fill="currentColor" opacity="0.7">nothing is sent while it waits — those operations leave no trace</text>
+
+      <text x="40" y="228" font-size="12" font-weight="600" fill="currentColor">This engine — open loop, latency charged from the INTENDED time</text>
+      <line x1="40" y1="252" x2="690" y2="252" stroke="currentColor" stroke-width="1" opacity="0.35"/>
+      <g stroke="currentColor" stroke-width="2">
+        <line x1="60" y1="244" x2="60" y2="260"/><line x1="126" y1="244" x2="126" y2="260"/>
+        <line x1="192" y1="244" x2="192" y2="260"/><line x1="522" y1="244" x2="522" y2="260"/>
+        <line x1="588" y1="244" x2="588" y2="260"/><line x1="654" y1="244" x2="654" y2="260"/>
+      </g>
+      <g stroke="currentColor" stroke-width="4" opacity="0.9">
+        <line x1="258" y1="240" x2="452" y2="240" marker-end="url(#ar)"/>
+        <line x1="324" y1="252" x2="452" y2="252" marker-end="url(#ar)"/>
+        <line x1="390" y1="264" x2="452" y2="264" marker-end="url(#ar)"/>
+        <line x1="456" y1="276" x2="470" y2="276" marker-end="url(#ar)"/>
+      </g>
+      <text x="484" y="256" font-size="11" fill="currentColor">4 samples,</text>
+      <text x="484" y="270" font-size="11" fill="currentColor">each with its own delay</text>
+      <text x="258" y="300" font-size="11" fill="currentColor" opacity="0.7">every scheduled operation is still measured — from when it should have left</text>
+    </svg>
+    <figcaption><b>Coordinated omission, and the correction.</b> A closed-loop client stops
+    asking for work exactly when the system stops doing it, so the stall produces one slow
+    sample instead of the hundred it actually delayed — the measurement conspires with the
+    failure. Charging each operation from its <em>scheduled</em> departure
+    (<code>WorkloadEngine.java:147-149</code>) recovers them.</figcaption>
+  </figure>
+
+
   <div class="stop"><span class="sn">6</span><div class="sb">
     <span class="path">core/EventLog.java</span><span class="len">141 lines</span>
     <p class="idea">Failover time is the gap from the injected fault to the first successful
@@ -437,6 +498,69 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
     <code>synchronized</code> on this class is one real bug, and question D2 is about it.</p>
   </div></div>
 
+  <figure>
+    <svg viewBox="0 0 720 300" role="img" aria-label="The cluster topology. A laptop reaches the load generator over SSH on a public address. The load generator drives the three consensus nodes over the private network, and that path is what gets measured. An observability machine scrapes all of them. When a partition is injected, the rules drop traffic pairwise between the consensus nodes only; the path from the load generator to the isolated leader deliberately stays open.">
+      <defs>
+        <marker id="ar4" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0 0 L8 4 L0 8 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <text x="360" y="18" font-size="11" text-anchor="middle" fill="currentColor" opacity="0.65">private network 10.0.0.0/24 — no cloud firewall applies here</text>
+      <rect x="150" y="28" width="556" height="250" rx="6" fill="none" stroke="currentColor" stroke-dasharray="3 3" opacity="0.3"/>
+
+      <g font-size="11" fill="currentColor" text-anchor="middle">
+        <rect x="14" y="112" width="96" height="42" rx="4" fill="none" stroke="currentColor" opacity="0.5"/>
+        <text x="62" y="130">your laptop</text><text x="62" y="144" font-size="10" opacity="0.7">public IP only</text>
+
+        <rect x="176" y="106" width="112" height="54" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
+        <text x="232" y="126" font-weight="600">loadgen</text>
+        <text x="232" y="140" font-size="10" opacity="0.75">10.0.0.20</text>
+        <text x="232" y="153" font-size="10" opacity="0.75">the harness runs HERE</text>
+
+        <rect x="392" y="42" width="112" height="42" rx="4" fill="none" stroke="currentColor"/>
+        <text x="448" y="60">node1 · leader</text><text x="448" y="74" font-size="10" opacity="0.75">10.0.0.11</text>
+        <rect x="392" y="122" width="112" height="42" rx="4" fill="none" stroke="currentColor"/>
+        <text x="448" y="140">node2</text><text x="448" y="154" font-size="10" opacity="0.75">10.0.0.12</text>
+        <rect x="392" y="202" width="112" height="42" rx="4" fill="none" stroke="currentColor"/>
+        <text x="448" y="220">node3</text><text x="448" y="234" font-size="10" opacity="0.75">10.0.0.13</text>
+
+        <rect x="588" y="122" width="104" height="42" rx="4" fill="none" stroke="currentColor" opacity="0.5"/>
+        <text x="640" y="140">obs</text><text x="640" y="154" font-size="10" opacity="0.7">Prometheus</text>
+      </g>
+
+      <line x1="110" y1="133" x2="172" y2="133" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar4)" opacity="0.55"/>
+      <text x="141" y="126" font-size="9.5" text-anchor="middle" fill="currentColor" opacity="0.7">ssh</text>
+
+      <g stroke="currentColor" stroke-width="2.5" marker-end="url(#ar4)">
+        <path d="M288 122 L386 68" fill="none"/>
+        <path d="M288 133 L386 140" fill="none"/>
+        <path d="M288 146 L386 218" fill="none"/>
+      </g>
+      <text x="316" y="96" font-size="10" fill="currentColor" font-weight="600">the measured path</text>
+
+      <g stroke="currentColor" stroke-width="1" opacity="0.35" stroke-dasharray="4 3">
+        <path d="M588 138 L508 66" fill="none"/><path d="M588 143 L508 143" fill="none"/>
+        <path d="M588 148 L508 220" fill="none"/><path d="M588 155 L296 158" fill="none"/>
+      </g>
+      <text x="640" y="180" font-size="9.5" text-anchor="middle" fill="currentColor" opacity="0.6">scrape</text>
+
+      <g stroke="currentColor" stroke-width="2.5" opacity="0.85">
+        <line x1="448" y1="86" x2="448" y2="118"/>
+        <line x1="440" y1="94" x2="456" y2="110"/><line x1="456" y1="94" x2="440" y2="110"/>
+        <line x1="448" y1="166" x2="448" y2="198"/>
+        <line x1="440" y1="174" x2="456" y2="190"/><line x1="456" y1="174" x2="440" y2="190"/>
+      </g>
+      <text x="352" y="272" font-size="10.5" fill="currentColor">a partition drops traffic <b>pairwise between nodes only</b> — never the whole subnet,</text>
+      <text x="352" y="288" font-size="10.5" fill="currentColor">because observing the isolated leader <tspan font-weight="600">is</tspan> the measurement</text>
+    </svg>
+    <figcaption><b>Why the partition is pairwise.</b> The load generator sits on the same
+    private subnet as the nodes. A subnet-wide block would sever the measured path too, and
+    the client would simply see an unreachable machine — telling you nothing. Dropping only
+    node-to-node traffic leaves a leader that is still running, still believes it leads, and
+    can no longer reach a quorum. That is the experiment.</figcaption>
+  </figure>
+
+
   <div class="stop"><span class="sn">15</span><div class="sb">
     <span class="path">topology/LocalDockerProvider.java · RemoteSshProvider.java <span class="opt">optional</span></span><span class="len">381 · 896 lines</span>
     <p class="idea">Local first: the parallel container start exists because an etcd member
@@ -522,6 +646,57 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
     error rate is not a zero one.</p>
   </div>
 
+    <figure>
+      <svg viewBox="0 0 640 320" role="img" aria-label="A decision tree. A gate needs a metric series. If the metrics directory does not exist, the result is SKIP, because the export step never ran. If it exists but the series is empty, the result is FAIL, because retrieval is broken. If it exists and has data, the gate is evaluated and returns PASS or FAIL.">
+        <defs>
+          <marker id="ar3" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M0 0 L8 4 L0 8 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g font-size="11.5" fill="currentColor" text-anchor="middle">
+          <rect x="230" y="16" width="180" height="34" rx="4" fill="none" stroke="currentColor" opacity="0.55"/>
+          <text x="320" y="37">a gate needs a metric series</text>
+
+          <path d="M320 78 L432 112 L320 146 L208 112 z" fill="none" stroke="currentColor"/>
+          <text x="320" y="109">does <tspan font-family="JetBrains Mono, monospace" font-size="10.5">metrics/</tspan></text>
+          <text x="320" y="123">exist at all?</text>
+
+          <path d="M320 174 L432 208 L320 242 L208 208 z" fill="none" stroke="currentColor"/>
+          <text x="320" y="205">is the series</text><text x="320" y="219">empty?</text>
+
+          <rect x="470" y="94" width="150" height="36" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
+          <text x="545" y="110" font-weight="600">SKIP</text>
+          <text x="545" y="124" font-size="10.5" opacity="0.75">the export never ran</text>
+
+          <rect x="470" y="190" width="150" height="36" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
+          <text x="545" y="206" font-weight="600">FAIL</text>
+          <text x="545" y="220" font-size="10.5" opacity="0.75">retrieval is broken</text>
+
+          <rect x="230" y="270" width="180" height="36" rx="4" fill="none" stroke="currentColor" opacity="0.55"/>
+          <text x="320" y="286">evaluate the threshold</text>
+          <text x="320" y="300" font-size="10.5" opacity="0.75">PASS or FAIL</text>
+        </g>
+        <g stroke="currentColor" stroke-width="1.5" marker-end="url(#ar3)" fill="none">
+          <line x1="320" y1="50" x2="320" y2="74"/>
+          <path d="M432 112 L470 112"/>
+          <line x1="320" y1="146" x2="320" y2="170"/>
+          <path d="M432 208 L470 208"/>
+          <line x1="320" y1="242" x2="320" y2="266"/>
+        </g>
+        <g font-size="10.5" fill="currentColor" opacity="0.75">
+          <text x="448" y="105">no</text>
+          <text x="330" y="164">yes</text>
+          <text x="448" y="201">yes</text>
+          <text x="330" y="260">no</text>
+        </g>
+      </svg>
+      <figcaption><b>Empty is not absent.</b> Both right-hand branches look like "no data",
+      and treating them the same is the bug this rule prevents: if an empty series counted as
+      "nothing bad found", broken monitoring would manufacture clean runs — and the more
+      broken it got, the cleaner the data would look.</figcaption>
+    </figure>
+
+
   <div class="stop"><span class="sn">18</span><div class="sb">
     <span class="path">validity/ConfidenceGrade.java</span><span class="len">120 lines</span>
     <p class="idea">How far a <b>cell</b> — one configuration measured five times — can be
@@ -588,6 +763,59 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
     <code>finishRun(...)</code> at 227, whose javadoc explains why <em>ordering</em> matters:
     collect every artifact first, judge last.</p>
   </div></div>
+
+  <figure>
+    <svg viewBox="0 0 720 250" role="img" aria-label="A left-to-right pipeline for one benchmark run: provision, connect, warmup, measurement with the fault injected inside it, drain, then four post-load steps: write the results, collect the logs, collect the docker events audit, and only then judge. An arrow underneath marks that judging must come after collecting.">
+      <defs>
+        <marker id="ar2" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="6" markerHeight="6" orient="auto">
+          <path d="M0 0 L8 4 L0 8 z" fill="currentColor"/>
+        </marker>
+      </defs>
+      <g font-size="11" fill="currentColor" text-anchor="middle">
+        <rect x="20" y="60" width="86" height="40" rx="4" fill="none" stroke="currentColor" opacity="0.5"/>
+        <text x="63" y="78">provision</text><text x="63" y="92" opacity="0.65">start cluster</text>
+        <rect x="118" y="60" width="72" height="40" rx="4" fill="none" stroke="currentColor" opacity="0.5"/>
+        <text x="154" y="84">connect</text>
+        <rect x="202" y="60" width="78" height="40" rx="4" fill="none" stroke="currentColor" opacity="0.5"/>
+        <text x="241" y="78">warmup</text><text x="241" y="92" opacity="0.65">180 s</text>
+        <rect x="292" y="60" width="128" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
+        <text x="356" y="78" font-weight="600">measurement</text><text x="356" y="92" opacity="0.65">300 s</text>
+        <rect x="432" y="60" width="62" height="40" rx="4" fill="none" stroke="currentColor" opacity="0.5"/>
+        <text x="463" y="84">drain</text>
+      </g>
+      <g stroke="currentColor" stroke-width="1.5" marker-end="url(#ar2)" opacity="0.6">
+        <line x1="106" y1="80" x2="114" y2="80"/><line x1="190" y1="80" x2="198" y2="80"/>
+        <line x1="280" y1="80" x2="288" y2="80"/><line x1="420" y1="80" x2="428" y2="80"/>
+      </g>
+      <line x1="356" y1="112" x2="356" y2="128" stroke="currentColor" stroke-width="1.5"/>
+      <text x="356" y="142" font-size="11" text-anchor="middle" fill="currentColor">fault injected here, and time-stamped only <tspan font-weight="600">after</tspan> it lands</text>
+
+      <g font-size="11" fill="currentColor" text-anchor="middle">
+        <rect x="20" y="176" width="104" height="36" rx="4" fill="none" stroke="currentColor" opacity="0.5"/>
+        <text x="72" y="198">1. write results</text>
+        <rect x="140" y="176" width="104" height="36" rx="4" fill="none" stroke="currentColor" opacity="0.5"/>
+        <text x="192" y="198">2. collect logs</text>
+        <rect x="260" y="176" width="112" height="36" rx="4" fill="none" stroke="currentColor" opacity="0.5"/>
+        <text x="316" y="198">3. collect events</text>
+        <rect x="388" y="176" width="94" height="36" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
+        <text x="435" y="198" font-weight="600">4. judge</text>
+      </g>
+      <g stroke="currentColor" stroke-width="1.5" marker-end="url(#ar2)" opacity="0.6">
+        <line x1="124" y1="194" x2="136" y2="194"/><line x1="244" y1="194" x2="256" y2="194"/>
+        <line x1="372" y1="194" x2="384" y2="194"/>
+      </g>
+      <path d="M463 108 L463 150 L72 150 L72 172" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.6" marker-end="url(#ar2)"/>
+      <text x="500" y="198" font-size="11" fill="currentColor">judging before step 3</text>
+      <text x="500" y="212" font-size="11" fill="currentColor">made gate 4 SKIP</text>
+      <text x="500" y="226" font-size="11" fill="currentColor">on every single cell</text>
+    </svg>
+    <figcaption><b>One run, and why the last four steps are in that order.</b> The results are
+    written first, so the collectors' "the measurement is already safe on disk" licence is
+    true when they run. The verdict is last, because a gate can only judge evidence that
+    already exists — judging at step 1 made the container-restart gate skip for want of an
+    audit the next statement wrote.</figcaption>
+  </figure>
+
 
   <div class="stop"><span class="sn">21</span><div class="sb">
     <span class="path">campaign/MatrixRunner.java · Simulations.java <span class="opt">optional</span></span><span class="len">409 · 85 lines</span>
