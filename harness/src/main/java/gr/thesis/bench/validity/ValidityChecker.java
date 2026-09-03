@@ -10,7 +10,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * ValidityChecker (M5.5) — the methodology §4 gates, evaluated per run into
@@ -654,12 +656,62 @@ public final class ValidityChecker {
         return out;
     }
 
+    /**
+     * A counter increments WITHIN one series or not at all (M1). The
+     * exporter writes series-major rows — every sample of node1, then every
+     * sample of node2 — so comparing the first row to the last row compares
+     * node1's earliest value to node3's latest. That is the exporter's
+     * ordering, not the cluster's behaviour, and it is wrong in both
+     * directions: it reads an increment where no node moved (different
+     * resting values), and misses one where a node moved but another rests
+     * higher and happens to be written first.
+     */
     private static boolean counterIncreasesInWindow(Path dir, String name, long faultEpochSec)
             throws IOException {
-        List<double[]> s = inWindow(metricValues(dir, name), faultEpochSec);
-        if (s.size() < 2) return false;
-        double first = s.get(0)[1], last = s.get(s.size() - 1)[1];
-        return last > first;
+        Map<String, List<Sample>> bySeries = new LinkedHashMap<>();
+        for (Sample s : metricSamples(dir, name)) {
+            if (inWindow(s.t(), faultEpochSec)) {
+                bySeries.computeIfAbsent(s.series(), k -> new ArrayList<>()).add(s);
+            }
+        }
+        for (List<Sample> series : bySeries.values()) {
+            if (series.size() >= 2
+                    && series.get(series.size() - 1).value() > series.get(0).value()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** One CSV row with its series identity kept. {@link #metricValues}
+     *  drops it, which is safe for the any-sample gauge checks and fatal for
+     *  the counter check above. */
+    private record Sample(double t, String series, double value) { }
+
+    /** As {@link #metricValues}, but keeping the label column the exporter
+     *  writes immediately before {@code value} (header
+     *  {@code t_unix,t_iso,series,value}). A row too short to carry one
+     *  belongs to a single unnamed series. */
+    private static List<Sample> metricSamples(Path dir, String name) throws IOException {
+        Path f = dir.resolve("metrics").resolve(name + ".csv");
+        if (!Files.exists(f)) return List.of();
+        List<String> lines = Files.readAllLines(f);
+        List<Sample> out = new ArrayList<>();
+        for (int i = 1; i < lines.size(); i++) { // skip header
+            String line = lines.get(i).strip();
+            if (line.isEmpty()) continue;
+            String[] cols = line.split(",");
+            if (cols.length < 2) continue;
+            try {
+                double t = Double.parseDouble(cols[0].strip());
+                double v = Double.parseDouble(cols[cols.length - 1].strip());
+                String series = cols.length >= 3 ? cols[cols.length - 2].strip() : "";
+                out.add(new Sample(t, series, v));
+            } catch (NumberFormatException ignore) {
+                // a non-numeric row (stray label) is not a sample; skip it.
+            }
+        }
+        return out;
     }
 
     private static boolean seriesHitsZeroInWindow(Path dir, String name, long faultEpochSec)
@@ -676,11 +728,14 @@ public final class ValidityChecker {
 
     /** Samples whose epoch-second timestamp falls within ±60 s of the fault. */
     private static List<double[]> inWindow(List<double[]> series, long faultEpochSec) {
-        double lo = faultEpochSec - FAULT_WINDOW_MS / 1000.0;
-        double hi = faultEpochSec + FAULT_WINDOW_MS / 1000.0;
         List<double[]> out = new ArrayList<>();
-        for (double[] v : series) if (v[0] >= lo && v[0] <= hi) out.add(v);
+        for (double[] v : series) if (inWindow(v[0], faultEpochSec)) out.add(v);
         return out;
+    }
+
+    private static boolean inWindow(double tEpochSec, long faultEpochSec) {
+        double half = FAULT_WINDOW_MS / 1000.0;
+        return tEpochSec >= faultEpochSec - half && tEpochSec <= faultEpochSec + half;
     }
 
     private static double mean(double[] xs) {

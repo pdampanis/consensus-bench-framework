@@ -193,6 +193,73 @@ class ValidityCheckerTest {
     }
 
     @Test
+    void crossSeriesOrderingIsNotAnIncrement(@TempDir Path dir) throws IOException {
+        // M1. The exporter writes SERIES-MAJOR rows (PrometheusExporter#toCsv:
+        // outer loop = series, inner = that series' samples), so a 3-node etcd
+        // job lands as node1's whole window, then node2's, then node3's.
+        // Comparing the FIRST row to the LAST row therefore compares node1's
+        // earliest sample to node3's latest — an ordering artefact, not a
+        // counter increment. Here NEITHER node's leader-change counter moves;
+        // only their different resting values make the flat comparison rise.
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"),
+                manifest(100, 2, 6, "leader_kill", "3000"));
+        Files.writeString(dir.resolve("throughput.csv"), "0,100\n1,100\n2,100\n3,0\n4,90\n5,100\n");
+        long f = Instant.parse("2026-08-03T14:00:03Z").getEpochSecond();
+        metric(dir, "etcd_leader_chg",
+                (f - 5) + ",10.0.0.11,2\n" + (f + 5) + ",10.0.0.11,2\n"
+              + (f - 5) + ",10.0.0.12,3\n" + (f + 5) + ",10.0.0.12,3\n");
+
+        assertEquals(State.FAIL, stateOf(ValidityChecker.check(dir), "fault_ground_truth"),
+                "no series increments — the rise is series ordering, not a leader change");
+    }
+
+    @Test
+    void oneSeriesIncrementingIsEnoughEvenWhenAnotherSitsHigher(@TempDir Path dir)
+            throws IOException {
+        // M1, the direction that DISCARDS good data: node2 really does record
+        // a leader change, but node1 rests at a higher value and is written
+        // first, so first(5) > last(3) and the flat comparison reports "no
+        // movement" on a run whose fault is corroborated.
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"),
+                manifest(100, 2, 6, "leader_kill", "3000"));
+        Files.writeString(dir.resolve("throughput.csv"), "0,100\n1,100\n2,100\n3,0\n4,90\n5,100\n");
+        long f = Instant.parse("2026-08-03T14:00:03Z").getEpochSecond();
+        metric(dir, "etcd_leader_chg",
+                (f - 5) + ",10.0.0.11,5\n" + (f + 5) + ",10.0.0.11,5\n"
+              + (f - 5) + ",10.0.0.12,2\n" + (f + 5) + ",10.0.0.12,3\n");
+
+        assertEquals(State.PASS, stateOf(ValidityChecker.check(dir), "fault_ground_truth"),
+                "10.0.0.12 stepped 2 -> 3 inside the window; that IS the witness");
+    }
+
+    @Test
+    void theExporterSOwnFourColumnLayoutGroupsBySeries(@TempDir Path dir) throws IOException {
+        // The fixtures above use this test's 3-column helper. PRODUCTION
+        // writes four — "t_unix,t_iso,series,value" (PrometheusExporter#header)
+        // — and the drift between what the exporter WRITES and what this
+        // checker READS is exactly what metricValues' javadoc warns about.
+        // Same M1 shape, written the way the exporter really writes it.
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"),
+                manifest(100, 2, 6, "leader_kill", "3000"));
+        Files.writeString(dir.resolve("throughput.csv"), "0,100\n1,100\n2,100\n3,0\n4,90\n5,100\n");
+        long f = Instant.parse("2026-08-03T14:00:03Z").getEpochSecond();
+        Files.createDirectories(dir.resolve("metrics"));
+        Files.writeString(dir.resolve("metrics").resolve("etcd_leader_chg.csv"),
+                "t_unix,t_iso,series,value\n"
+                + (f - 5) + "," + Instant.ofEpochSecond(f - 5) + ",instance=10.0.0.11:2381,4\n"
+                + (f + 5) + "," + Instant.ofEpochSecond(f + 5) + ",instance=10.0.0.11:2381,4\n"
+                + (f - 5) + "," + Instant.ofEpochSecond(f - 5) + ",instance=10.0.0.12:2381,1\n"
+                + (f + 5) + "," + Instant.ofEpochSecond(f + 5) + ",instance=10.0.0.12:2381,2\n");
+
+        assertEquals(State.PASS, stateOf(ValidityChecker.check(dir), "fault_ground_truth"),
+                "the :2381 series that stepped 1 -> 2 is the witness, whatever order"
+                        + " the exporter wrote the series in");
+    }
+
+    @Test
     void faultRunWithoutCorroborationFailsForReclassification(@TempDir Path dir) throws IOException {
         Files.createDirectories(dir);
         Files.writeString(dir.resolve("manifest.json"),

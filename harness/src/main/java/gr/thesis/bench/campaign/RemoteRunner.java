@@ -195,22 +195,8 @@ public final class RemoteRunner {
             }
             Instant ended = Instant.now();
 
-            exportMetrics(inv, id.dir(spec.out()), started, ended);
-            writeResultsAndCheck(spec.out(), id, result, cfg, "hetzner",
-                    imageFor(spec.system()), started, ended);
-            if (faultRun) {
-                // Fault forensics (P4.5) — SUT nodes AND any auxiliary
-                // containers. KAFKA_ZK colocates a ZooKeeper ensemble beside
-                // each broker (D10), and omitting it left a ZAB fault run's
-                // evidence missing precisely the coordination half the
-                // F6 comparison is about (F58).
-                collectSutLogs(ssh, nodes, id.dir(spec.out()));
-                collectAuxLogs(ssh, provider.auxContainerHandles(), id.dir(spec.out()));
-            }
-            // The events audit is collected for EVERY run, not just fault
-            // runs: gate 4 asks whether an UNEXPECTED restart happened, and a
-            // baseline is exactly where an unexpected one would hide.
-            collectDockerEvents(ssh, nodes, id.dir(spec.out()), started, ended);
+            finishRun(ssh, nodes, provider.auxContainerHandles(), spec, inv, id,
+                    result, cfg, started, ended);
             if (injectionFailure.get() != null) {
                 // The run completed and its CSVs exist for forensics, but a
                 // fault run whose fault never fired is NOT a fault result.
@@ -221,6 +207,44 @@ public final class RemoteRunner {
             log.info("remote-run complete: {} committed after warmup, {} errors -> {}",
                     result.latencies().countAfterWarmup(), result.errors(), id.dir(spec.out()));
         }
+    }
+
+    /**
+     * Everything after the load stops, in the one order that works: gather
+     * every artifact a gate reads, and only THEN judge (M3).
+     *
+     * <p>Judging first — which is what this code did inline — makes gate 4
+     * ({@code container_restarts}) SKIP on every cell for want of the
+     * {@code events/} audit that the very next statement writes. That gate
+     * is the audit saying a kill actually happened, and for the systems
+     * with no server-side metrics it doubles as gate 3's kill witness
+     * (F41), so the loss is not cosmetic: the "9 of 11 gates" figure is not
+     * what a {@code remote-run} produces.
+     *
+     * <p>The collectors create their own subdirectories, so nothing here
+     * depends on {@link CsvResultsWriter} having run first.
+     */
+    static void finishRun(SshExecutor ssh, List<NodeHandle> nodes, List<String[]> aux,
+                          Spec spec, Inventory inv, CsvResultsWriter.RunIdentity id,
+                          WorkloadEngine.Result result, WorkloadEngine.Config cfg,
+                          Instant started, Instant ended) throws Exception {
+        Path runDir = id.dir(spec.out());
+        exportMetrics(inv, runDir, started, ended);
+        if (spec.scenario() != Scenario.BASELINE) {
+            // Fault forensics (P4.5) — SUT nodes AND any auxiliary
+            // containers. KAFKA_ZK colocates a ZooKeeper ensemble beside
+            // each broker (D10), and omitting it left a ZAB fault run's
+            // evidence missing precisely the coordination half the
+            // F6 comparison is about (F58).
+            collectSutLogs(ssh, nodes, runDir);
+            collectAuxLogs(ssh, aux, runDir);
+        }
+        // The events audit is collected for EVERY run, not just fault
+        // runs: gate 4 asks whether an UNEXPECTED restart happened, and a
+        // baseline is exactly where an unexpected one would hide.
+        collectDockerEvents(ssh, nodes, runDir, started, ended);
+        writeResultsAndCheck(spec.out(), id, result, cfg, "hetzner",
+                imageFor(spec.system()), started, ended);
     }
 
     /**

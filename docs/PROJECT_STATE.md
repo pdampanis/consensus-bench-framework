@@ -7,9 +7,10 @@ the thing you plan from. If this file and a reference file disagree about
 what to DO, this file wins; if they disagree about a METHOD, the reference
 wins (see §8).
 
-**Last verified: 2026-09-02.** `mvn21 clean verify` → **`Tests run: 243,
-Failures: 0, Errors: 0`, BUILD SUCCESS, 05:48**, on the **merge commit
-`38eb11f`** in `~/Downloads/cbt-main`. 37 test classes ran against 37 on
+**Last verified: 2026-09-03.** `mvn21 clean verify` → **`Tests run: 247,
+Failures: 0, Errors: 0`, BUILD SUCCESS, 05:23**, in `~/Downloads/cbt-main`
+with M3 and M1 fixed (243 was the count on the merge commit `38eb11f`;
+the four new tests account for the difference). 37 test classes ran against 37 on
 disk. Count read from Maven's own summary line, never from arithmetic over
 report files (F76) — which did **not** recur.
 
@@ -251,7 +252,6 @@ Only what is still OPEN is here.
 | **N-5** | **`prometheus.yml` placeholders are never substituted**, and `NODE4` is hardcoded at n=3 | No writer anywhere in `scripts/ infra/ harness/src/main/` | Install `patches/scripts/render_obs_config.sh` |
 | **N-7** | `MatrixRunner` has **no failure ceiling** — a systemic fault bills all night and produces nothing | `MatrixRunner.java:322` | Re-implement the breaker (the shipped patch is stale, §6 P0.9) |
 | **B-1/2/3** | **The loadgen cannot run the harness at all.** Three things nothing provisions: (1) **no JRE** — `cloud-init.yaml`'s package list has no JDK and `grep -rniE 'jdk\|openjdk' infra/ scripts/` returns **0** hits, yet `RemoteRunner` SSHes to `10.0.0.11+` and so can only run **on** loadgen; (2) **no private key on loadgen** — Terraform installs only the public key (`main.tf:43`) while `Inventory` hands `SSH_KEY=~/.ssh/hetzner_thesis` to `SshjExecutor`; (3) **nothing ships the jar** — no script copies it, and `RemoteRunner.java:388` reads `observability/export_queries.txt` relative to CWD while its javadoc credits `collect_block.sh`, which only copies results *back*. | Greps + file:line, this review. (2) is recorded **only** in `docs/archive/HONEST_REVIEW_V6.md:36-39`, i.e. in a DEPRECATED file, and appears in no current plan | `scripts/bootstrap_loadgen.sh` — §6 Phase 0.15 |
-| **M3** | The **"9 of 11 gates" figure is not what a `remote-run` produces** — the check runs at `:199`, `events/` is written at `:213` | file:line | Move both collectors above the check |
 
 **N-16 + N-5 together are the campaign-killer.** With no Prometheus, the
 exporter writes header-only files, `hasMetrics` is true, and the §4 meta-rule
@@ -266,7 +266,6 @@ run still bills in full.
 | **C4** | E-SCALE does not measure what it claims. **The finding as written is half wrong** — `KafkaDriver.java:95` already does `rf = Math.min(3, bootstrap.size())`, so RF is not "pinned at 3". The two real defects are the **cap at 3** (so a size-5 or size-7 scalability cell still replicates to 3 and E-SCALE compares nothing) and **`PARTITIONS = 6`** (`KafkaDriver.java:61`), which measures six Raft groups against etcd's one | Remove the cap; `min.insync.replicas = ⌊n/2⌋+1`; 1 partition for E-SCALE plus one *declared* 6-partition production-shaped cell. **Client-side only — does NOT touch goldens** |
 | **N-20** | etcd runs on its **default 2 GiB backend quota** with no auto-compaction; ~1.95 M writes at 1 KB exhausts it, so any cell above ~4,000 ops/s for 480 s trips `NOSPACE` mid-run | Set the quota and auto-compaction in the etcd recipe. **Touches goldens.** Measure `etcd_mvcc_db_total_size_in_bytes` on the canary |
 | **C3** | Operations that hit the 5 s driver bound leave the histogram entirely — unevenly (Paxi loses ~100 % of its tail mass, etcd a few percent) | Second histogram at the bound; report `p99_success` **and the timed-out count** in the manifest and every fault caption |
-| **M1** | The exporter writes series-major CSV and the checker **ignores the instance column**, so the counter check compares node 1's first sample to node 3's last | Group by series before comparing |
 | **M4** | Accumulated open-loop backlog is discarded at loop exit — understates p99/max, worst for the system that stalled most, i.e. for the ranking itself | Record the remainder as `omitted_by_schedule` |
 | **M6** | Warmup is judged by *completion* time while latency is charged to *intended* time | Judge by intended. One line |
 | **M5/M8/M9** | `events_dropped` is written and no gate reads it; grade **A** is unreachable (`durability` always SKIPs); the SKIP set is read from `reports.get(0)` only | Three small fixes; see also §5 note below |
@@ -329,8 +328,8 @@ read from Maven's own summary line, one commit per step.
 |---|---|---|---|
 | **0.1** | **C1** — the gate SKIPs for systems with no engine-measured error rate (`error_rate` is **not** derivable from the HotStuff SUMMARY); add `window` from `spec.window()` | no | A HotStuff-shaped manifest reaches `valid: true`; a red test first, on the manifest **production actually writes**. **Not done until 0.5b too** — `valid: true` alone still yields a cell of `{n: 1}` |
 | **0.2** | **M2** — `tendermint` uses the gauge witness | no | A recovered-chain fixture (rounds 0→2→0) passes gate 3 |
-| **0.3** | **M3** — collectors move above the validity check | no | A `remote-run` fixture evaluates `container_restarts` instead of SKIPping it |
-| **0.3b** | **M1 — moved here from Phase 3.** It breaks the canary's *own* gate 3: `PrometheusExporter.java:177-179` writes series-major rows, `counterIncreasesInWindow` (`ValidityChecker.java:657-663`) compares `s.get(0)` to `s.get(size-1)` across **all** series, and the `node_up` rescue at `:593` does **not** fire for a `docker kill` (node_exporter keeps running, so `up{job="node"}` stays 1). Group by the `series` column the CSV already carries | no | A 3-instance `etcd_leader_chg` fixture where node1 alone increments passes, and one where only the cross-series ordering suggests an increment fails |
+| ~~0.3~~ ✅ | **M3 — DONE 2026-09-03.** `finishRun` gathers the metrics export, the SUT/aux logs and the docker-events audit, and only then calls `writeResultsAndCheck`. Red first, on the production string: `"container_restarts", "state": "SKIP", "detail": "no events/ dir"` | no | ✅ `RemoteRunnerTest#faultRunIsJudgedAgainstTheEventsAuditItJustCollected` |
+| ~~0.3b~~ ✅ | **M1 — DONE 2026-09-03.** `counterIncreasesInWindow` groups by series and requires the increase *within* one. Confirmed at file:line first: `PrometheusExporter.java:177-179` writes series-major rows; `ValidityChecker.java:657-663` compared `s.get(0)` to `s.get(size-1)` across all of them; the `node_up` rescue at `:593` does not fire for a `docker kill` | no | ✅ Three tests — a fixture where no series moves but ordering fakes a rise (was PASS), one where a real increment was masked by a higher-resting node (was FAIL), and one in the exporter's real four-column layout |
 | **0.4** | **N-20** — etcd backend quota + auto-compaction. **The only golden-touching item in the plan.** Size it from published guidance now and accept that canary 2.16 may revise it (see the note under Phase 3) | **YES** | Golden updated first as the spec, provider matches verbatim |
 | **0.5** | **C4** — remove `KafkaDriver`'s RF cap at 3, set `min.insync.replicas = ⌊n/2⌋+1`, 1 partition for E-SCALE plus one declared 6-partition cell | no — client-side | A size-5 cell replicates to 5; `kraft-size3` golden **unchanged** (verify by running the golden test, do not assume) |
 | **0.5b** | **C2** — `analyse.py` reads `summary.txt`; HotStuff gets its own table | no | A HotStuff cell yields real numbers, not `{n: 1}` |

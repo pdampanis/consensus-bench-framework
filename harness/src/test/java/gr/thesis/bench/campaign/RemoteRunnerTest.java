@@ -9,6 +9,7 @@ import gr.thesis.bench.driver.PaxiDriver;
 import gr.thesis.bench.topology.LocalDockerProvider;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Path;
 import java.util.List;
@@ -16,6 +17,7 @@ import java.util.Optional;
 import java.util.concurrent.CompletionStage;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -287,5 +289,52 @@ class RemoteRunnerTest {
         RemoteRunner.writeResultsAndCheck(out, id, result, cfg, "hetzner", null,
                 java.time.Instant.EPOCH, java.time.Instant.EPOCH.plusSeconds(6));
         assertTrue(java.nio.file.Files.exists(id.dir(out).resolve("manifest.json")));
+    }
+
+    /** Canned executor: the docker-events audit answers with a real event
+     *  line, everything else with a benign empty success. */
+    private static gr.thesis.bench.topology.SshExecutor cannedEvents(String events) {
+        return new gr.thesis.bench.topology.SshExecutor() {
+            @Override public ExecResult exec(String host, int port, String command) {
+                return command.contains("docker events")
+                        ? new ExecResult(0, events, "")
+                        : new ExecResult(0, "", "");
+            }
+            @Override public void close() { }
+        };
+    }
+
+    @Test
+    void faultRunIsJudgedAgainstTheEventsAuditItJustCollected(@TempDir Path out) throws Exception {
+        // M3. The docker-events audit is gate 4's only input, and gate 4 is
+        // the audit that says a kill actually happened. Judging the run
+        // BEFORE collecting it makes the gate SKIP on every single cell —
+        // "9 of 11 gates" is then not what a remote-run produces. This pins
+        // the ORDER: everything a gate reads exists before the verdict.
+        var nodes = java.util.List.of(new gr.thesis.bench.topology.ClusterProvider.NodeHandle(
+                0, "thesis-etcd1", "10.0.0.11", "10.0.0.11"));
+        var spec = new RemoteRunner.Spec(SystemUnderTest.ETCD, Scenario.LEADER_KILL, 1,
+                100, 6, 2, 64, 1024, 0.0, 3, 0, 0, out, "r003",
+                Path.of("deploy/inventory.env"), "root");
+        var inv = new Inventory(java.util.List.of("10.0.0.11"), "10.0.0.20",
+                Optional.empty(), Path.of("key"));   // no obs -> metrics export is a no-op
+        var id = new gr.thesis.bench.results.CsvResultsWriter.RunIdentity(
+                SystemUnderTest.ETCD, Scenario.LEADER_KILL, 1, 0.0, "r003");
+        var cfg = new gr.thesis.bench.core.WorkloadEngine.Config(6, 2, 100, 64, 1024, 0.0);
+        var rec = new gr.thesis.bench.core.LatencyRecorder();
+        for (int i = 0; i < 400; i++) rec.record(1_000, true);
+        var result = new gr.thesis.bench.core.WorkloadEngine.Result(
+                new long[]{100, 100, 100, 0, 90, 100}, rec, 0);
+
+        RemoteRunner.finishRun(cannedEvents("1754229600 thesis-etcd1 die\n"),
+                nodes, java.util.List.<String[]>of(), spec, inv, id, result, cfg,
+                java.time.Instant.EPOCH, java.time.Instant.EPOCH.plusSeconds(6));
+
+        String verdict = java.nio.file.Files.readString(id.dir(out).resolve("validity.json"));
+        assertFalse(verdict.contains("no events/ dir"),
+                "the audit was collected before the verdict, so gate 4 must not SKIP for"
+                        + " want of it:\n" + verdict);
+        assertTrue(verdict.contains("container event(s), expected for this scenario"),
+                "and it must READ the die event the audit recorded:\n" + verdict);
     }
 }
