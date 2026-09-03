@@ -688,6 +688,7 @@ consulted, not planned from.
 | `LOCAL_TESTING.md` · `PER_ALGORITHM_TEST_GUIDE.md` · `MONITORING_GUIDE.md` | Operator guides |
 | `MEASUREMENT_DIAGRAMS.md` · `JAVA_HARNESS_ASSESSMENT.md` | Architecture and rationale |
 | `examples/` · `SSH_SETUP.md` | Sample data, planned SSH switch |
+| **`learn/index.html`** | **The onboarding curriculum.** Six stages, 22 stops through the code in dependency order, with the prerequisite concept per stage, self-check questions, and external references (papers, videos, visualisations). Published: [https://claude.ai/code/artifact/52a65d7d-10e1-4032-b5a8-92568e08a4a1](https://claude.ai/code/artifact/52a65d7d-10e1-4032-b5a8-92568e08a4a1) |
 | **`NEXT_SESSION.md`** | **The session handoff.** Orientation (including which worktree is stale), verified state with the command behind each number, the environment traps, the next increment, and what only the author can do |
 | **`FIRST_MANUAL_DEPLOY.md`** | **The Phase 2 session, command by command.** The author's hand-driven canary at n=3: tooling, key, token, price gate, apply, loadgen bootstrap, obs by hand, one baseline + one `leader_kill` cell, collection, analysis, destroy |
 | `HANDOFF_REVIEW_2026-09-02.md` | **Evidence ledger** for the `thesis-handoff-2026-08-21` review: every finding's verdict against *this* tree, what was executed, and what was not |

@@ -187,6 +187,7 @@ Hetzner bills a partial hour as a full one. Expect `Plan: 11 to add`.
 | `docs/HANDOFF_REVIEW_2026-09-02.md` | Evidence ledger — §7 says what was *not* verified |
 | `CLAUDE.md` | Session rules, the thesis-alignment rule, the build |
 | `thesis/README.md` | The LaTeX build and its checks |
+| [Understanding Consensus Bench](https://claude.ai/code/artifact/52a65d7d-10e1-4032-b5a8-92568e08a4a1) | **Start here if the codebase is new to you.** A six-stage reading path, novice level; source `docs/learn/index.html` |
 | [The plan as one page](https://claude.ai/code/artifact/466a87d7-247c-4dbd-a128-752d0bf33c46) | Published summary; source `docs/artifact/plan.html` |
 
 `docs/archive/` is **history, not guidance** — but code comments cite its

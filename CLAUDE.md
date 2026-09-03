@@ -30,6 +30,11 @@ doc, because a stale coordination table is worse than none.
 traps, the next increment, and the list of what only the author can do.
 Then this file's rules, then `docs/PROJECT_STATE.md`.
 
+**Never seen this project before, or onboarding a person?**
+[Understanding Consensus Bench](https://claude.ai/code/artifact/52a65d7d-10e1-4032-b5a8-92568e08a4a1) — a six-stage reading path through the
+code, novice level, with prerequisites, self-checks and external references.
+Source: `docs/learn/index.html`.
+
 ## Then: the driving document
 
 **`docs/PROJECT_STATE.md` is the SINGLE DRIVING DOCUMENT.** Decisions, open

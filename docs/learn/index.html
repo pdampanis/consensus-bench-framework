@@ -1,0 +1,682 @@
+<title>Understanding Consensus Bench</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=Archivo:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#fbfaf8; --surface:#fff; --sunk:#f2efe9;
+  --ink:#191c22; --ink-2:#414753; --muted:#6d7480;
+  --rule:#e2ded7; --rule-soft:#eeebe5;
+  --accent:#2f4a7c; --accent-soft:#e8ecf5;
+  --check:#8f5518; --check-soft:#f8eee1;
+  --opt:#5d7a52; --opt-soft:#eaf0e7;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --ground:#131418; --surface:#1b1d23; --sunk:#16181d;
+  --ink:#e9e7e2; --ink-2:#bdc0c8; --muted:#878d99;
+  --rule:#2b2e36; --rule-soft:#212429;
+  --accent:#8fa9dd; --accent-soft:#1b2233;
+  --check:#d9a165; --check-soft:#2a2016;
+  --opt:#a3c294; --opt-soft:#1c2419;
+}}
+:root[data-theme="dark"]{
+  --ground:#131418; --surface:#1b1d23; --sunk:#16181d;
+  --ink:#e9e7e2; --ink-2:#bdc0c8; --muted:#878d99;
+  --rule:#2b2e36; --rule-soft:#212429;
+  --accent:#8fa9dd; --accent-soft:#1b2233;
+  --check:#d9a165; --check-soft:#2a2016;
+  --opt:#a3c294; --opt-soft:#1c2419;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font:400 17px/1.68 Literata,Georgia,serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:50rem;margin:0 auto;padding:3rem 1.4rem 7rem}
+h1,h2,h3,h4{margin:0;text-wrap:balance;font-family:Archivo,system-ui,sans-serif}
+h1{font-size:2.6rem;line-height:1.08;font-weight:700;letter-spacing:-.02em}
+h2{font-size:1.5rem;font-weight:600;letter-spacing:-.01em}
+h3{font-size:1.12rem;font-weight:600}
+h4{font-size:.95rem;font-weight:600}
+p{margin:0}
+code{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.83em;background:var(--sunk);padding:.1em .35em;border-radius:3px;color:var(--ink-2);word-break:break-word}
+a{color:var(--accent);text-underline-offset:2px}
+.label{font-family:Archivo,sans-serif;font-size:.68rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+header{border-bottom:3px solid var(--ink);padding-bottom:1.7rem;display:flex;flex-direction:column;gap:.9rem}
+.sub{font-size:1.1rem;line-height:1.6;color:var(--ink-2)}
+.facts{display:flex;flex-wrap:wrap;gap:.4rem 1.5rem;font-family:"JetBrains Mono",monospace;font-size:.76rem;color:var(--muted)}
+section{margin-top:3.2rem;display:flex;flex-direction:column;gap:1.1rem}
+.lede{color:var(--ink-2)}
+.callout{background:var(--surface);border:1px solid var(--rule);border-left:4px solid var(--accent);border-radius:0 5px 5px 0;padding:1rem 1.2rem;display:flex;flex-direction:column;gap:.55rem}
+.callout.warn{border-left-color:var(--check)}
+.callout h4{color:var(--ink)}
+.callout p{font-size:.95rem;color:var(--ink-2)}
+/* stage */
+.stage{margin-top:3.6rem;border-top:2px solid var(--ink);padding-top:1.4rem;display:flex;flex-direction:column;gap:1.1rem}
+.stagehead{display:flex;align-items:baseline;gap:.9rem;flex-wrap:wrap}
+.sl{font-family:Archivo,sans-serif;font-weight:700;font-size:2.1rem;line-height:1;color:var(--accent)}
+.pre{background:var(--check-soft);border-radius:5px;padding:.85rem 1.1rem;font-size:.95rem;color:var(--ink-2)}
+.pre b{font-family:Archivo,sans-serif;font-size:.68rem;letter-spacing:.13em;text-transform:uppercase;color:var(--check);display:block;margin-bottom:.3rem}
+/* stops */
+.stop{border-top:1px solid var(--rule-soft);padding:1.05rem 0;display:grid;grid-template-columns:2.3rem 1fr;gap:0 1rem}
+.sn{font-family:"JetBrains Mono",monospace;font-size:.95rem;color:var(--muted);font-variant-numeric:tabular-nums;padding-top:.22rem}
+.sb{display:flex;flex-direction:column;gap:.42rem;min-width:0}
+.path{font-family:"JetBrains Mono",monospace;font-size:.83rem;color:var(--ink);word-break:break-all;font-weight:500}
+.len{font-family:"JetBrains Mono",monospace;font-size:.74rem;color:var(--muted)}
+.idea{font-size:.97rem;color:var(--ink-2)}
+.first{font-size:.9rem;color:var(--ink-2);background:var(--sunk);border-radius:4px;padding:.45rem .7rem}
+.first b{font-family:Archivo,sans-serif;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.opt{display:inline-block;font-family:Archivo,sans-serif;font-size:.62rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;background:var(--opt-soft);color:var(--opt);padding:.14em .5em;border-radius:3px;vertical-align:.12em}
+/* checkpoint */
+.chk{background:var(--surface);border:1px solid var(--rule);border-radius:6px;padding:1.1rem 1.25rem;display:flex;flex-direction:column;gap:.7rem}
+.chk>b{font-family:Archivo,sans-serif;font-size:.68rem;letter-spacing:.13em;text-transform:uppercase;color:var(--accent)}
+details{border-top:1px solid var(--rule-soft);padding-top:.6rem}
+details:first-of-type{border-top:0;padding-top:0}
+summary{cursor:pointer;font-size:.97rem;color:var(--ink);font-weight:600;list-style:none;display:flex;gap:.5rem}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"▸";color:var(--accent);flex:0 0 auto}
+details[open] summary::before{content:"▾"}
+details p{margin-top:.5rem;font-size:.93rem;color:var(--ink-2);padding-left:1.1rem}
+/* resources */
+.res{display:flex;flex-direction:column;gap:.55rem}
+.res a{font-weight:600}
+.ri{display:grid;grid-template-columns:5.2rem 1fr;gap:.8rem;font-size:.93rem;align-items:baseline}
+.rk{font-family:Archivo,sans-serif;font-size:.63rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:right;padding-top:.15rem}
+.ri span.d{color:var(--ink-2)}
+pre{margin:0;background:var(--surface);border:1px solid var(--rule);border-radius:5px;padding:.85rem 1rem;overflow-x:auto;font-family:"JetBrains Mono",monospace;font-size:.79rem;line-height:1.6;color:var(--ink-2)}
+.tw{overflow-x:auto;border:1px solid var(--rule);border-radius:5px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:31rem;font-size:.9rem}
+th,td{text-align:left;padding:.6rem .85rem;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+th{font-family:Archivo,sans-serif;font-size:.66rem;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);background:var(--sunk);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+ul{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:.42rem;color:var(--ink-2);font-size:.96rem}
+footer{margin-top:4rem;padding-top:1.4rem;border-top:1px solid var(--rule);font-size:.85rem;color:var(--muted);display:flex;flex-direction:column;gap:.6rem}
+</style>
+
+<div class="wrap">
+<header>
+  <span class="label">A reading path · start to finish</span>
+  <h1>Understanding Consensus Bench</h1>
+  <p class="sub">Six stages, twenty-two stops. Work through these in order and you will be
+  able to explain — to another person, without notes — what this project measures, how it
+  measures it, and why anyone should believe the numbers.</p>
+  <div class="facts">
+    <span>~15 h reading</span><span>6,620 lines of code</span>
+    <span>248 tests / 37 classes</span><span>novice level</span>
+  </div>
+</header>
+
+<section>
+  <h2>How to use this</h2>
+  <p class="lede">Each stage opens with <b>one prerequisite sentence</b> — a concept you
+  must already hold or the code reads as syntax. It closes with <b>self-check questions</b>.
+  Answer them out loud before moving on. If you cannot, re-read the stage; that is the
+  whole method.</p>
+  <p class="lede">Stops marked <span class="opt">optional</span> are depth. Skip every one
+  and you can still explain the system end to end — you will just have less to say about
+  the corners.</p>
+  <div class="callout warn">
+    <h4>Two honest caveats, before you invest the time</h4>
+    <p><b>The harness is built and test-verified. The campaign has not run.</b> No number
+    in this project has yet come from real hardware. You are learning an instrument that
+    has been proven against itself and against Docker, and is waiting on its first billed
+    deployment.</p>
+    <p><b>The external links were correct as of mid-2026 and may have moved.</b> Where a
+    resource has a stable identifier (an arXiv number, a DOI, a project's own domain) I
+    give it. Where I only have a title, search that title.</p>
+  </div>
+</section>
+
+<section>
+  <h2>What this project is, in one paragraph</h2>
+  <p>Seven systems that solve the same problem — <b>consensus</b>, getting several machines
+  to agree on the same ordered sequence of values while some of them fail — are benchmarked
+  under one identical load model, and the result is a master's thesis. The systems are
+  <b>etcd</b> (Raft), <b>Kafka KRaft</b> (Raft), <b>Kafka + ZooKeeper</b> (ZAB),
+  <b>CometBFT</b> (Tendermint BFT), <b>Paxos</b> and <b>EPaxos</b> (both via the Paxi
+  research framework), and <b>HotStuff</b> (BFT).</p>
+  <div class="callout">
+    <h4>The one sentence that explains every design decision</h4>
+    <p>A previous version of this project measured each system with a <em>different client
+    stack</em>, and shipped a deployment layer that had never once been executed. Both
+    failed. Every structure you are about to read is a countermeasure to one of those two
+    failures: <b>one load model for all seven systems</b>, and <b>every remote command
+    reviewable by a human before a euro is spent</b>. The javadoc blocks name the specific
+    bug they prevent, with a finding ID — <code>F13</code>, <code>F50</code>,
+    <code>F70</code>. Read them. They are the curriculum this repo already wrote for
+    itself.</p>
+  </div>
+</section>
+
+<div class="stage">
+  <div class="stagehead"><span class="sl">0</span><h2>Orient — and don't skip this</h2></div>
+  <div class="callout warn">
+    <h4>You are probably about to open the wrong directory</h4>
+    <p>Three worktrees exist. The one with the natural-looking name is <b>five weeks
+    stale</b> and does not contain the thesis at all.</p>
+  </div>
+<pre>cd ~/Downloads/cbt-main          # ← THE ONE WITH THE WORK
+git worktree list
+git log --oneline -3</pre>
+  <div class="tw"><table>
+    <thead><tr><th>Worktree</th><th>Use it?</th></tr></thead>
+    <tbody>
+      <tr><td><code>~/Downloads/cbt-main</code></td><td><b>Yes — canonical</b></td></tr>
+      <tr><td><code>~/Downloads/cbt-eighth</code></td><td>No — tree-identical to the merge</td></tr>
+      <tr><td><code>~/Downloads/consensus-bench-thesis</code></td><td><b>No — stale</b>, no <code>thesis/</code> in it</td></tr>
+    </tbody>
+  </table></div>
+  <p class="lede">Everything below is a path relative to <code>cbt-main/harness/src/main/java/gr/thesis/bench/</code>
+  unless it says otherwise.</p>
+</div>
+
+<div class="stage">
+  <div class="stagehead"><span class="sl">A</span><h2>The vocabulary — what is being measured</h2></div>
+  <div class="pre"><b>Before you start</b>You must know what <b>consensus</b> is: several
+  machines agreeing on the same ordered sequence of values even though some may fail — and
+  that a <b>quorum</b> (a strict majority) is what makes that agreement safe. If that
+  sentence is not solid, do the Stage A resources first. Everything else rests on it.</div>
+
+  <div class="stop"><span class="sn">1</span><div class="sb">
+    <span class="path">core/SystemUnderTest.java</span><span class="len">35 lines</span>
+    <p class="idea">The seven systems are a closed, typed set. Each carries its container
+    prefix, its default cluster size, and whether it tolerates Byzantine faults.</p>
+    <p class="first"><b>Read first</b> — the enum constants, lines 12–18. Notice that
+    <code>TENDERMINT</code> and <code>HOTSTUFF</code> get <b>4</b> nodes and everything
+    else gets <b>3</b>. That is not arbitrary, and question A1 asks you why.</p>
+  </div></div>
+
+  <div class="stop"><span class="sn">2</span><div class="sb">
+    <span class="path">core/Scenario.java</span><span class="len">25 lines</span>
+    <p class="idea">Six fault scenarios, each flagged for whether it dirties the cluster.</p>
+    <p class="first"><b>Read first</b> — the enum list, lines 15–20, then the javadoc. It
+    admits that nothing in production reads the <code>mutatesCluster</code> flag. Your first
+    taste of this repo's habit of stating its own limits rather than hiding them.</p>
+  </div></div>
+
+  <div class="stop"><span class="sn">3</span><div class="sb">
+    <span class="path">core/LatencyRecorder.java</span><span class="len">61 lines</span>
+    <p class="idea">A latency measurement is a <em>distribution</em>, not a number — and
+    there are two of them: all samples, and post-warmup samples only.</p>
+    <p class="first"><b>Read first</b> — <code>record(long micros, boolean afterWarmup)</code>,
+    lines 32–36. Then <code>warmSnapshot()</code> at line 58: the thesis merges whole
+    histograms and never averages percentiles, which is only possible because the full
+    histogram is kept.</p>
+  </div></div>
+
+  <div class="chk"><b>Self-check — Stage A</b>
+    <details><summary>Why do CometBFT and HotStuff default to 4 nodes when the others default to 3?</summary>
+      <p>They are Byzantine-fault-tolerant. Crash tolerance needs <b>2f+1</b> nodes to
+      survive <b>f</b> failures, so 3 tolerates 1. Byzantine tolerance — surviving nodes
+      that lie rather than merely stop — needs <b>3f+1</b>, so tolerating 1 requires 4. The
+      enum encodes each protocol family's minimum honest shape.</p></details>
+    <details><summary>If only the post-warmup histogram produces thesis numbers, what is the other one for?</summary>
+      <p>Debugging the warmup itself — "was the system still ramping?" is a question you
+      cannot ask once you have thrown the warmup samples away. It is diagnostic and is
+      never reported.</p></details>
+  </div>
+
+  <div class="res">
+    <h3>Resources for Stage A</h3>
+    <div class="ri"><span class="rk">Video</span><span class="d"><b>Martin Kleppmann — Distributed Systems</b> (University of Cambridge, ~8 lectures, free video + free lecture-notes PDF at <a href="https://www.cl.cam.ac.uk/teaching/2122/ConcDisSys/">cl.cam.ac.uk</a>). <b>The single best novice on-ramp.</b> Lectures on replication and consensus are what you need.</span></div>
+    <div class="ri"><span class="rk">Book</span><span class="d"><b>Designing Data-Intensive Applications</b>, Kleppmann — chapters 5, 8, 9. Chapter 9 is consensus; chapter 8 is why distributed systems are hard at all.</span></div>
+    <div class="ri"><span class="rk">Paper</span><span class="d">Lamport, <b>Time, Clocks, and the Ordering of Events</b> (1978). In your corpus: <code>corpus/time-clocks.pdf</code>. Short, and the origin of the whole field.</span></div>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="stagehead"><span class="sl">B</span><h2>The measurement engine — the heart</h2></div>
+  <div class="pre"><b>Before you start</b>You must hold the difference between an operation
+  being <b>sent</b> and an operation being <b>committed</b>. And you must accept that the
+  rate at which you <em>offer</em> work and the rate at which a system <em>completes</em> it
+  are different things — a client that waits for a reply before sending again has silently
+  made its own load depend on the system's speed.</div>
+
+  <div class="stop"><span class="sn">4</span><div class="sb">
+    <span class="path">driver/ConsensusDriver.java</span><span class="len">69 lines</span>
+    <p class="idea">One asynchronous write contract for all seven systems.
+    <code>write()</code> completes <b>only on consensus commitment</b>, never on submission,
+    and is bounded at 5 seconds.</p>
+    <p class="first"><b>Read the class javadoc first</b>, lines 7–30 — the most important
+    paragraph in the repo. It lists exactly how the old measurements were incomparable.
+    Then <code>write(int keyId, byte[] value)</code> at line 57.</p>
+  </div></div>
+
+  <div class="stop"><span class="sn">5</span><div class="sb">
+    <span class="path">core/WorkloadEngine.java</span><span class="len">293 lines · the single most important file</span>
+    <p class="idea">Open-loop load generation with a bounded in-flight window, and
+    correction for coordinated omission.</p>
+    <p class="first"><b>Read first</b> — <code>run()</code>, lines 102–188. Everything else
+    supports it. Go slowly over lines 122–163: the fixed departure schedule, the semaphore
+    window, and the callback that charges latency against the <em>intended</em> time.</p>
+  </div></div>
+
+  <div class="callout">
+    <h4>Coordinated omission — the idea the whole thesis rests on</h4>
+    <p>A system freezes for one second. Your client is blocked waiting for a reply, so it
+    sends nothing during the freeze and records <b>one</b> slow request. But at 100 ops/s,
+    <b>a hundred</b> requests should have departed in that second, and every one would have
+    queued. Your histogram omits them — because the stall <em>coordinated</em> with your
+    sending. That is coordinated omission, and it makes a stalling system look fast.</p>
+    <p>The fix is three lines. Capture the <em>scheduled</em> departure time, and charge
+    latency from that:</p>
+<pre>// WorkloadEngine.java:135
+final long intended = openLoop ? nextIntendedNanos : System.nanoTime();
+
+// WorkloadEngine.java:147-149
+// Coordinated-omission-corrected latency: completion minus
+// INTENDED start, not minus actual send.
+final long latencyMicros = (completed - intended) / 1_000L;</pre>
+    <p>It is proven, not asserted, by <code>WorkloadEngineTest.stallLatencyIsChargedAgainstIntendedTime</code>
+    (line 98): a 1 s stall in a 3 s run must push p90 above 300 ms.</p>
+  </div>
+
+  <div class="stop"><span class="sn">6</span><div class="sb">
+    <span class="path">core/EventLog.java</span><span class="len">141 lines</span>
+    <p class="idea">Failover time is the gap from the injected fault to the first successful
+    commit after it — which needs per-event timestamps, not the engine's one-second buckets.</p>
+    <p class="first"><b>Read first</b> — <code>failoverMillis()</code>, lines 101–112. Then
+    <code>dropped()</code> at 129: buffer overflow is counted, never silent, and a dropped
+    count can later void the run.</p>
+  </div></div>
+
+  <div class="stop"><span class="sn">7</span><div class="sb">
+    <span class="path">src/test/…/core/FakeDriver.java <span class="opt">optional</span></span><span class="len">104 lines, test scope</span>
+    <p class="idea">The engine can be tested with no network and no Docker, by a driver that
+    stalls on command. It is what makes all of Stage B falsifiable on a laptop.</p>
+    <p class="first"><b>Read first</b> — <code>stalling(long, long, long)</code> at line 42.</p>
+  </div></div>
+
+  <div class="chk"><b>Self-check — Stage B</b>
+    <details><summary>A system freezes for one second during a run at 100 ops/s. How many slow samples appear under (a) naive send-time measurement and (b) this engine?</summary>
+      <p><b>(a) About one.</b> The client was blocked waiting, never sent the other ~99, and
+      unsent operations produce no samples. <b>(b) About a hundred.</b> The schedule fixed
+      all 100 intended departure times before the run; each is charged
+      <code>completed − intended</code>, so each carries its own queueing delay.</p></details>
+    <details><summary>The engine drains by acquiring every in-flight permit, then immediately releases them. Why not just hold them?</summary>
+      <p>Occupancy is computed as <code>maxInFlight − availablePermits()</code>. Holding
+      them would leave availability at zero, so a metrics scrape landing during the drain
+      would read a <em>full</em> window when nothing is in flight — recording a spurious
+      peak that fails the <code>window_headroom</code> validity gate on a perfectly clean
+      run. <b>The instrument must not create the artifact its own gate detects.</b></p></details>
+    <details><summary>A fault run's event buffer fills before the fault is even injected. What does failoverMillis() return, and why is that dangerous?</summary>
+      <p>Empty — no qualifying commit was recorded after the mark. It is dangerous because
+      "the fault fired and nothing ever recovered" looks <em>identical</em>, and that is a
+      real, preregistered result for Paxi. Two opposite readings, the same numbers. The
+      countermeasure is <code>events_dropped</code> in the manifest plus a narrow rule: only
+      "fault fired <em>and</em> evidence dropped <em>and</em> no failover resolved" voids the
+      run, so a late overflow does not discard a recovery already recorded.</p></details>
+  </div>
+
+  <div class="res">
+    <h3>Resources for Stage B</h3>
+    <div class="ri"><span class="rk">Video</span><span class="d"><b>Gil Tene — "How NOT to Measure Latency"</b>. <b>Non-optional.</b> Coordinated omission is his term and this is the talk that named it. Search the title; it has been given at several conferences and all recordings are good.</span></div>
+    <div class="ri"><span class="rk">Paper</span><span class="d">Schroeder, Wierman, Harchol-Balter, <b>Open Versus Closed: A Cautionary Tale</b> (NSDI '06). Reference [29] in the thesis — why open-loop is not a stylistic choice.</span></div>
+    <div class="ri"><span class="rk">Docs</span><span class="d"><b>HdrHistogram</b> — <a href="http://hdrhistogram.org">hdrhistogram.org</a>. Skim what a histogram <em>records</em> versus what a percentile <em>reports</em>, and why you cannot average percentiles.</span></div>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="stagehead"><span class="sl">C</span><h2>Drivers — one transport per system</h2></div>
+  <div class="pre"><b>Before you start</b>You must know that <b>"committed" means something
+  different in each protocol</b> — a Raft majority acknowledgement, a Kafka
+  <code>acks=all</code> in-sync-replica acknowledgement, inclusion in a CometBFT block with
+  more than two-thirds precommits, a Paxi HTTP 200 meaning committed-and-executed. A
+  driver's only job is to translate one abstract write into whichever of those its system
+  offers.</div>
+
+  <div class="stop"><span class="sn">8</span><div class="sb">
+    <span class="path">driver/EtcdHttpDriver.java</span><span class="len">88 lines</span>
+    <p class="idea">The smallest possible implementation of the contract — pure JDK, HTTP
+    POST, base64 keys. The reference shape.</p>
+    <p class="first"><b>Read first</b> — <code>write()</code> at 56, then
+    <code>currentLeaderIndex()</code> at 71. It returns <b>empty</b>, and the comment
+    explains why claiming index 0 would be a trap. Question C1 is about exactly this.</p>
+  </div></div>
+
+  <div class="stop"><span class="sn">9</span><div class="sb">
+    <span class="path">driver/EtcdDriver.java</span><span class="len">106 lines</span>
+    <p class="idea">The production driver, and the first real leader detection.</p>
+    <p class="first"><b>Read first</b> — <code>currentLeaderIndex()</code>, lines 84–100:
+    ask every endpoint for its status; the leader is the one whose own member id equals the
+    leader id it reports. Every <code>LEADER_KILL</code> cell depends on this.</p>
+  </div></div>
+
+  <div class="stop"><span class="sn">10</span><div class="sb">
+    <span class="path">driver/PaxiDriver.java</span><span class="len">196 lines</span>
+    <p class="idea">Leaderless and leader-pinned systems need different write routing — and
+    a leader can be read out of a response header.</p>
+    <p class="first"><b>Read first</b> — <code>endpointIndexFor(...)</code> at line 80.
+    Three lines encoding a real protocol distinction: Paxos pins every write to endpoint 0;
+    EPaxos round-robins, because single-endpoint traffic could never exercise a leaderless
+    protocol.</p>
+  </div></div>
+
+  <div class="stop"><span class="sn">11</span><div class="sb">
+    <span class="path">driver/KafkaDriver · CometBftDriver · HotStuffLogAnalyzer <span class="opt">optional</span></span><span class="len">151 · 153 · 309 lines</span>
+    <p class="idea">Three more shapes. CometBFT's latency <em>structurally</em> includes
+    block-inclusion wait. HotStuff has <b>no driver at all</b> — its own client is the load
+    generator and its logs are its only metrics, so the analyzer is a faithful Java port of
+    upstream's <code>logs.py</code>.</p>
+  </div></div>
+
+  <div class="chk"><b>Self-check — Stage C</b>
+    <details><summary>EtcdHttpDriver.currentLeaderIndex() returns empty. Why would returning 0 be dangerous rather than a harmless placeholder?</summary>
+      <p>It is constructed with a single endpoint and structurally cannot know which member
+      leads. A confident <code>0</code> would be consumed by the fault targeting logic and
+      used to pick a node to <em>kill</em> — and etcd's leader is whichever member won the
+      first election, so roughly two-thirds of <code>leader_kill</code> cells would silently
+      have measured <b>follower</b> loss instead. The results would look perfectly clean and
+      answer the wrong question.</p></details>
+    <details><summary>Why does Paxos pin every write to one endpoint while EPaxos round-robins?</summary>
+      <p>They test different things. Paxos has a leader; a non-leader entry point just
+      forwards internally, so pinning is honest. EPaxos is <em>leaderless</em> — its whole
+      claim is that any replica can commit non-conflicting commands on a fast path — and
+      sending all traffic to one endpoint could never exercise that.</p></details>
+  </div>
+
+  <div class="res">
+    <h3>Resources for Stage C — the algorithms themselves</h3>
+    <p class="lede">Take these in the order given. The animation before the paper is not
+    hand-holding: the papers are markedly easier afterwards.</p>
+    <div class="ri"><span class="rk">Raft 1</span><span class="d"><b>The Secret Lives of Data</b> — <a href="http://thesecretlivesofdata.com/raft/">thesecretlivesofdata.com/raft</a>. An animated walkthrough, about 10 minutes. Start here.</span></div>
+    <div class="ri"><span class="rk">Raft 2</span><span class="d"><b>raft.github.io</b> — the official interactive visualiser. Kill the leader yourself and watch the election.</span></div>
+    <div class="ri"><span class="rk">Raft 3</span><span class="d">Ongaro &amp; Ousterhout, <b>In Search of an Understandable Consensus Algorithm</b> (USENIX ATC '14). In your corpus: <code>atc14-paper-ongaro.pdf</code>. Ongaro's conference talk is on YouTube — search the paper title.</span></div>
+    <div class="ri"><span class="rk">Paxos</span><span class="d">Lamport, <b>Paxos Made Simple</b> — <code>corpus/Lamport - 2001 - Paxos Made Simple.pdf</code>. Then Howard &amp; Mortier, <b>Paxos vs Raft</b> (arXiv:2004.05074), which is the best short account of how the two relate.</span></div>
+    <div class="ri"><span class="rk">EPaxos</span><span class="d">Moraru et al., <b>There Is More Consensus in Egalitarian Parliaments</b> (SOSP '13), then Tollman et al., <b>EPaxos Revisited</b> (NSDI '21). Both in your corpus. Read the second — it corrects the first.</span></div>
+    <div class="ri"><span class="rk">BFT 1</span><span class="d"><b>Decentralized Thoughts</b> — <a href="https://decentralizedthoughts.github.io">decentralizedthoughts.github.io</a>, by Ittai Abraham and colleagues. The best free BFT explainer anywhere. Read the introductory consensus series before any BFT paper.</span></div>
+    <div class="ri"><span class="rk">BFT 2</span><span class="d">Castro &amp; Liskov, <b>Practical Byzantine Fault Tolerance</b> (OSDI '99). <b>Not in your corpus</b> — a known gap the project has recorded. You will need to fetch it.</span></div>
+    <div class="ri"><span class="rk">BFT 3</span><span class="d">Buchman, <b>Tendermint: Byzantine Fault Tolerance in the Age of Blockchains</b> (MSc thesis) and Yin et al., <b>HotStuff</b> (PODC '19, arXiv:1803.05069). Both in your corpus.</span></div>
+    <div class="ri"><span class="rk">ZAB</span><span class="d">Junqueira, Reed, Serafini, <b>Zab: High-Performance Broadcast for Primary-Backup Systems</b> (DSN '11). The protocol behind Kafka's ZooKeeper mode.</span></div>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="stagehead"><span class="sl">D</span><h2>Topology and faults — where a mistake costs money</h2></div>
+  <div class="pre"><b>Before you start</b>You must know <b>quorum</b> well enough to predict a
+  kill: on 3 nodes, killing one leaves 2 — a majority, the cluster survives. Killing two
+  leaves 1 — no majority, the cluster stops committing, and <em>that stop is the intended
+  observation</em>. You must also know that a <b>network partition is not a crash</b>: a
+  partitioned leader is still running and still believes it leads.</div>
+
+  <div class="stop"><span class="sn">12</span><div class="sb">
+    <span class="path">topology/ClusterProvider.java</span><span class="len">85 lines</span>
+    <p class="idea">Cluster lifecycle, a typed node identity, and — most importantly — the
+    targeting rules for every fault.</p>
+    <p class="first"><b>Read first</b> — <code>FaultInjector.apply(...)</code>, lines 69–83.
+    Six lines of <code>switch</code> encoding the whole fault design: leader-sensitive faults
+    hit the <b>detected</b> leader; <code>DOUBLE_KILL</code> is deterministically nodes 0
+    and 1.</p>
+  </div></div>
+
+  <div class="stop"><span class="sn">13</span><div class="sb">
+    <span class="path">topology/SshExecutor.java</span><span class="len">41 lines · highest value per line in the repo</span>
+    <p class="idea">One seam every remote command flows through, so identical code paths run
+    against the real cluster and against a recorder.</p>
+    <p class="first"><b>Read first</b> — <code>execOrThrow</code>, lines 30–38. This tiny
+    interface is the entire reason the golden-file tests can exist.</p>
+  </div></div>
+
+  <div class="callout">
+    <h4>What a "golden file" is, and why this project lives on them</h4>
+    <p>A golden file is a <b>checked-in, human-reviewed transcript of exactly what a program
+    will do</b>, which a test then compares against byte for byte. Three pieces:
+    <code>SshExecutor</code> (the seam), <code>RecordingSshExecutor</code> (a test
+    implementation whose whole trick is one line —
+    <code>commands.add(host + ":" + port + "$ " + command)</code>), and seven transcripts in
+    <code>src/test/resources/goldens/</code>, 681 lines total.</p>
+    <p>Why here specifically: <b>these commands run on billed machines</b>, and Java's type
+    system cannot tell you that <code>eth0</code> is the wrong network interface on a
+    Hetzner box, or that a subnet-wide firewall rule would sever the very path you are
+    measuring. A person reading the golden's header <em>can</em>. Each golden opens with a
+    paragraph listing the invariants a reviewer must confirm — the file is a review document
+    that happens to also be an assertion.</p>
+  </div>
+
+  <div class="stop"><span class="sn">14</span><div class="sb">
+    <span class="path">topology/SshFaultInjector.java</span><span class="len">189 lines</span>
+    <p class="idea">Each fault as an exact SSH command, with its undo registered
+    <em>before</em> it is applied.</p>
+    <p class="first"><b>Read first</b> — <code>packetLoss(...)</code>, lines 90–98: resolve
+    the interface, push the undo, then apply. Then <code>heal()</code> at 147. Every
+    <code>synchronized</code> on this class is one real bug, and question D2 is about it.</p>
+  </div></div>
+
+  <div class="stop"><span class="sn">15</span><div class="sb">
+    <span class="path">topology/LocalDockerProvider.java · RemoteSshProvider.java <span class="opt">optional</span></span><span class="len">381 · 896 lines</span>
+    <p class="idea">Local first: the parallel container start exists because an etcd member
+    only reports healthy once quorum exists, so a sequential start would deadlock on its own
+    readiness gate. <code>RemoteSshProvider</code> is the largest file here and is best read
+    <b>through its goldens</b>, not top to bottom.</p>
+  </div></div>
+
+  <div class="chk"><b>Self-check — Stage D</b>
+    <details><summary>partition installs pairwise DROP rules per peer IP, never one rule against the whole subnet. What breaks if you "simplify" it?</summary>
+      <p>The load generator lives on the same private subnet. A subnet block would cut the
+      client→leader path too, so the client would just see timeouts from an unreachable
+      machine. But observing the <em>isolated leader</em> — still running, still believing it
+      leads, no longer able to reach a quorum — <b>is the measurement</b>. A test asserts
+      that neither the subnet nor the loadgen's IP appears anywhere in the emitted
+      commands.</p></details>
+    <details><summary>Every mutating method on SshFaultInjector is synchronized. What concrete bug does that prevent, and why would nothing downstream catch it?</summary>
+      <p>Injection runs on the fault thread while <code>heal()</code> runs on the main thread
+      after a join that can time out. Interleaved, heal deletes the traffic-shaping rule
+      <em>before</em> it has been added; the delete fails as "nothing to undo" — a warning, by
+      design — and the rule then <b>survives on the node</b>, silently shaping every later
+      run there. Nothing catches it afterwards: the pre-clean sweep removes stray
+      <em>containers</em>, not host network state.</p></details>
+    <details><summary>On a healthy node the pre-clean commands are all expected to FAIL, and exit code 0 is treated as an alarm. Explain.</summary>
+      <p>With nothing to undo, the undo commands exit non-zero — that is the normal case. A
+      <b>zero</b> exit proves fault state really did survive a crashed earlier run, which
+      also puts that run's data in question. So zero is warned about, with the node and the
+      command named. This deliberately inverts <code>heal()</code>'s convention, where the
+      fault is known to have been applied and non-zero is the surprise. Neither path uses
+      <code>|| true</code>, because that would discard the one bit that distinguishes
+      them.</p></details>
+  </div>
+
+  <div class="res">
+    <h3>Resources for Stage D</h3>
+    <div class="ri"><span class="rk">Concept</span><span class="d">Kleppmann, <b>DDIA</b> chapter 8 — "The Trouble with Distributed Systems". Partial failure, unreliable networks, and why a partition is not a crash.</span></div>
+    <div class="ri"><span class="rk">Tooling</span><span class="d"><code>man tc</code> and <code>man netem</code> for traffic shaping; <code>man iptables</code> for the partition rules. You only need to recognise the commands, not author them.</span></div>
+    <div class="ri"><span class="rk">Practice</span><span class="d">The <b>Testcontainers</b> docs (<a href="https://testcontainers.com">testcontainers.com</a>) — the library that starts real containers inside the integration tests you will read in Stage E.</span></div>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="stagehead"><span class="sl">E</span><h2>Results and judgement — what makes it a thesis</h2></div>
+  <div class="pre"><b>Before you start</b>You must accept that <b>a measurement is only
+  evidence if its preconditions held</b> — and that those preconditions are themselves
+  measurable facts about the run: the client was not saturated, the clocks agreed, nothing
+  restarted unexpectedly, the fault demonstrably landed. Without that framing the next file
+  looks like defensive programming. With it, it is the experimental protocol.</div>
+
+  <div class="stop"><span class="sn">16</span><div class="sb">
+    <span class="path">results/CsvResultsWriter.java</span><span class="len">307 lines</span>
+    <p class="idea">The on-disk output contract, and the moment a run declares itself
+    complete or failed.</p>
+    <p class="first"><b>Read first</b> — <code>write(...)</code>, lines 116–267, then the
+    <code>RunIdentity</code> record at 40. Key lines 203 and 214–219: where a beautiful-looking
+    run gets stamped <code>"failed"</code> because it cannot evidence its own claim.</p>
+  </div></div>
+
+  <div class="stop"><span class="sn">17</span><div class="sb">
+    <span class="path">validity/ValidityChecker.java</span><span class="len">784 lines · the file that makes the thesis defensible</span>
+    <p class="idea">Eleven automated gates, evaluated per run into <code>validity.json</code>,
+    distinguishing PASS / FAIL / <b>SKIP</b>.</p>
+    <p class="first"><b>Read first</b> — <code>check(Path runDir)</code>, lines 189–218:
+    twenty lines naming all eleven gates in order. Read that, then the class javadoc at
+    17–52, then individual gates on demand.</p>
+  </div></div>
+
+  <div class="callout">
+    <h4>The rule that carries the most weight: empty ≠ absent</h4>
+    <p><b>If <code>metrics/</code> exists but a series a gate needs is empty, that gate
+    FAILS. Only the whole-feature-absent case is SKIP.</b></p>
+    <p>An empty series means somebody <em>tried</em> to retrieve the metric and got nothing:
+    a wrong label, a dead scrape target, a broken query — a <b>malfunction</b>. A malfunction
+    in the observation apparatus is precisely when a gate must not wave a run through,
+    because you no longer know what you measured. If empty meant "nothing bad found", broken
+    monitoring would manufacture clean runs, and <b>the more broken it got, the cleaner the
+    data would look</b>.</p>
+    <p>A missing directory is different: the export never ran, no capability malfunctioned.
+    Failing there would invalidate runs for lacking infrastructure they were never given.
+    Two consequences worth noticing: the exporter <em>writes the file even when the query
+    returns nothing</em>, so a header-only CSV proves the query ran; and a missing
+    <code>error_rate</code> in a manifest FAILs rather than passes, because an unmeasured
+    error rate is not a zero one.</p>
+  </div>
+
+  <div class="stop"><span class="sn">18</span><div class="sb">
+    <span class="path">validity/ConfidenceGrade.java</span><span class="len">120 lines</span>
+    <p class="idea">How far a <b>cell</b> — one configuration measured five times — can be
+    trusted, as an ordinal grade with named reasons. Adapted from <b>GRADE</b>, the medical
+    evidence-rating framework, whose vocabulary the thesis then borrows rather than
+    inventing its own.</p>
+    <p class="first"><b>Read first</b> — <code>of(...)</code>, lines 72–119. VOID / C / B / A.
+    <b>VOID is this project's addition</b> to GRADE: a level for "this evidence cannot
+    evidence its own claim", a failure mode that does not arise in a literature review but
+    arises here twice.</p>
+  </div></div>
+
+  <div class="chk"><b>Self-check — Stage E</b>
+    <details><summary>metrics/ exists and contains loadgen_cpu.csv, but the file has only a header row. PASS, FAIL or SKIP?</summary>
+      <p><b>FAIL.</b> The directory's existence proves the export ran, so an empty series
+      means the retrieval path is broken, not that nothing was collected. Contrast: no
+      <code>metrics/</code> directory at all ⇒ SKIP, because a capability was simply absent
+      — the two-VM canary shape has no observability machine, and failing there would
+      invalidate runs for lacking infrastructure they never had.</p></details>
+    <details><summary>Five runs, all valid, every evaluated gate passed — but three gates SKIPped for want of an observability VM. What grade?</summary>
+      <p><b>B</b>, with the reason <em>"indirectness: gate(s) not evaluated"</em> — and the
+      grade must <b>name which gates</b>, since "B" alone tells a reader nothing about what
+      to be careful of. Not A, because the claim rests on fewer checks than the methodology
+      specifies; not C, because nothing that ran failed.</p></details>
+    <details><summary>A leader_kill run finishes with 89,400 commits, a 0.23 % error rate and beautiful percentiles — but the manifest's fault timestamp is null. What happens, and why is this the most important case in the layer?</summary>
+      <p>Two things fire: the writer forces <code>"status": "failed"</code>, and the
+      fault-ground-truth gate fails the run rather than reporting "baseline — not
+      applicable". It matters most because <b>the mark is stamped only after the injection
+      returns</b>, so its absence means the injection threw or stalled — and what was
+      actually measured is <b>an undisturbed cluster wearing a leader_kill label</b>. Every
+      number is real; the experiment is not. Judging by the mark alone previously reported
+      this as a baseline and waved it through. It is the origin of the VOID grade.</p></details>
+  </div>
+
+  <div class="res">
+    <h3>Resources for Stage E</h3>
+    <div class="ri"><span class="rk">Paper</span><span class="d">Guyatt et al., <b>GRADE: an emerging consensus on rating quality of evidence</b> (BMJ 2008;336:924–926). Short, free, and the direct source of the A/B/C scheme. Read it — it is what lets the thesis say "we adapted an established framework" rather than "we made up a score".</span></div>
+    <div class="ri"><span class="rk">Repo</span><span class="d"><code>docs/DATA_ANALYSIS_METHODOLOGY.md</code> — the project's own statistics and validity chapter. It <b>wins over</b> any other doc on questions of method.</span></div>
+    <div class="ri"><span class="rk">Sample</span><span class="d"><code>docs/examples/sample-results/</code> — a real run directory. Open every file in it while reading Stop 16.</span></div>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="stagehead"><span class="sl">F</span><h2>The campaign — running it for real</h2></div>
+  <div class="pre"><b>Before you start</b>You must know that these runs cost real money on
+  rented machines and take hours. Every design choice in this stage is about <b>not wasting
+  a night</b>: seeded shuffling so the order is reproducible, resume-by-manifest so a
+  crashed block restarts where it stopped, and continue-on-failure so one bad cell does not
+  abort the remaining forty.</div>
+
+  <div class="stop"><span class="sn">19</span><div class="sb">
+    <span class="path">campaign/Inventory.java</span><span class="len">64 lines</span>
+    <p class="idea">Topology comes from one Terraform-generated file and is never guessed.</p>
+    <p class="first"><b>Read first</b> — <code>parse(Path)</code> at 33 and
+    <code>require(...)</code> at 55. A key the runner needs but the file lacks throws, naming
+    both — a silently defaulted IP would point the fault injector at the wrong machine.</p>
+  </div></div>
+
+  <div class="stop"><span class="sn">20</span><div class="sb">
+    <span class="path">campaign/RemoteRunner.java</span><span class="len">704 lines</span>
+    <p class="idea">One campaign cell, end to end, on real VMs.</p>
+    <p class="first"><b>Read first</b> — <code>runDriverSystem(...)</code>, lines 148–212:
+    the whole orchestration in 65 lines. Then <code>faultThread(...)</code> at 268 and
+    <code>finishRun(...)</code> at 227, whose javadoc explains why <em>ordering</em> matters:
+    collect every artifact first, judge last.</p>
+  </div></div>
+
+  <div class="stop"><span class="sn">21</span><div class="sb">
+    <span class="path">campaign/MatrixRunner.java · Simulations.java <span class="opt">optional</span></span><span class="len">409 · 85 lines</span>
+    <p class="idea">Cell expansion with a seeded shuffle, resume, journalling, and
+    continue-on-failure.</p>
+  </div></div>
+
+  <div class="stop"><span class="sn">22</span><div class="sb">
+    <span class="path">Main.java</span><span class="len">331 lines · read this LAST, deliberately</span>
+    <p class="idea">Four commands, all argument plumbing over machinery you have already
+    read.</p>
+    <p class="first"><b>Why last:</b> a newcomer's instinct is to start at <code>main</code>,
+    where it teaches almost nothing. Read after Stages A–F it retroactively organises
+    everything — and its three fail-closed helpers are the closing lesson.</p>
+  </div></div>
+
+  <div class="chk"><b>Self-check — Stage F</b>
+    <details><summary>MatrixRunner shuffles a block's cells with a seeded Random. Why shuffle, and why seed?</summary>
+      <p><b>Shuffle</b>, because running all baselines then all faults would confound the
+      comparison with time-of-day effects on shared cloud infrastructure. <b>Seed</b>,
+      because the order itself must be reproducible — the seed is logged and written into
+      the simulation spec, so anyone can reconstruct which cell ran when.</p></details>
+    <details><summary>Main.parse accepts any --key value pair, yet --ratee 300 is rejected. Where, and why does it matter?</summary>
+      <p>In <code>requireKnownKeys</code>, against an explicit allow-list. Because
+      <code>--ratee 300</code> parsing fine and the run proceeding at the <b>default</b> rate
+      is a fail-open in an otherwise fail-closed tool. The manifest would faithfully record
+      the truth — but only after a wasted, or worse a <em>trusted</em>, run.</p></details>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="stagehead"><span class="sl">✓</span><h2>The tests — and how to run just one</h2></div>
+  <p class="lede">248 tests in 37 classes. They are not one thing; they buy five different
+  kinds of confidence, and knowing which is which is most of what a reviewer wants from
+  you.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Kind</th><th>What it proves</th></tr></thead>
+    <tbody>
+      <tr><td><b>Unit</b></td><td>The arithmetic and the branching are right. Given X, the code decides Y. Proves nothing about the world.</td></tr>
+      <tr><td><b>Golden-file</b></td><td>A human reviewed exactly what a billed VM will run. No SSH, no Docker, no euro.</td></tr>
+      <tr><td><b>Contract</b></td><td>Two files that must agree cannot drift apart silently. Unusual, and worth pointing out — it tests the <em>seams between artifacts</em>, not behaviour.</td></tr>
+      <tr><td><b>Integration</b></td><td>The world behaves as the code assumes. Unit and golden can both be green while reality is broken — this project has a documented instance of exactly that.</td></tr>
+      <tr><td><b>Regression</b></td><td>The specific catastrophe that killed the previous attempt has not come back.</td></tr>
+    </tbody>
+  </table></div>
+  <p class="lede"><b>The signature move:</b> eight tests deliberately damage something to
+  prove a check <em>can</em> fail. A manifest is written as literal <code>{not json</code>; a
+  metrics file is written with only a header; two of three real etcd containers are killed
+  and the write must fail rather than fabricate a commit. As this repo puts it — a check
+  that cannot fail is worse than no check, because it produces confidence instead of
+  information.</p>
+  <h3>Read these six, in this order</h3>
+  <ul>
+    <li><code>core/WorkloadEngineTest.java</code> — 19 tests. <b>Start here.</b> The production code <em>asserts</em> that latency is charged against intended time; this <em>demonstrates the consequence</em>.</li>
+    <li><code>topology/RemoteSshProviderTest.java</code> — 21 tests. The only place you can see the whole deploy layer without reading 896 lines.</li>
+    <li><code>validity/ValidityCheckerTest.java</code> — 38 tests, the largest. The gates' <em>reasoning</em> is in the production javadoc; their <em>boundaries</em> are only visible here.</li>
+    <li><code>topology/SshFaultInjectorTest.java</code> — makes a concurrency bug <b>deterministic</b> with two latches. A technique worth stealing.</li>
+    <li><code>topology/HostFaultEffectTest.java</code> — the explicit answer to "the goldens are green, are we done?" Its javadoc says no, and names the bug that proves it.</li>
+    <li><code>driver/EtcdDriverTest.java</code> — cross-validates leader detection against an <em>independent client stack</em>. Two stacks agreeing is corroboration; one stack agreeing with itself is circular. A research-methods lesson inside a unit test.</li>
+  </ul>
+<pre>cd ~/Downloads/cbt-main/harness
+~/tools/maven/mvn21.sh -Dtest='WorkloadEngineTest' -DfailIfNoTests=false test</pre>
+  <p class="lede">The default <code>javac</code> on this machine is Java 8 and cannot compile
+  the project — <code>mvn21.sh</code> is what selects Java 21. Integration tests also need
+  Docker, and the Paxi and HotStuff ones need two locally built images. Failure messages land
+  in <code>target/surefire-reports/&lt;Class&gt;.txt</code>, and this project's tests are
+  written to name the failing node, field or command in that message.</p>
+</div>
+
+<section>
+  <h2>You are done when you can say all of this without notes</h2>
+  <ul>
+    <li>What consensus is, what a quorum is, and why 2f+1 and 3f+1 are different numbers.</li>
+    <li>Why measuring seven systems with seven client stacks produces numbers that cannot be compared — and what one abstract <code>write()</code> buys instead.</li>
+    <li>What coordinated omission is, why it makes a stalling system look fast, and the three lines that correct it.</li>
+    <li>Why a golden file is a <em>review document</em> and not merely a test fixture.</li>
+    <li>Why an empty metric series is a FAIL and a missing directory is a SKIP — and what would go wrong if you swapped them.</li>
+    <li>Why a run with perfect numbers can be stamped <code>failed</code>, and what VOID is for.</li>
+    <li>Which parts are <b>built and test-verified</b> and which are <b>designed and not yet run</b>.</li>
+  </ul>
+  <p class="lede">If someone asks "why should I believe these numbers?", the answer is
+  Stage E. If they ask "why these numbers and not others?", the answer is Stage B. Those two
+  are the thesis.</p>
+</section>
+
+<footer>
+  <p>Built from the code at <code>~/Downloads/cbt-main</code>, September 2026. Every file
+  path, line number and figure here was read from the source rather than recalled.</p>
+  <p>Next: <code>docs/NEXT_SESSION.md</code> for the current state and what remains, and
+  <code>docs/PROJECT_STATE.md</code> §6 for the plan.</p>
+</footer>
+</div>
