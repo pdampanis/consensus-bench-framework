@@ -94,16 +94,17 @@ measured against it evaluated ONE gate and still reported `valid: true`.
 Measured again on 2026-08-15 with the full collector set: **9 of 11
 evaluate**.
 
-> **That figure is true in the test harness and NOT true of a deployed
-> campaign** (2026-09-02). Three things stand between it and reality, all in
-> §5: **M3** — a `remote-run` runs the check at `RemoteRunner:199` and writes
-> `events/` at `:213`, so two gates SKIP on a directory that does not exist
-> yet (the campaign path is saved only because `gradeCells` re-runs the check
-> at block end); and **N-16 + N-5** — nothing deploys Prometheus and nothing
-> substitutes `prometheus.yml`'s placeholders, so on real VMs every metric
-> series is empty and the §4 meta-rule turns each one into a **FAIL**. The
-> honest figure until Phase 0 lands is *"9 of 11 in a test fixture; unproven
-> on a VM"*. Canary check 2.9/2.13 is what converts it.
+> **That figure is true in the test harness and NOT yet true of a deployed
+> campaign** (updated 2026-09-03). **M3 is fixed** — `finishRun` now collects
+> the metrics export, the logs and the `events/` audit *before*
+> `writeResultsAndCheck`, so the two gates that SKIPped on a directory that
+> did not exist yet now evaluate on the first pass, not only when
+> `gradeCells` re-runs the check at block end. What still stands between the
+> figure and reality is **N-16 + N-5**: nothing deploys Prometheus and
+> nothing substitutes `prometheus.yml`'s placeholders, so on real VMs every
+> metric series is empty and the §4 meta-rule turns each one into a **FAIL**.
+> The honest figure until those land is *"9 of 11 in a test fixture;
+> unproven on a VM"*. Canary check 2.9/2.13 is what converts it.
 
 ### Not built yet
 
@@ -280,7 +281,7 @@ run still bills in full.
 | **F75** (half) | `picocli` declared, shaded, used by nothing | Spend it (M1.3) or drop it. P3.11b |
 | **F76** | A `verify` once ran 90 of 177 tests and still reported success | **Watch.** Did **not** recur on 2026-09-02 (37 of 37 classes, 5:48). If it returns, capture `target/surefire-reports/` *before* re-running |
 | **N1** | `error_rate > 0.5 ⇒ failed` could exclude the preregistered paxi wedge and DOUBLE_KILL | Verify at the pilot |
-| **N2 / D-9** | `corpus/` tracks the signed application PDF with ΑΦΜ, phone and email, and the repo is private *today* | **Purge from the working tree and from history now.** The only item that strictly gets worse with delay |
+| **N2 / D-9** | `corpus/` tracks the signed application PDF with ΑΦΜ, phone and email. **It is already on GitHub** — `git cat-file -e origin/main:'corpus/ΕΝ42…Dampanis-signed (1).pdf'` succeeds; it went up in the initial commit `6289132`, so the exposure has already happened and no push makes it worse | **Purge from the working tree and from history, then force-push while the repo is private**, and ask GitHub Support to GC the unreachable objects — a rewrite alone leaves them fetchable by SHA |
 
 **Two documentation defects found in this review**, both cheap: the
 `baseline_error_rate` gate is enforced but appears in **no** methodology
