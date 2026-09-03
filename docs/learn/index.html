@@ -56,7 +56,10 @@ section{margin-top:3.2rem;display:flex;flex-direction:column;gap:1.1rem}
 .stop{border-top:1px solid var(--rule-soft);padding:1.05rem 0;display:grid;grid-template-columns:2.3rem 1fr;gap:0 1rem}
 .sn{font-family:"JetBrains Mono",monospace;font-size:.95rem;color:var(--muted);font-variant-numeric:tabular-nums;padding-top:.22rem}
 .sb{display:flex;flex-direction:column;gap:.42rem;min-width:0}
-.path{font-family:"JetBrains Mono",monospace;font-size:.83rem;color:var(--ink);word-break:break-all;font-weight:500}
+.path{font-family:"JetBrains Mono",monospace;font-size:.83rem;color:var(--ink);word-break:break-all;font-weight:500;text-decoration:none;border-bottom:1px solid var(--accent)}
+a.path:hover,a.path:focus-visible{color:var(--accent)}
+.repo{font-size:.88rem;color:var(--muted);line-height:1.5}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
 .len{font-family:"JetBrains Mono",monospace;font-size:.74rem;color:var(--muted)}
 .idea{font-size:.97rem;color:var(--ink-2)}
 .first{font-size:.9rem;color:var(--ink-2);background:var(--sunk);border-radius:4px;padding:.45rem .7rem}
@@ -89,6 +92,28 @@ figure{margin:0;display:flex;flex-direction:column;gap:.6rem}
 figure svg{max-width:100%;height:auto;display:block;background:var(--surface);border:1px solid var(--rule);border-radius:5px}
 figcaption{font-size:.87rem;color:var(--muted);line-height:1.5}
 .fig-hi{color:var(--check)}
+@media (max-width:680px){
+  body{font-size:16px}
+  .wrap{padding:1.75rem 1rem 4.5rem}
+  h1{font-size:1.95rem}
+  h2{font-size:1.28rem}
+  .sub{font-size:1rem}
+  .sl{font-size:1.7rem}
+  /* SVG text scales with the viewBox, so a 720-wide figure squeezed onto a
+     phone renders its 11px labels at about 5px. Scroll the figure instead. */
+  figure{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  figure svg{min-width:600px}
+  figcaption{position:sticky;left:0}
+  /* the resource rows stack: a 5rem right-aligned label column is unreadable
+     beside wrapping text on a narrow screen */
+  .ri{grid-template-columns:1fr;gap:.15rem}
+  .rk{text-align:left}
+  .stop{grid-template-columns:1.7rem 1fr;gap:0 .7rem}
+  .stage{margin-top:2.6rem}
+  section{margin-top:2.4rem}
+  .callout,.chk{padding:.9rem 1rem}
+  pre{font-size:.74rem}
+}
 footer{margin-top:4rem;padding-top:1.4rem;border-top:1px solid var(--rule);font-size:.85rem;color:var(--muted);display:flex;flex-direction:column;gap:.6rem}
 </style>
 
@@ -103,6 +128,9 @@ footer{margin-top:4rem;padding-top:1.4rem;border-top:1px solid var(--rule);font-
     <span>~15 h reading</span><span>6,620 lines of code</span>
     <span>248 tests / 37 classes</span><span>novice level</span>
   </div>
+  <p class="repo">Every file path below links to the source on GitHub, branch
+  <code>ninth-review-handoff</code> — <a href="https://github.com/pdampanis/consensus-bench-framework/tree/ninth-review-handoff" target="_blank" rel="noopener">pdampanis/consensus-bench-framework</a>.
+  Line anchors point at the "read first" lines, so a tap opens the exact place to start.</p>
 </header>
 
 <section>
@@ -177,7 +205,7 @@ git log --oneline -3</pre>
   sentence is not solid, do the Stage A resources first. Everything else rests on it.</div>
 
   <div class="stop"><span class="sn">1</span><div class="sb">
-    <span class="path">core/SystemUnderTest.java</span><span class="len">35 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/core/SystemUnderTest.java#L12-L18" target="_blank" rel="noopener">core/SystemUnderTest.java</a><span class="len">35 lines</span>
     <p class="idea">The seven systems are a closed, typed set. Each carries its container
     prefix, its default cluster size, and whether it tolerates Byzantine faults.</p>
     <p class="first"><b>Read first</b> — the enum constants, lines 12–18. Notice that
@@ -186,7 +214,7 @@ git log --oneline -3</pre>
   </div></div>
 
   <div class="stop"><span class="sn">2</span><div class="sb">
-    <span class="path">core/Scenario.java</span><span class="len">25 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/core/Scenario.java#L15-L20" target="_blank" rel="noopener">core/Scenario.java</a><span class="len">25 lines</span>
     <p class="idea">Six fault scenarios, each flagged for whether it dirties the cluster.</p>
     <p class="first"><b>Read first</b> — the enum list, lines 15–20, then the javadoc. It
     admits that nothing in production reads the <code>mutatesCluster</code> flag. Your first
@@ -194,7 +222,7 @@ git log --oneline -3</pre>
   </div></div>
 
   <div class="stop"><span class="sn">3</span><div class="sb">
-    <span class="path">core/LatencyRecorder.java</span><span class="len">61 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/core/LatencyRecorder.java#L32-L36" target="_blank" rel="noopener">core/LatencyRecorder.java</a><span class="len">61 lines</span>
     <p class="idea">A latency measurement is a <em>distribution</em>, not a number — and
     there are two of them: all samples, and post-warmup samples only.</p>
     <p class="first"><b>Read first</b> — <code>record(long micros, boolean afterWarmup)</code>,
@@ -232,7 +260,7 @@ git log --oneline -3</pre>
   made its own load depend on the system's speed.</div>
 
   <div class="stop"><span class="sn">4</span><div class="sb">
-    <span class="path">driver/ConsensusDriver.java</span><span class="len">69 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/driver/ConsensusDriver.java#L7-L30" target="_blank" rel="noopener">driver/ConsensusDriver.java</a><span class="len">69 lines</span>
     <p class="idea">One asynchronous write contract for all seven systems.
     <code>write()</code> completes <b>only on consensus commitment</b>, never on submission,
     and is bounded at 5 seconds.</p>
@@ -242,7 +270,7 @@ git log --oneline -3</pre>
   </div></div>
 
   <div class="stop"><span class="sn">5</span><div class="sb">
-    <span class="path">core/WorkloadEngine.java</span><span class="len">293 lines · the single most important file</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/core/WorkloadEngine.java#L102-L188" target="_blank" rel="noopener">core/WorkloadEngine.java</a><span class="len">293 lines · the single most important file</span>
     <p class="idea">Open-loop load generation with a bounded in-flight window, and
     correction for coordinated omission.</p>
     <p class="first"><b>Read first</b> — <code>run()</code>, lines 102–188. Everything else
@@ -328,7 +356,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
 
 
   <div class="stop"><span class="sn">6</span><div class="sb">
-    <span class="path">core/EventLog.java</span><span class="len">141 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/core/EventLog.java#L101-L112" target="_blank" rel="noopener">core/EventLog.java</a><span class="len">141 lines</span>
     <p class="idea">Failover time is the gap from the injected fault to the first successful
     commit after it — which needs per-event timestamps, not the engine's one-second buckets.</p>
     <p class="first"><b>Read first</b> — <code>failoverMillis()</code>, lines 101–112. Then
@@ -337,7 +365,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
   </div></div>
 
   <div class="stop"><span class="sn">7</span><div class="sb">
-    <span class="path">src/test/…/core/FakeDriver.java <span class="opt">optional</span></span><span class="len">104 lines, test scope</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/test/java/gr/thesis/bench/core/FakeDriver.java#L42" target="_blank" rel="noopener">src/test/…/core/FakeDriver.java</a> <span class="opt">optional</span><span class="len">104 lines, test scope</span>
     <p class="idea">The engine can be tested with no network and no Docker, by a driver that
     stalls on command. It is what makes all of Stage B falsifiable on a laptop.</p>
     <p class="first"><b>Read first</b> — <code>stalling(long, long, long)</code> at line 42.</p>
@@ -382,7 +410,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
   offers.</div>
 
   <div class="stop"><span class="sn">8</span><div class="sb">
-    <span class="path">driver/EtcdHttpDriver.java</span><span class="len">88 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/driver/EtcdHttpDriver.java#L71-L77" target="_blank" rel="noopener">driver/EtcdHttpDriver.java</a><span class="len">88 lines</span>
     <p class="idea">The smallest possible implementation of the contract — pure JDK, HTTP
     POST, base64 keys. The reference shape.</p>
     <p class="first"><b>Read first</b> — <code>write()</code> at 56, then
@@ -391,7 +419,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
   </div></div>
 
   <div class="stop"><span class="sn">9</span><div class="sb">
-    <span class="path">driver/EtcdDriver.java</span><span class="len">106 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/driver/EtcdDriver.java#L84-L100" target="_blank" rel="noopener">driver/EtcdDriver.java</a><span class="len">106 lines</span>
     <p class="idea">The production driver, and the first real leader detection.</p>
     <p class="first"><b>Read first</b> — <code>currentLeaderIndex()</code>, lines 84–100:
     ask every endpoint for its status; the leader is the one whose own member id equals the
@@ -399,7 +427,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
   </div></div>
 
   <div class="stop"><span class="sn">10</span><div class="sb">
-    <span class="path">driver/PaxiDriver.java</span><span class="len">196 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/driver/PaxiDriver.java#L80" target="_blank" rel="noopener">driver/PaxiDriver.java</a><span class="len">196 lines</span>
     <p class="idea">Leaderless and leader-pinned systems need different write routing — and
     a leader can be read out of a response header.</p>
     <p class="first"><b>Read first</b> — <code>endpointIndexFor(...)</code> at line 80.
@@ -409,7 +437,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
   </div></div>
 
   <div class="stop"><span class="sn">11</span><div class="sb">
-    <span class="path">driver/KafkaDriver · CometBftDriver · HotStuffLogAnalyzer <span class="opt">optional</span></span><span class="len">151 · 153 · 309 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/driver/KafkaDriver.java" target="_blank" rel="noopener">driver/KafkaDriver</a> · <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/driver/CometBftDriver.java" target="_blank" rel="noopener">CometBftDriver</a> · <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/driver/HotStuffLogAnalyzer.java" target="_blank" rel="noopener">HotStuffLogAnalyzer</a> <span class="opt">optional</span><span class="len">151 · 153 · 309 lines</span>
     <p class="idea">Three more shapes. CometBFT's latency <em>structurally</em> includes
     block-inclusion wait. HotStuff has <b>no driver at all</b> — its own client is the load
     generator and its logs are its only metrics, so the analyzer is a faithful Java port of
@@ -456,7 +484,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
   partitioned leader is still running and still believes it leads.</div>
 
   <div class="stop"><span class="sn">12</span><div class="sb">
-    <span class="path">topology/ClusterProvider.java</span><span class="len">85 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/topology/ClusterProvider.java#L69-L83" target="_blank" rel="noopener">topology/ClusterProvider.java</a><span class="len">85 lines</span>
     <p class="idea">Cluster lifecycle, a typed node identity, and — most importantly — the
     targeting rules for every fault.</p>
     <p class="first"><b>Read first</b> — <code>FaultInjector.apply(...)</code>, lines 69–83.
@@ -466,7 +494,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
   </div></div>
 
   <div class="stop"><span class="sn">13</span><div class="sb">
-    <span class="path">topology/SshExecutor.java</span><span class="len">41 lines · highest value per line in the repo</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/topology/SshExecutor.java#L30-L38" target="_blank" rel="noopener">topology/SshExecutor.java</a><span class="len">41 lines · highest value per line in the repo</span>
     <p class="idea">One seam every remote command flows through, so identical code paths run
     against the real cluster and against a recorder.</p>
     <p class="first"><b>Read first</b> — <code>execOrThrow</code>, lines 30–38. This tiny
@@ -480,7 +508,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
     <code>SshExecutor</code> (the seam), <code>RecordingSshExecutor</code> (a test
     implementation whose whole trick is one line —
     <code>commands.add(host + ":" + port + "$ " + command)</code>), and seven transcripts in
-    <code>src/test/resources/goldens/</code>, 681 lines total.</p>
+    <a href="https://github.com/pdampanis/consensus-bench-framework/tree/ninth-review-handoff/harness/src/test/resources/goldens" target="_blank" rel="noopener"><code>src/test/resources/goldens/</code></a>, 681 lines total.</p>
     <p>Why here specifically: <b>these commands run on billed machines</b>, and Java's type
     system cannot tell you that <code>eth0</code> is the wrong network interface on a
     Hetzner box, or that a subnet-wide firewall rule would sever the very path you are
@@ -490,7 +518,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
   </div>
 
   <div class="stop"><span class="sn">14</span><div class="sb">
-    <span class="path">topology/SshFaultInjector.java</span><span class="len">189 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/topology/SshFaultInjector.java#L90-L98" target="_blank" rel="noopener">topology/SshFaultInjector.java</a><span class="len">189 lines</span>
     <p class="idea">Each fault as an exact SSH command, with its undo registered
     <em>before</em> it is applied.</p>
     <p class="first"><b>Read first</b> — <code>packetLoss(...)</code>, lines 90–98: resolve
@@ -562,7 +590,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
 
 
   <div class="stop"><span class="sn">15</span><div class="sb">
-    <span class="path">topology/LocalDockerProvider.java · RemoteSshProvider.java <span class="opt">optional</span></span><span class="len">381 · 896 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/topology/LocalDockerProvider.java#L81" target="_blank" rel="noopener">topology/LocalDockerProvider.java</a> · <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/topology/RemoteSshProvider.java#L192" target="_blank" rel="noopener">RemoteSshProvider.java</a> <span class="opt">optional</span><span class="len">381 · 896 lines</span>
     <p class="idea">Local first: the parallel container start exists because an etcd member
     only reports healthy once quorum exists, so a sequential start would deadlock on its own
     readiness gate. <code>RemoteSshProvider</code> is the largest file here and is best read
@@ -611,7 +639,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
   looks like defensive programming. With it, it is the experimental protocol.</div>
 
   <div class="stop"><span class="sn">16</span><div class="sb">
-    <span class="path">results/CsvResultsWriter.java</span><span class="len">307 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/results/CsvResultsWriter.java#L203-L219" target="_blank" rel="noopener">results/CsvResultsWriter.java</a><span class="len">307 lines</span>
     <p class="idea">The on-disk output contract, and the moment a run declares itself
     complete or failed.</p>
     <p class="first"><b>Read first</b> — <code>write(...)</code>, lines 116–267, then the
@@ -620,7 +648,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
   </div></div>
 
   <div class="stop"><span class="sn">17</span><div class="sb">
-    <span class="path">validity/ValidityChecker.java</span><span class="len">784 lines · the file that makes the thesis defensible</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/validity/ValidityChecker.java#L189-L218" target="_blank" rel="noopener">validity/ValidityChecker.java</a><span class="len">784 lines · the file that makes the thesis defensible</span>
     <p class="idea">Eleven automated gates, evaluated per run into <code>validity.json</code>,
     distinguishing PASS / FAIL / <b>SKIP</b>.</p>
     <p class="first"><b>Read first</b> — <code>check(Path runDir)</code>, lines 189–218:
@@ -698,7 +726,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
 
 
   <div class="stop"><span class="sn">18</span><div class="sb">
-    <span class="path">validity/ConfidenceGrade.java</span><span class="len">120 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/validity/ConfidenceGrade.java#L72-L119" target="_blank" rel="noopener">validity/ConfidenceGrade.java</a><span class="len">120 lines</span>
     <p class="idea">How far a <b>cell</b> — one configuration measured five times — can be
     trusted, as an ordinal grade with named reasons. Adapted from <b>GRADE</b>, the medical
     evidence-rating framework, whose vocabulary the thesis then borrows rather than
@@ -734,8 +762,8 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
   <div class="res">
     <h3>Resources for Stage E</h3>
     <div class="ri"><span class="rk">Paper</span><span class="d">Guyatt et al., <b>GRADE: an emerging consensus on rating quality of evidence</b> (BMJ 2008;336:924–926). Short, free, and the direct source of the A/B/C scheme. Read it — it is what lets the thesis say "we adapted an established framework" rather than "we made up a score".</span></div>
-    <div class="ri"><span class="rk">Repo</span><span class="d"><code>docs/DATA_ANALYSIS_METHODOLOGY.md</code> — the project's own statistics and validity chapter. It <b>wins over</b> any other doc on questions of method.</span></div>
-    <div class="ri"><span class="rk">Sample</span><span class="d"><code>docs/examples/sample-results/</code> — a real run directory. Open every file in it while reading Stop 16.</span></div>
+    <div class="ri"><span class="rk">Repo</span><span class="d"><a href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/docs/DATA_ANALYSIS_METHODOLOGY.md" target="_blank" rel="noopener"><code>docs/DATA_ANALYSIS_METHODOLOGY.md</code></a> — the project's own statistics and validity chapter. It <b>wins over</b> any other doc on questions of method.</span></div>
+    <div class="ri"><span class="rk">Sample</span><span class="d"><a href="https://github.com/pdampanis/consensus-bench-framework/tree/ninth-review-handoff/docs/examples/sample-results" target="_blank" rel="noopener"><code>docs/examples/sample-results/</code></a> — a real run directory. Open every file in it while reading Stop 16.</span></div>
   </div>
 </div>
 
@@ -748,7 +776,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
   abort the remaining forty.</div>
 
   <div class="stop"><span class="sn">19</span><div class="sb">
-    <span class="path">campaign/Inventory.java</span><span class="len">64 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/campaign/Inventory.java#L33-L53" target="_blank" rel="noopener">campaign/Inventory.java</a><span class="len">64 lines</span>
     <p class="idea">Topology comes from one Terraform-generated file and is never guessed.</p>
     <p class="first"><b>Read first</b> — <code>parse(Path)</code> at 33 and
     <code>require(...)</code> at 55. A key the runner needs but the file lacks throws, naming
@@ -756,7 +784,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
   </div></div>
 
   <div class="stop"><span class="sn">20</span><div class="sb">
-    <span class="path">campaign/RemoteRunner.java</span><span class="len">704 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/campaign/RemoteRunner.java#L148-L212" target="_blank" rel="noopener">campaign/RemoteRunner.java</a><span class="len">704 lines</span>
     <p class="idea">One campaign cell, end to end, on real VMs.</p>
     <p class="first"><b>Read first</b> — <code>runDriverSystem(...)</code>, lines 148–212:
     the whole orchestration in 65 lines. Then <code>faultThread(...)</code> at 268 and
@@ -818,13 +846,13 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
 
 
   <div class="stop"><span class="sn">21</span><div class="sb">
-    <span class="path">campaign/MatrixRunner.java · Simulations.java <span class="opt">optional</span></span><span class="len">409 · 85 lines</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/campaign/MatrixRunner.java#L130" target="_blank" rel="noopener">campaign/MatrixRunner.java</a> · <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/campaign/Simulations.java" target="_blank" rel="noopener">Simulations.java</a> <span class="opt">optional</span><span class="len">409 · 85 lines</span>
     <p class="idea">Cell expansion with a seeded shuffle, resume, journalling, and
     continue-on-failure.</p>
   </div></div>
 
   <div class="stop"><span class="sn">22</span><div class="sb">
-    <span class="path">Main.java</span><span class="len">331 lines · read this LAST, deliberately</span>
+    <a class="path" href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/main/java/gr/thesis/bench/Main.java#L44-L78" target="_blank" rel="noopener">Main.java</a><span class="len">331 lines · read this LAST, deliberately</span>
     <p class="idea">Four commands, all argument plumbing over machinery you have already
     read.</p>
     <p class="first"><b>Why last:</b> a newcomer's instinct is to start at <code>main</code>,
@@ -869,12 +897,12 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
   information.</p>
   <h3>Read these six, in this order</h3>
   <ul>
-    <li><code>core/WorkloadEngineTest.java</code> — 19 tests. <b>Start here.</b> The production code <em>asserts</em> that latency is charged against intended time; this <em>demonstrates the consequence</em>.</li>
-    <li><code>topology/RemoteSshProviderTest.java</code> — 21 tests. The only place you can see the whole deploy layer without reading 896 lines.</li>
-    <li><code>validity/ValidityCheckerTest.java</code> — 38 tests, the largest. The gates' <em>reasoning</em> is in the production javadoc; their <em>boundaries</em> are only visible here.</li>
-    <li><code>topology/SshFaultInjectorTest.java</code> — makes a concurrency bug <b>deterministic</b> with two latches. A technique worth stealing.</li>
-    <li><code>topology/HostFaultEffectTest.java</code> — the explicit answer to "the goldens are green, are we done?" Its javadoc says no, and names the bug that proves it.</li>
-    <li><code>driver/EtcdDriverTest.java</code> — cross-validates leader detection against an <em>independent client stack</em>. Two stacks agreeing is corroboration; one stack agreeing with itself is circular. A research-methods lesson inside a unit test.</li>
+    <li><a href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/test/java/gr/thesis/bench/core/WorkloadEngineTest.java#L98" target="_blank" rel="noopener"><code>core/WorkloadEngineTest.java</code></a> — 19 tests. <b>Start here.</b> The production code <em>asserts</em> that latency is charged against intended time; this <em>demonstrates the consequence</em>.</li>
+    <li><a href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/test/java/gr/thesis/bench/topology/RemoteSshProviderTest.java#L47" target="_blank" rel="noopener"><code>topology/RemoteSshProviderTest.java</code></a> — 21 tests. The only place you can see the whole deploy layer without reading 896 lines.</li>
+    <li><a href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/test/java/gr/thesis/bench/validity/ValidityCheckerTest.java#L127" target="_blank" rel="noopener"><code>validity/ValidityCheckerTest.java</code></a> — 38 tests, the largest. The gates' <em>reasoning</em> is in the production javadoc; their <em>boundaries</em> are only visible here.</li>
+    <li><a href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/test/java/gr/thesis/bench/topology/SshFaultInjectorTest.java#L203" target="_blank" rel="noopener"><code>topology/SshFaultInjectorTest.java</code></a> — makes a concurrency bug <b>deterministic</b> with two latches. A technique worth stealing.</li>
+    <li><a href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/test/java/gr/thesis/bench/topology/HostFaultEffectTest.java#L129" target="_blank" rel="noopener"><code>topology/HostFaultEffectTest.java</code></a> — the explicit answer to "the goldens are green, are we done?" Its javadoc says no, and names the bug that proves it.</li>
+    <li><a href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/harness/src/test/java/gr/thesis/bench/driver/EtcdDriverTest.java#L107" target="_blank" rel="noopener"><code>driver/EtcdDriverTest.java</code></a> — cross-validates leader detection against an <em>independent client stack</em>. Two stacks agreeing is corroboration; one stack agreeing with itself is circular. A research-methods lesson inside a unit test.</li>
   </ul>
 <pre>cd ~/Downloads/cbt-main/harness
 ~/tools/maven/mvn21.sh -Dtest='WorkloadEngineTest' -DfailIfNoTests=false test</pre>
@@ -904,7 +932,7 @@ final long latencyMicros = (completed - intended) / 1_000L;</pre>
 <footer>
   <p>Built from the code at <code>~/Downloads/cbt-main</code>, September 2026. Every file
   path, line number and figure here was read from the source rather than recalled.</p>
-  <p>Next: <code>docs/NEXT_SESSION.md</code> for the current state and what remains, and
-  <code>docs/PROJECT_STATE.md</code> §6 for the plan.</p>
+  <p>Next: <a href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/docs/NEXT_SESSION.md" target="_blank" rel="noopener"><code>docs/NEXT_SESSION.md</code></a> for the current state and what remains, and
+  <a href="https://github.com/pdampanis/consensus-bench-framework/blob/ninth-review-handoff/docs/PROJECT_STATE.md" target="_blank" rel="noopener"><code>docs/PROJECT_STATE.md</code></a> §6 for the plan.</p>
 </footer>
 </div>
