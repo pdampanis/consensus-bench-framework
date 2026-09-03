@@ -29,6 +29,13 @@ report files (F76) — which did **not** recur.
 > data while the suite stays green, and C1 is proven end-to-end by
 > execution.
 
+> **2026-09-03 — three further blockers found, none of them in any plan.**
+> The loadgen cannot run the harness as provisioned: **no JRE** in
+> `cloud-init.yaml`, **no private SSH key** on the loadgen (Terraform installs
+> only the public one), and **nothing ships the jar**. See §5's `B-1/2/3` row.
+> Phase 2 is also rewritten: the canary is now performed **by hand at n=3**,
+> per `docs/FIRST_MANUAL_DEPLOY.md`, and the two are one session.
+
 ---
 
 ## 1. What this project is
@@ -243,6 +250,7 @@ Only what is still OPEN is here.
 | **N-16** | **Nothing deploys the observability stack.** One `cloud-init.yaml` for all roles; no `docker compose up`, no copy of `observability/` | `main.tf:157`; `scripts/` holds one file | Write `scripts/deploy_obs.sh` |
 | **N-5** | **`prometheus.yml` placeholders are never substituted**, and `NODE4` is hardcoded at n=3 | No writer anywhere in `scripts/ infra/ harness/src/main/` | Install `patches/scripts/render_obs_config.sh` |
 | **N-7** | `MatrixRunner` has **no failure ceiling** — a systemic fault bills all night and produces nothing | `MatrixRunner.java:322` | Re-implement the breaker (the shipped patch is stale, §6 P0.9) |
+| **B-1/2/3** | **The loadgen cannot run the harness at all.** Three things nothing provisions: (1) **no JRE** — `cloud-init.yaml`'s package list has no JDK and `grep -rniE 'jdk\|openjdk' infra/ scripts/` returns **0** hits, yet `RemoteRunner` SSHes to `10.0.0.11+` and so can only run **on** loadgen; (2) **no private key on loadgen** — Terraform installs only the public key (`main.tf:43`) while `Inventory` hands `SSH_KEY=~/.ssh/hetzner_thesis` to `SshjExecutor`; (3) **nothing ships the jar** — no script copies it, and `RemoteRunner.java:388` reads `observability/export_queries.txt` relative to CWD while its javadoc credits `collect_block.sh`, which only copies results *back*. | Greps + file:line, this review. (2) is recorded **only** in `docs/archive/HONEST_REVIEW_V6.md:36-39`, i.e. in a DEPRECATED file, and appears in no current plan | `scripts/bootstrap_loadgen.sh` — §6 Phase 0.15 |
 | **M3** | The **"9 of 11 gates" figure is not what a `remote-run` produces** — the check runs at `:199`, `events/` is written at `:213` | file:line | Move both collectors above the check |
 
 **N-16 + N-5 together are the campaign-killer.** With no Prometheus, the
@@ -325,7 +333,7 @@ read from Maven's own summary line, one commit per step.
 | **0.4** | **N-20** — etcd backend quota + auto-compaction. **The only golden-touching item in the plan.** Size it from published guidance now and accept that canary 2.16 may revise it (see the note under Phase 3) | **YES** | Golden updated first as the spec, provider matches verbatim |
 | **0.5** | **C4** — remove `KafkaDriver`'s RF cap at 3, set `min.insync.replicas = ⌊n/2⌋+1`, 1 partition for E-SCALE plus one declared 6-partition cell | no — client-side | A size-5 cell replicates to 5; `kraft-size3` golden **unchanged** (verify by running the golden test, do not assume) |
 | **0.5b** | **C2** — `analyse.py` reads `summary.txt`; HotStuff gets its own table | no | A HotStuff cell yields real numbers, not `{n: 1}` |
-| **0.6** | **N-16** — write `scripts/deploy_obs.sh`: scp `observability/` + the rendered config to obs → `docker compose up -d` → wait `/-/ready` → assert **every target `up`** | no | Runs against a local Prometheus; refuses to return 0 with any target down |
+| **0.6** | **N-16** — write `scripts/deploy_obs.sh`: scp `observability/` + the rendered config to obs → `docker compose up -d` → wait `/-/ready` → assert **every target `up`** | no | Runs against a local Prometheus; refuses to return 0 with any **expected** target down. **"every target up" is unachievable as written**: `prometheus.yml` declares jobs for all seven systems while only one SUT runs, and the `harness` job (:9400) is live only *during* a cell. Scope the assertion to the `node` job plus the active SUT's job |
 | **0.7** | **N-5** — install `patches/scripts/render_obs_config.sh` | no | Renders for n=2, 3, 4, 7; `promtool check config` green (install promtool) |
 | **0.8** | **`main.tf` hardening** — `cpx21`→`cx33`, `ccx33` 0.1923→0.2219, IPv4 line item, **cost fails closed** on an unpriced type. Patch applies clean (`infra/`, `-p1`) | no | `terraform validate`, `fmt -check`, and the 8 `tftest` runs green — install `patches/tests/` **in the same commit** |
 | **0.9** | **cloud-init hardening** — docker-daemon readiness, log ceiling, `fio`/`iperf3`/`ethtool`/`rsync`. Patch applies clean | no | `cloudinit_lint.py` exit 0 |
@@ -333,6 +341,7 @@ read from Maven's own summary line, one commit per step.
 | **0.11** | **N-6 + collection hardening** — `disk_guard.sh`, `campaign_watchdog.sh`, `collect_block-hardening.patch` (clean), one `REMOTE_RESULTS` name shared by harness and scripts | no | The watchdog is **seen to fire once** |
 | **0.12** | **M5/M8/M9** — a gate reads `events_dropped`; the SKIP set aggregates across *all* reports, not `reports.get(0)`; grade **A** made reachable | no | A cell with heterogeneous SKIPs grades correctly — the case no test covers today |
 | **0.13** | **D-9 / N2** — purge `corpus/` of the signed application PDF, **from history** | no | `git log --all -- corpus/<file>` empty; force-push while private |
+| **0.15** | **B-1/2/3** — `scripts/bootstrap_loadgen.sh`: install `openjdk-21-jre-headless` + `rsync`, push the private key to `/root/.ssh/`, push the jar, `deploy/inventory.env` and `observability/export_queries.txt` into the CWD the harness runs from. Add the JRE to `cloud-init.yaml` in the same commit (it is the cheaper half). Fix `RemoteRunner.java:388`'s javadoc, which names the wrong script | no | `java -version` and a loadgen→node SSH both succeed on a freshly applied cluster |
 | **0.14** | Doc corrections: query count 23, P3.4's `< €0.10`, P3.5's type list, VAT, `hcloud primary-ip list` in runbook §7, N-11's phantom `logs/`, the `baseline_error_rate` clause into the methodology | no | — |
 
 **Exit criteria:** `mvn21 clean verify` green with the count on Maven's own
@@ -344,7 +353,7 @@ every golden-touching change landed.
 | # | Step | Owner |
 |---|---|---|
 | **1.1** | **G2 — read all seven goldens against their header checklists and sign off, dated.** Phase 0 changed the etcd and Kafka goldens on top of the three already changed (F69 sweep, derived `slow_node` timeout, packet-loss severity) | **AUTHOR** |
-| **1.2** | **Canary Stage 0 — €0.** `hcloud server-type list` · `hcloud server-type describe cx33` · **`hcloud pricing`** · `hcloud location list` · `terraform plan -var consensus_node_count=2` | **AUTHOR** |
+| **1.2** | **Canary Stage 0 — €0.** `hcloud server-type list` · `hcloud server-type describe cx33` · **`hcloud server-type list -o json | jq '.[].prices'`** (net *and* gross per location, straight from the API; `hcloud pricing` is a recent-CLI convenience and may not exist on your version) · `hcloud location list` · `terraform plan -var consensus_node_count=2` | **AUTHOR** |
 | **1.3** | **P3.5** — transcribe every price from `hcloud pricing` into `local.hourly_eur`. **Any disagreement with the handoff's cost model resolves in favour of `hcloud pricing`** | **AUTHOR** |
 | **1.4** | `preflight.sh` green; one real boot of `cloud-init.yaml` under multipass/QEMU (closes N-10); record `df -h /` on the booted VM as the disk baseline | either |
 
@@ -357,9 +366,28 @@ expect 12** — that figure belongs to the 6-VM Phase-C shape.
 **If Stage 0 fails, stop.** A wrong type here is a five-minute edit; the same
 type at Stage 1 is a failed apply on the day you first spend money.
 
-### Phase 2 — the canary. ≈ €0.55 gross. First contact.
+### Phase 2 — the canary, driven BY HAND. ≈ €1.10 gross. First contact.
 
-Shape: **Phase-A topology with `consensus_node_count=2`** — 2×`ccx13` + loadgen
+**Revised 2026-09-03 — the canary is performed manually, at n=3, and the two
+are the same session.** Running a hand-driven walk *and* a scripted canary
+would pay twice for one answer. The step-by-step commands are
+**`docs/FIRST_MANUAL_DEPLOY.md`**; the 18 checks below stay exactly as they
+are and serve as its checklist.
+
+**n=3, not n=2.** Quorum on two nodes is two, so `LEADER_KILL` at n=2 leaves
+*zero* quorum — check 2.14 could only ever prove fault *mechanics* there
+(the caveat is spelled out in its row). At n=3 the survivors re-elect,
+`throughput.csv` shows the gap and the recovery, and the SSH sequence is
+diffable line-for-line against `goldens/etcd-size3-start-stop.txt`. The cost
+of the difference is ≈€0.26. `terraform plan` then shows **11**, not 10 —
+`6 + N_vms` with 5 VMs, the figure `LOCAL_TESTING.md §3.3` already records by
+execution at n=3.
+
+**Phase 0.15 is a hard prerequisite** — or its three steps are done by hand
+in the session (`FIRST_MANUAL_DEPLOY.md` S7), which is the point of doing it
+manually once.
+
+Original n=2 shape, kept for reference: **Phase-A topology with `consensus_node_count=2`** — 2×`ccx13` + loadgen
 + obs = 4 servers. **€0.2203/h for the VMs alone; €0.2230/h once Phase 0.8's
 patch adds the primary-IPv4 line item**, which is what `terraform plan` will
 print — expect the second number, not the first. Two hours ≈ €0.45 net /
@@ -649,6 +677,7 @@ consulted, not planned from.
 | `LOCAL_TESTING.md` · `PER_ALGORITHM_TEST_GUIDE.md` · `MONITORING_GUIDE.md` | Operator guides |
 | `MEASUREMENT_DIAGRAMS.md` · `JAVA_HARNESS_ASSESSMENT.md` | Architecture and rationale |
 | `examples/` · `SSH_SETUP.md` | Sample data, planned SSH switch |
+| **`FIRST_MANUAL_DEPLOY.md`** | **The Phase 2 session, command by command.** The author's hand-driven canary at n=3: tooling, key, token, price gate, apply, loadgen bootstrap, obs by hand, one baseline + one `leader_kill` cell, collection, analysis, destroy |
 | `HANDOFF_REVIEW_2026-09-02.md` | **Evidence ledger** for the `thesis-handoff-2026-08-21` review: every finding's verdict against *this* tree, what was executed, and what was not |
 | `archive/` | **History, not guidance.** Includes the full F1–F76 findings ledger |
 
