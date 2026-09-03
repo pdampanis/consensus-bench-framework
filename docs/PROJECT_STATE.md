@@ -330,6 +330,7 @@ read from Maven's own summary line, one commit per step.
 | **0.1** | **C1** — the gate SKIPs for systems with no engine-measured error rate (`error_rate` is **not** derivable from the HotStuff SUMMARY); add `window` from `spec.window()` | no | A HotStuff-shaped manifest reaches `valid: true`; a red test first, on the manifest **production actually writes**. **Not done until 0.5b too** — `valid: true` alone still yields a cell of `{n: 1}` |
 | **0.2** | **M2** — `tendermint` uses the gauge witness | no | A recovered-chain fixture (rounds 0→2→0) passes gate 3 |
 | **0.3** | **M3** — collectors move above the validity check | no | A `remote-run` fixture evaluates `container_restarts` instead of SKIPping it |
+| **0.3b** | **M1 — moved here from Phase 3.** It breaks the canary's *own* gate 3: `PrometheusExporter.java:177-179` writes series-major rows, `counterIncreasesInWindow` (`ValidityChecker.java:657-663`) compares `s.get(0)` to `s.get(size-1)` across **all** series, and the `node_up` rescue at `:593` does **not** fire for a `docker kill` (node_exporter keeps running, so `up{job="node"}` stays 1). Group by the `series` column the CSV already carries | no | A 3-instance `etcd_leader_chg` fixture where node1 alone increments passes, and one where only the cross-series ordering suggests an increment fails |
 | **0.4** | **N-20** — etcd backend quota + auto-compaction. **The only golden-touching item in the plan.** Size it from published guidance now and accept that canary 2.16 may revise it (see the note under Phase 3) | **YES** | Golden updated first as the spec, provider matches verbatim |
 | **0.5** | **C4** — remove `KafkaDriver`'s RF cap at 3, set `min.insync.replicas = ⌊n/2⌋+1`, 1 partition for E-SCALE plus one declared 6-partition cell | no — client-side | A size-5 cell replicates to 5; `kraft-size3` golden **unchanged** (verify by running the golden test, do not assume) |
 | **0.5b** | **C2** — `analyse.py` reads `summary.txt`; HotStuff gets its own table | no | A HotStuff cell yields real numbers, not `{n: 1}` |
@@ -436,7 +437,6 @@ Only now, with real numbers in hand.
 | **3.2** | **C3** — second histogram at the driver bound; timed-out count into the manifest |
 | **3.3** | **M4** — `omitted_by_schedule` into the manifest |
 | **3.4** | **M6** — warmup judged by intended time |
-| **3.5** | **M1** — group metric CSV by series before the counter comparison |
 | **3.6** | **Hardware provenance** — `node_facts.sh` wired per apply, a 12-char `hw_fingerprint` in every manifest, and two gates: **12** intra-run homogeneity (fail-closed) and **13** cross-block continuity (warn + downgrade) |
 | **3.7** | **N-17 / M7** — implement `.hlog` merging in `analyse.py`, `--selftest` case first. Without it there is no F3 and the methodology's headline claim is half-made |
 | **3.8** | `docs/PREDICTIONS.md`, append-only, committed **before** any campaign run |
