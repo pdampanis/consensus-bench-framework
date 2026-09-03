@@ -305,6 +305,44 @@ class RemoteRunnerTest {
     }
 
     @Test
+    void forensicsThatBlowsUpMustNotCostTheMeasurement(@TempDir Path out) throws Exception {
+        // M3 moved the verdict after the collectors, which is right — but it
+        // also moved the WRITE after them, and three javadocs still promise
+        // "the measurement is already on disk" as the reason forensics may
+        // fail freely. It no longer was. Force the collector to throw where
+        // it does not catch (logs/ pre-existing as a FILE, so
+        // createDirectories fails) and require the CSVs and manifest anyway:
+        // losing a measured cell because we could not photograph it is the
+        // worst available trade.
+        var nodes = java.util.List.of(new gr.thesis.bench.topology.ClusterProvider.NodeHandle(
+                0, "thesis-etcd1", "10.0.0.11", "10.0.0.11"));
+        var spec = new RemoteRunner.Spec(SystemUnderTest.ETCD, Scenario.LEADER_KILL, 1,
+                100, 6, 2, 64, 1024, 0.0, 3, 0, 0, out, "r004",
+                Path.of("deploy/inventory.env"), "root");
+        var inv = new Inventory(java.util.List.of("10.0.0.11"), "10.0.0.20",
+                Optional.empty(), Path.of("key"));
+        var id = new gr.thesis.bench.results.CsvResultsWriter.RunIdentity(
+                SystemUnderTest.ETCD, Scenario.LEADER_KILL, 1, 0.0, "r004");
+        var cfg = new gr.thesis.bench.core.WorkloadEngine.Config(6, 2, 100, 64, 1024, 0.0);
+        var rec = new gr.thesis.bench.core.LatencyRecorder();
+        for (int i = 0; i < 400; i++) rec.record(1_000, true);
+        var result = new gr.thesis.bench.core.WorkloadEngine.Result(
+                new long[]{100, 100, 100, 0, 90, 100}, rec, 0);
+
+        java.nio.file.Path dir = id.dir(out);
+        java.nio.file.Files.createDirectories(dir);
+        java.nio.file.Files.writeString(dir.resolve("logs"), "not a directory");
+
+        RemoteRunner.finishRun(cannedEvents("1754229600 thesis-etcd1 die\n"),
+                nodes, java.util.List.<String[]>of(), spec, inv, id, result, cfg,
+                java.time.Instant.EPOCH, java.time.Instant.EPOCH.plusSeconds(6));
+
+        assertTrue(java.nio.file.Files.exists(dir.resolve("manifest.json")),
+                "a forensics failure must never cost the measurement");
+        assertTrue(java.nio.file.Files.exists(dir.resolve("throughput.csv")));
+    }
+
+    @Test
     void faultRunIsJudgedAgainstTheEventsAuditItJustCollected(@TempDir Path out) throws Exception {
         // M3. The docker-events audit is gate 4's only input, and gate 4 is
         // the audit that says a kill actually happened. Judging the run

@@ -33,7 +33,7 @@ Everything below re-establishes which findings survive that 30-commit gap.
 
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
-| **N-16** | Nothing deploys the observability stack | **CONFIRMED, BLOCKING** | `user_data = file("cloud-init.yaml")` is one file for *all* roles (`main.tf:157`); its `runcmd` ends at the JMX-agent download — no `docker compose up`, no copy of `observability/`. `scripts/` holds one file |
+| **N-16** | Nothing deploys the observability stack | **CONFIRMED, BLOCKING** | `user_data = file("cloud-init.yaml")` is one file for *all* roles (`main.tf:157`); its `runcmd` ends at the JMX-agent download — no `docker compose up`, no copy of `observability/`. `scripts/` held one file *on 2026-09-02*; it now holds three, and none of them deploys the obs stack — the finding stands |
 | **N-5** | `prometheus.yml` placeholders are never substituted | **CONFIRMED, BLOCKING** | The file says "Replace PRIVATE_* placeholders … or let the WS2 provisioning script template them"; grep across `scripts/ infra/ harness/src/main/` finds no writer. `NODE4` is hardcoded while Phase A provisions 3 |
 | **N-7** | `MatrixRunner` has no failure ceiling | **CONFIRMED, BLOCKING** | `MatrixRunner.java:322` `failed++` then continues; no ceiling constant anywhere in the file |
 | **N-6** | No free-disk check anywhere | **CONFIRMED** | grep for `df`/disk guard across `scripts/` and `harness/src/main/` returns nothing |

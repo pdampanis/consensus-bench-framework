@@ -179,7 +179,7 @@ scp -i $K $REPO/deploy/inventory.env            root@$PUBLIC_LOADGEN:/root/deplo
 scp -i $K $REPO/observability/export_queries.txt root@$PUBLIC_LOADGEN:/root/observability/export_queries.txt
 ```
 
-`RemoteRunner.java:388` reads `observability/export_queries.txt` **relative to
+`RemoteRunner.java:412` reads `observability/export_queries.txt` **relative to
 the working directory**, so the harness must be started from `/root`.
 (Its javadoc says `collect_block.sh` stages the repo there; it does not —
 that script only copies results *back*.)

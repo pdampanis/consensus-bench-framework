@@ -112,21 +112,26 @@ ul.plain{margin:0;padding-left:1.15rem;display:flex;flex-direction:column;gap:.4
   every claim.</p>
   <div class="meta">
     <span>2026-09-03</span><span>branch ninth-review-handoff</span>
-    <span>a537926</span><span>€0 spent to date</span>
+    <span>e3d701b</span><span>€0 spent to date</span>
   </div>
 </header>
 
 <section>
   <div class="strip">
-    <div><span class="v">247</span><span class="k">tests green</span></div>
+    <div><span class="v">248</span><span class="k">tests green</span></div>
     <div><span class="v">37/37</span><span class="k">test classes</span></div>
-    <div><span class="v">05:23</span><span class="k">verify wall clock</span></div>
-    <div><span class="v">7 / 9</span><span class="k">merge gate held</span></div>
+    <div><span class="v">05:24</span><span class="k">verify wall clock</span></div>
+    <div><span class="v">8 / 9</span><span class="k">merge gate held</span></div>
     <div><span class="v">€1.10</span><span class="k">first deploy, 3 h</span></div>
   </div>
-  <p class="lede">The suite is green and the merge gate holds on seven of nine items.
+  <p class="lede">The suite is green and the merge gate holds on eight of nine items.
   Gate 6 — the author's read-through of the seven SSH goldens — is open, and it is the
   one thing keeping <code>main</code> unpushed. Nothing here has cost money yet.</p>
+  <div class="note"><strong>248 is Maven's own summary line, not arithmetic over
+  report files</strong> — F76 is the reason that distinction exists: a <code>verify</code>
+  once reported success having run 90 tests of 177. 37 test classes ran against 37 on
+  disk, in 05:24; a suspiciously fast green is a failed gate until the count is
+  confirmed.</div>
 </section>
 
 <section>
@@ -141,8 +146,8 @@ ul.plain{margin:0;padding-left:1.15rem;display:flex;flex-direction:column;gap:.4
     <tbody>
       <tr><td class="id">B-1</td><td><strong>No JRE on any VM.</strong> The harness can only run <em>on</em> the loadgen — it SSHes to <code>10.0.0.11+</code> — and cloud-init installs no Java</td><td class="ev">grep -rniE 'jdk|openjdk' infra/ scripts/ → 0</td></tr>
       <tr><td class="id">B-2</td><td><strong>The loadgen has no private key.</strong> Terraform installs only the public one, while <code>Inventory</code> hands the private path to <code>SshjExecutor</code></td><td class="ev">main.tf:43 · archive/HONEST_REVIEW_V6.md:36</td></tr>
-      <tr><td class="id">B-3</td><td><strong>Nothing ships the jar.</strong> And <code>export_queries.txt</code> is read relative to CWD while the javadoc credits a script that copies the other way</td><td class="ev">RemoteRunner.java:388</td></tr>
-      <tr><td class="id">N-16</td><td>Nothing deploys the observability stack</td><td class="ev">scripts/ holds one file</td></tr>
+      <tr><td class="id">B-3</td><td><strong>Nothing ships the jar.</strong> And <code>export_queries.txt</code> is read relative to CWD while the javadoc credits a script that copies the other way</td><td class="ev">RemoteRunner.java:412</td></tr>
+      <tr><td class="id">N-16</td><td>Nothing deploys the observability stack</td><td class="ev">nothing in scripts/ does it</td></tr>
       <tr><td class="id">N-5</td><td><code>prometheus.yml</code> ships with literal <code>PRIVATE_NODE1</code> placeholders; nothing substitutes them</td><td class="ev">no writer in infra/ scripts/ harness/</td></tr>
       <tr><td class="id">C1</td><td>Every <strong>HotStuff</strong> run is discarded — its manifest carries no <code>error_rate</code>, and the gate never SKIPs</td><td class="ev">executed: analyse.py → 0 runs, 1 excluded</td></tr>
       <tr><td class="id">C2</td><td>Fixing C1 alone still yields <code>{n:1}</code> — <code>analyse.py</code> never opens <code>summary.txt</code></td><td class="ev">executed with C1 patched</td></tr>
@@ -262,7 +267,7 @@ ul.plain{margin:0;padding-left:1.15rem;display:flex;flex-direction:column;gap:.4
           <li><span class="s">D17</span><span>n=20 for Paxos vs EPaxos at two conflict rates — the registered prediction is a crossover, so one rate tests neither end</span></li>
         </ul>
         <div class="note"><strong>The real financial risk is not the campaign — it is a
-        forgotten cluster.</strong> Phase C at ≈€7/day costs €133 in a week, more than the
+        forgotten cluster.</strong> Phase C at ≈€19/day costs €133 in a week, more than the
         entire planned campaign. Destroy discipline is the only cost lever that matters.</div>
       </div>
     </div>

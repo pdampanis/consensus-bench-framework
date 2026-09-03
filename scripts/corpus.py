@@ -81,7 +81,7 @@ def bib_pdf_claims():
         return []
     text = BIB.read_text(encoding="utf-8")
     out = []
-    for entry in re.split(r"\n@", text)[1:]:
+    for entry in re.split(r"(?m)^@", text)[1:]:
         key = re.match(r"\w+\{([^,]+),", entry)
         if key and "VERIFIED-PDF" in entry:
             out.append(key.group(1).strip())
@@ -141,7 +141,9 @@ def cmd_verify():
     claims = bib_pdf_claims()
     orphan_claims = sorted(set(claims) - mapped)
 
-    print(f"\ncorpus: {len(disk)} files, {len(by_sha)} distinct, {len(mapped)} mapped to a bibkey")
+    n_rows_mapped = sum(1 for r in recorded.values() if len(r) > 5 and r[5])
+    print(f"\ncorpus: {len(disk)} files, {len(by_sha)} distinct; {n_rows_mapped} rows "
+          f"carry a bibkey, naming {len(mapped)} distinct papers")
     for k in orphan_claims:
         print(f"WARN  {k}: the bib claims VERIFIED-PDF, but no corpus file is "
               f"mapped to it")
@@ -158,7 +160,7 @@ def bib_entries():
     if not BIB.exists():
         return []
     out = []
-    for entry in re.split(r"\n@", BIB.read_text(encoding="utf-8"))[1:]:
+    for entry in re.split(r"(?m)^@", BIB.read_text(encoding="utf-8"))[1:]:
         m = re.match(r"\w+\{([^,]+),", entry)
         if not m:
             continue
@@ -175,7 +177,12 @@ def bib_entries():
 def cmd_fetch(dry_run):
     """Three buckets, and the order matters: a paper the corpus already
     holds must never be reported as one to chase through a paywall."""
-    have = {r[3] for r in read_manifest() if r[3]}
+    rows = read_manifest()
+    have_ids = {r[3] for r in rows if r[3]}
+    # The bibkey column is the STRONGER signal — it is the one a person
+    # filled in — and ignoring it told you to chase a dozen papers the
+    # corpus already holds.
+    have_keys = {r[5] for r in rows if len(r) > 5 and r[5]}
     present, fetchable, manual, unknown = [], [], [], []
     for key, arx, iacr, doi in bib_entries():
         ids = set()
@@ -183,9 +190,10 @@ def cmd_fetch(dry_run):
             ids.add("arXiv:" + arx)
         if doi:
             ids.add("doi:" + doi)
-        if iacr:
-            ids.add("iacr")
-        if ids & have:
+        # NOT iacr: identify() records it as a bare "iacr" with no report
+        # number, so one IACR paper in the corpus would mark every IACR
+        # entry present. bibkey covers those instead.
+        if key in have_keys or (ids & have_ids):
             present.append(key)
         elif arx:
             fetchable.append((key, f"https://arxiv.org/pdf/{arx}", f"{arx}.pdf"))
@@ -197,7 +205,8 @@ def cmd_fetch(dry_run):
         else:
             unknown.append(key)
 
-    print(f"already in the corpus (matched by identifier): {len(present)}")
+    print(f"already in the corpus (bibkey or identifier): {len(present)} of "
+          f"{len(present) + len(fetchable) + len(manual) + len(unknown)} bib entries")
     for key, url, name in fetchable:
         target = CORPUS / name
         if target.exists():

@@ -221,8 +221,10 @@ public final class RemoteRunner {
      * (F41), so the loss is not cosmetic: the "9 of 11 gates" figure is not
      * what a {@code remote-run} produces.
      *
-     * <p>The collectors create their own subdirectories, so nothing here
-     * depends on {@link CsvResultsWriter} having run first.
+     * <p>Order, and each step earns its place: the CSVs and manifest are
+     * written FIRST, so the collectors' "the measurement is already on disk"
+     * licence is true when they run; the collectors follow; the verdict is
+     * last, when every artifact a gate reads exists.
      */
     static void finishRun(SshExecutor ssh, List<NodeHandle> nodes, List<String[]> aux,
                           Spec spec, Inventory inv, CsvResultsWriter.RunIdentity id,
@@ -230,6 +232,11 @@ public final class RemoteRunner {
                           Instant started, Instant ended) throws Exception {
         Path runDir = id.dir(spec.out());
         exportMetrics(inv, runDir, started, ended);
+        // The measurement first: every collector below is best-effort
+        // BECAUSE the numbers are already safe, and that licence has to be
+        // true when they run, not merely intended.
+        new CsvResultsWriter().write(spec.out(), id, result, cfg, "hetzner",
+                imageFor(spec.system()), started, ended);
         if (spec.scenario() != Scenario.BASELINE) {
             // Fault forensics (P4.5) — SUT nodes AND any auxiliary
             // containers. KAFKA_ZK colocates a ZooKeeper ensemble beside
@@ -243,8 +250,7 @@ public final class RemoteRunner {
         // runs: gate 4 asks whether an UNEXPECTED restart happened, and a
         // baseline is exactly where an unexpected one would hide.
         collectDockerEvents(ssh, nodes, runDir, started, ended);
-        writeResultsAndCheck(spec.out(), id, result, cfg, "hetzner",
-                imageFor(spec.system()), started, ended);
+        checkAndLog(runDir);
     }
 
     /**
@@ -434,7 +440,16 @@ public final class RemoteRunner {
                                      Instant started, Instant ended) throws java.io.IOException {
         new CsvResultsWriter().write(out, id, result, cfg, environment, imageRef,
                 started, ended);
-        Path dir = id.dir(out);
+        checkAndLog(id.dir(out));
+    }
+
+    /**
+     * The verdict, separated from the write so the caller can put the
+     * collectors between them (M3): the measurement lands first — which is
+     * what the forensics collectors' "already on disk" licence depends on —
+     * and the judgement lands last, when every artifact a gate reads exists.
+     */
+    static void checkAndLog(Path dir) {
         try {
             ValidityChecker.Report report = ValidityChecker.check(dir);
             log.info("validity {}: {} ({} pass, {} fail, {} skip)", dir,
@@ -472,7 +487,13 @@ public final class RemoteRunner {
     private static void collectSutLogs(SshExecutor ssh, List<NodeHandle> nodes, Path runDir)
             throws Exception {
         Path logs = runDir.resolve("logs");
-        Files.createDirectories(logs);
+        try {
+            Files.createDirectories(logs);
+        } catch (Exception e) {
+            log.warn("could not create the logs dir for {} — the measurement is"
+                    + " already on disk, its forensics are not: {}", runDir, e.toString());
+            return;
+        }
         for (NodeHandle n : nodes) {
             try {
                 Files.writeString(logs.resolve(n.containerName() + ".log"),
@@ -520,7 +541,12 @@ public final class RemoteRunner {
             return;
         }
         Path logs = runDir.resolve("logs");
-        Files.createDirectories(logs);
+        try {
+            Files.createDirectories(logs);
+        } catch (Exception e) {
+            log.warn("could not create the logs dir for {}: {}", runDir, e.toString());
+            return;
+        }
         for (String[] a : aux) {
             try {
                 Files.writeString(logs.resolve(a[1] + ".log"),

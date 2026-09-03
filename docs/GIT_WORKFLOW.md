@@ -94,7 +94,7 @@ down. That is the whole gate — nothing else is checking.
 | 4 | **`PROJECT_STATE.md` header updated** | The header says what changed, what was verified by execution, and what is next | Working agreement §9 rule 6. It is the first thing a fresh session reads |
 | 5 | **TDD evidence stated** | Each behaviour-changing commit message names the failing test and that it was seen **red for the right reason** | Working agreement §9 rule 2 |
 | 6 | **Goldens: re-read if touched** | If any file under `src/test/resources/goldens/` changed, the **G2 human read-through is redone for the changed blocks** and signed off in `PROJECT_STATE` | The seven goldens are FINAL text for G2; changing them after sign-off silently invalidates it |
-| 7 | **No `terraform apply` was run** | `hcloud server list` empty / no state change in `infra/` | Hard safety rule — G2 gate, and a forgotten cluster costs ~€7/day |
+| 7 | **No `terraform apply` was run** | `hcloud server list` empty / no state change in `infra/` | Hard safety rule — G2 gate, and a forgotten cluster costs ~€7/day in the **phase A** shape and ~€19/day in phase C |
 | 8 | **Doc authority sweep** | If the branch changed behaviour a doc describes, that doc changed in the **same branch** | Authority order is `live code > plan/methodology > state docs`; drift is how the ledger fills up |
 | 9 | **Branch pushed** | `git push -u origin <branch>` | Reviewability and backup |
 
