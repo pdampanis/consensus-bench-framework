@@ -82,10 +82,10 @@ consensus-bench-thesis/
         └── FINDINGS_LEDGER_F1-F76.md  the full findings evidence trail
 ```
 
-## Current status (verified by execution, 2026-08-15)
+## Current status (verified by execution, 2026-09-03)
 
-`mvn21 clean verify` → **`Tests run: 243, Failures: 0, Errors: 0`**, BUILD
-SUCCESS, on `eighth-review-tier1`.
+`mvn21 clean verify` → **`Tests run: 248, Failures: 0, Errors: 0`**, BUILD
+SUCCESS, 05:24, 37/37 test classes, on `fbf51fe` (`ninth-review-handoff`).
 
 - **P0, P1, P2 (Gate G1 signed off), and the whole remote layer are closed.**
   `RemoteSshProvider` serves all seven systems, each recipe verified by a real

@@ -29,10 +29,10 @@ cd $REPO/harness
 mvn21 clean verify
 ```
 
-**Expect** (versions/counts as of 2026-07-21 — counts only grow):
+**Expect** (counts as of 2026-09-03 — counts only grow):
 
 ```
-Tests run: 229, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 248, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 

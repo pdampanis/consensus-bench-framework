@@ -7,11 +7,11 @@ the thing you plan from. If this file and a reference file disagree about
 what to DO, this file wins; if they disagree about a METHOD, the reference
 wins (see §8).
 
-**Last verified: 2026-09-03.** `mvn21 clean verify` → **`Tests run: 247,
-Failures: 0, Errors: 0`, BUILD SUCCESS, 05:23**, in `~/Downloads/cbt-main`
-with M3 and M1 fixed (243 was the count on the merge commit `38eb11f`;
-the four new tests account for the difference). 37 test classes ran against 37 on
-disk. Count read from Maven's own summary line, never from arithmetic over
+**Last verified: 2026-09-03.** `mvn21 clean verify` → **`Tests run: 248,
+Failures: 0, Errors: 0`, BUILD SUCCESS, 05:24**, on `fbf51fe` in
+`~/Downloads/cbt-main`. 243 was the count on the merge commit `38eb11f`; the
+five tests added by M1, M3 and the forensics-ordering fix account for the
+difference. 37 test classes ran against 37 on disk. Count read from Maven's own summary line, never from arithmetic over
 report files (F76) — which did **not** recur.
 
 > **This closes the one gate that was open on the merge.** `38eb11f` was
@@ -154,6 +154,11 @@ done                                  # unmerged work on OTHER branches
 
 If what you find disagrees with this table, **git wins — then fix the table.**
 A stale coordination map is worse than none, because it is trusted.
+
+**Snapshot, 2026-09-03.** `cbt-main` now also carries `thesis/` (the
+bilingual LaTeX source, brought in by `git subtree` at `c1fee56`, its four
+commits intact) and the branch is pushed. The 2026-09-02 table below is
+otherwise still accurate.
 
 **Snapshot, 2026-09-02** (the 2026-08-15 table below was already wrong on
 two counts — there are **three** worktrees, not two, and the merge to `main`
@@ -569,7 +574,7 @@ Full detail in `GIT_WORKFLOW.md`; summarised so this runbook stands alone.
 
 | # | Gate | How |
 |---|---|---|
-| 1 | **Suite green, count verified** ✅ **2026-09-02** | `cd harness && mvn21 clean verify` → BUILD SUCCESS with the count read from Maven's **`Tests run:` summary line**, ≥ 243. A suspiciously fast run (<4 min) is a FAILED gate until the count is confirmed — that is F76. **Held on `38eb11f`: 243, 05:48, 37/37 classes.** Re-run after Phase 0 |
+| 1 | **Suite green, count verified** ✅ **2026-09-03** | `cd harness && mvn21 clean verify` → BUILD SUCCESS with the count read from Maven's **`Tests run:` summary line**, ≥ 248. A suspiciously fast run (<4 min) is a FAILED gate until the count is confirmed — that is F76. **Held on `fbf51fe`: 248, 05:24, 37/37 classes.** Re-run after Phase 0 |
 | 2 | **Environment could run the tests** | Docker up; `docker images \| grep -E 'paxi:6823d0b\|hotstuff:dc01ac8'` shows both |
 | 3 | **Findings ledgered with evidence** | §5 above + the archived ledger |
 | 4 | **This file updated** | §0 date, §2 state, §6 queue |
@@ -577,7 +582,7 @@ Full detail in `GIT_WORKFLOW.md`; summarised so this runbook stands alone.
 | 6 | **Goldens re-read if touched** | ⚠ **THEY WERE.** Queue #1 is a hard precondition of this merge |
 | 7 | **No `terraform apply`** | `hcloud server list` empty / no `infra/` state change |
 | 8 | **Doc authority sweep** | done — see §8 |
-| 9 | **Branch pushed** | done |
+| 9 | **Branch pushed** | ✅ `ninth-review-handoff` at `e0de6ae` on `origin`, working tree clean. `main` is deliberately NOT pushed — gate 6 blocks it |
 
 > **Gate 6 is the one that blocks today.** The F69 host-sweep block, the
 > derived `slow_node` timeout, and packet-loss severity all changed golden
@@ -683,6 +688,7 @@ consulted, not planned from.
 | `LOCAL_TESTING.md` · `PER_ALGORITHM_TEST_GUIDE.md` · `MONITORING_GUIDE.md` | Operator guides |
 | `MEASUREMENT_DIAGRAMS.md` · `JAVA_HARNESS_ASSESSMENT.md` | Architecture and rationale |
 | `examples/` · `SSH_SETUP.md` | Sample data, planned SSH switch |
+| **`NEXT_SESSION.md`** | **The session handoff.** Orientation (including which worktree is stale), verified state with the command behind each number, the environment traps, the next increment, and what only the author can do |
 | **`FIRST_MANUAL_DEPLOY.md`** | **The Phase 2 session, command by command.** The author's hand-driven canary at n=3: tooling, key, token, price gate, apply, loadgen bootstrap, obs by hand, one baseline + one `leader_kill` cell, collection, analysis, destroy |
 | `HANDOFF_REVIEW_2026-09-02.md` | **Evidence ledger** for the `thesis-handoff-2026-08-21` review: every finding's verdict against *this* tree, what was executed, and what was not |
 | **`../thesis/`** | **The document this benchmark produces.** Bilingual LaTeX, its own checks, its own README. Governed by §9.7: no code or corpus change lands without an alignment review |

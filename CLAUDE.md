@@ -24,7 +24,13 @@ once**, so "am I looking at all of it?" is a real question with a cheap
 answer. If what you find disagrees with a doc, **git wins** — and fix the
 doc, because a stale coordination table is worse than none.
 
-## Read first, and only this
+## Read first
+
+**New session? `docs/NEXT_SESSION.md`** — orientation, verified state, the
+traps, the next increment, and the list of what only the author can do.
+Then this file's rules, then `docs/PROJECT_STATE.md`.
+
+## Then: the driving document
 
 **`docs/PROJECT_STATE.md` is the SINGLE DRIVING DOCUMENT.** Decisions, open
 issues, the prioritized queue, and the merge plan all live there. Start every
@@ -123,7 +129,7 @@ cd harness && mvn21 clean verify   # ~/tools/maven/mvn21.sh if no alias
 **Read the count from Maven's own `Tests run:` summary line**, never from
 arithmetic over report files, and treat a suspiciously fast run as a FAILED
 gate until the count is confirmed — see F76 in PROJECT_STATE §5.
-Current baseline: **247 tests**, ~5–7 min.
+Current baseline: **248 tests / 37 classes**, ~5–7 min.
 
 ## Branches and worktrees
 
