@@ -1,0 +1,75 @@
+% =====================================================================
+%  Εξέλιξη και Σύγκριση Πρωτοκόλλων Συναίνεσης σε Κατανεμημένα Συστήματα
+%  Παναγιώτης Δαμπάνης — 711070095
+%  Τμήμα Μηχανικών Πληροφορικής και Υπολογιστών, ΠΑΔΑ
+%
+%  ΑΥΤΗ Η ΕΚΔΟΣΗ ΑΚΟΛΟΥΘΕΙ ΤΗΝ ΑΓΓΛΙΚΗ. Το κείμενο γράφεται στο
+%  content/en/*.tex και μεταφράζεται στο content/el/*.tex. Το «make sync»
+%  δείχνει ποια κομμάτια έχουν μείνει πίσω. Δες docs/SYNC.md.
+%
+%  >>> ΜΕΤΑΓΛΩΤΤΙΣΕ ΜΕ XeLaTeX <<<  (Overleaf: Menu -> Compiler -> XeLaTeX)
+%
+%  Η σειρά των σελίδων είναι του Προτύπου ΤΜΠΥ (docs/PROTYPO-TMPY.docx).
+%  Αν την αλλάξεις, άλλαξέ την και στο docx/assemble.py — ο έλεγχος V07
+%  συγκρίνει τα δύο.
+% =====================================================================
+\documentclass[11pt,a4paper,oneside]{report}
+
+\input{style/common}
+\input{style/lang-el}
+\input{figures/labels-el}
+\input{frontmatter/meta}
+\input{data/measurements}
+\input{data/abbreviations}
+\newcommand{\abbrentry}[4]{}
+
+\begin{document}
+\thesisnames
+
+% --- Ενότητα 1η: ΕΙΣΑΓΩΓΙΚΑ ΣΤΟΙΧΕΙΑ ---------------------------------
+\pagenumbering{roman}
+\setcounter{page}{1}
+
+\include{frontmatter/el/cover}
+\blankleaf
+\include{frontmatter/el/titlepage}
+\blankleaf
+\include{frontmatter/el/declaration}
+\blankleaf
+\include{frontmatter/el/acknowledgements}
+\blankleaf
+\include{frontmatter/el/abstract}
+
+% Οι Οδηγίες ζητούν την περίληψη ΚΑΙ στις δύο γλώσσες. Το κείμενο είναι
+% το ίδιο με της αγγλικής έκδοσης — μία πηγή, που διαβάζεται εδώ αντί να
+% αντιγραφεί, ώστε να μην μπορούν να αποκλίνουν.
+\cleardoublepage
+\begin{english}
+\input{frontmatter/en/abstract}
+\end{english}
+
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{chapter}{Περιεχόμενα}
+\tableofcontents
+
+\include{frontmatter/el/lists}
+
+% --- Ενότητα 2η: ΚΥΡΙΩΣ ΚΕΙΜΕΝΟ --------------------------------------
+\cleardoublepage
+\pagenumbering{arabic}
+\setcounter{page}{1}
+
+\include{content/el/ch1}
+\include{content/el/ch2}
+
+% --- Ενότητα 3η: ΤΕΛΙΚΑ ΣΤΟΙΧΕΙΑ -------------------------------------
+% Δεν αριθμείται ως κεφάλαιο, αλλά μπαίνει στα περιεχόμενα (Οδηγίες,
+% «Πίνακας Περιεχομένων»).
+\cleardoublepage
+\phantomsection
+\addcontentsline{toc}{chapter}{Βιβλιογραφία}
+\bibliographystyle{IEEEtran}
+\bibliography{bib/references}
+
+\end{document}

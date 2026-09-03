@@ -1,0 +1,157 @@
+% =====================================================================
+%  common.tex — everything that is the same in both languages.
+%
+%  Compile with XeLaTeX. pdfLaTeX will not do: the Greek edition needs
+%  fontspec, and both editions must use the same font files so the two
+%  PDFs look like the same document.
+%
+%  Language-specific setup lives in style/lang-en.tex and lang-el.tex.
+% =====================================================================
+
+% ---- Fonts ----------------------------------------------------------
+\usepackage{fontspec}
+\usepackage{polyglossia}
+
+% The department requires Times New Roman at 11 pt (Guidelines A.2).
+% Times New Roman itself is not redistributable, so the build asks for it
+% first and falls back to Liberation Serif, which is metric-compatible:
+% same widths, same line breaks, same page count. On a machine that has
+% the real font (Word, Overleaf) the first branch wins and nothing moves.
+\IfFontExistsTF{Times New Roman}{
+  \newcommand{\thesisserif}{Times New Roman}
+  \newcommand{\thesissans}{Arial}
+  \newcommand{\thesismono}{Courier New}
+}{
+  \newcommand{\thesisserif}{Liberation Serif}
+  \newcommand{\thesissans}{Liberation Sans}
+  \newcommand{\thesismono}{Liberation Mono}
+}
+\setmainfont[Ligatures=TeX]{\thesisserif}
+\setsansfont[Ligatures=TeX]{\thesissans}
+\setmonofont[Scale=0.90,Ligatures=TeX]{\thesismono}
+
+% ---- Page ------------------------------------------------------------
+% 2.54 cm on every side — the margin the department template uses.
+\usepackage[a4paper,margin=2.54cm]{geometry}
+\usepackage{microtype}
+\emergencystretch=1.5em          % prefer loose spacing over an overfull line
+\usepackage{setspace}
+\onehalfspacing                  % Guidelines A.2: line spacing 1.5
+\setlength{\parskip}{0pt}
+\setlength{\parindent}{1.2em}
+
+\usepackage{csquotes}
+\usepackage{enumitem}
+\setlist{itemsep=2pt,parsep=0pt,topsep=4pt}
+
+% ---- Tables and figures ---------------------------------------------
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[font=small,labelfont=bf,textfont=small]{caption}
+\usepackage{subcaption}
+\usepackage{float}
+
+% ---- Diagrams --------------------------------------------------------
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta,calc,fit,backgrounds,shapes.geometric,
+                decorations.pathreplacing}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepgfplotslibrary{groupplots}
+\input{style/diagrams}
+
+% ---- Maths -----------------------------------------------------------
+% amssymb is NOT loaded: unicode-math (below) provides every
+% symbol it defines, and loading both makes them fight over
+% \eth, \digamma, \smallsetminus and \backepsilon.
+\usepackage{amsmath}
+
+% The maths FONT.
+% Without this the text is Times (or its metric twin) and the
+% mathematics is Computer Modern, because that is what XeLaTeX uses when
+% nothing says otherwise. The two do not match, and the mismatch shows
+% wherever a symbol sits inside a sentence: "FaB needs $5f+1$ nodes"
+% printed the words in one face and the 5f+1 in another.
+%
+% TeX Gyre Termes Math is the companion of Times: same proportions, same
+% weight, designed for exactly this pairing. If it is missing the
+% document still builds, in Computer Modern maths, and says so in the
+% log rather than failing.
+%
+% NOT the text font: TeX Gyre Termes has no accented Greek — no ά, έ, ή,
+% ί, ό, ύ, ώ — so the Greek edition would be full of missing glyphs.
+% Liberation Serif has the full range, which is why it is the fallback.
+\usepackage{unicode-math}
+\IfFontExistsTF{texgyretermes-math.otf}{
+  \setmathfont{texgyretermes-math.otf}
+  % unicode-math sets upright Greek capitals by ISO style; LaTeX's own
+  % convention, and every source this thesis quotes, prints them upright.
+  \setmathfont[range=\mathup/{greek,Greek}]{texgyretermes-math.otf}
+}{
+  \PackageWarningNoLine{thesis}{TeX Gyre Termes Math not found —
+    mathematics will be Computer Modern and will not match the text.
+    Install the tex-gyre-math package}
+}
+
+
+% ---- Citations and links ---------------------------------------------
+% cite sorts and compresses numeric citations: \cite{a,b,c} -> [2]-[4].
+% It must load BEFORE hyperref.
+\usepackage{cite}
+\usepackage[colorlinks=true,linkcolor=black,citecolor=black,
+            urlcolor=dgCFT,breaklinks=true]{hyperref}
+\usepackage{url}
+\urlstyle{same}
+
+% ---- Source-quality markers ------------------------------------------
+% Project rule R9: a source that has not been through peer review is
+% marked WHERE IT IS USED, not only in the bibliography. A reader
+% checking a claim should not have to turn to the back to find out that
+% the evidence is a preprint.
+% Capitals, not small capitals: Times New Roman has no true small-caps
+% face, and neither does the metric-compatible fallback, so \textsc{}
+% only produced a font warning and a synthesised shape.
+\newcommand{\grey}{\textsuperscript{G}}   % grey literature
+\newcommand{\prep}{\textsuperscript{P}}   % preprint, not refereed
+% U marks a DIFFERENT thing from G and P. Those two say what kind of
+% publication a source is. U says that the thesis could not verify the
+% source's own bibliographic data against the article or an index, and
+% took it from another work's reference list. A reader who wants to
+% follow the citation needs to know that before they try.
+\newcommand{\unver}{\textsuperscript{U}}   % bibliographic data unverified
+
+% ---- Front-matter heading -------------------------------------------
+% 14 pt bold, centred — the department template's look for the pages
+% before Chapter 1. \chapter* would print a three-line monster instead.
+%   #1 = as printed   #2 = as it appears in the table of contents
+\newcommand{\frontheading}[2]{%
+  \phantomsection
+  \addcontentsline{toc}{chapter}{#2}%
+  \markboth{#2}{#2}%
+  \begin{center}\large\bfseries #1\end{center}
+  \vspace{0.8em}}
+
+% Blank leaf, as the template has between front-matter sections. It is
+% counted and numbered, so both editions and the .docx agree page for page.
+\newcommand{\blankleaf}{%
+  \clearpage
+  \thispagestyle{plain}%
+  \null\vfill\begin{center}\small\dgblankleaftext\end{center}\vfill\null
+  \clearpage}
+
+% ---- Measurements that do not exist yet ------------------------------
+% Project rule R1: never print a number that was not measured. Every
+% figure from the author's own benchmark campaign is declared once in
+% data/measurements.tex. Until a value is filled in, \meas prints a
+% visible marker instead of a plausible-looking number, and
+% tools/data-check.py lists what is still outstanding.
+\newcommand{\PENDING}{\textbf{\color{dgBFT}[PENDING]}}
+\newcommand{\meas}[1]{\csname measvalue@#1\endcsname}
+\newcommand{\declaremeasurement}[2]{%
+  \expandafter\newcommand\csname measvalue@#1\endcsname{#2}}
+\newcommand{\pendingmeasurement}[1]{%
+  \expandafter\newcommand\csname measvalue@#1\endcsname{\PENDING}}

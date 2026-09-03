@@ -1,0 +1,24 @@
+% Pages the department template requires between the table of contents
+% and Chapter 1.
+
+\frontheading{LIST OF IMAGES}{List of Images}
+This thesis contains no photographs or screenshots. Every visual element
+is a figure, and all figures are listed in the next list.
+
+\clearpage
+\phantomsection
+\addcontentsline{toc}{chapter}{List of Figures}
+\listoffigures
+
+\clearpage
+\phantomsection
+\addcontentsline{toc}{chapter}{List of Tables}
+\listoftables
+
+\clearpage
+\frontheading{ABBREVIATIONS}{Abbreviations}
+\renewcommand{\abbrentry}[4]{\item[\textbf{#1}] #2}
+\begin{description}[leftmargin=!,labelwidth=1.9cm,labelsep=0.6em,
+                    style=sameline,itemsep=0.35em]
+\abbrlist
+\end{description}

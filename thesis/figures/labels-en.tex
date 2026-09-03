@@ -1,0 +1,49 @@
+% ENGLISH figure labels. labels-el.tex is the Greek twin: the two files must
+% define EXACTLY the same key set, in the same order — a key that exists in
+% one and not the other makes that figure print a silent blank in one edition.
+%
+% Figure sources contain no human-readable text of their own: every string is
+% \fl{key} and every key is defined here. Protocol names, venues, years,
+% numbers, mathematics and units are the same in both editions and stay
+% literal in the figure source, so they are NOT keys.
+
+\providecommand{\deflabel}[2]{\expandafter\newcommand\csname figlabel@#1\endcsname{#2}}
+\providecommand{\fl}[1]{\csname figlabel@#1\endcsname}
+
+\deflabel{equivocation.byzantine.note}{$K_2$ lives on and continues\\\textbf{equivocation}}
+\deflabel{equivocation.byzantine.title}{BYZANTINE}
+\deflabel{equivocation.crash.note}{$K_2$ stops\\same message to everyone}
+\deflabel{equivocation.crash.title}{CRASH}
+\deflabel{quorum.byzantine}{Byzantine, normal case}
+\deflabel{quorum.crash}{crash (and Byzantine with trusted hardware)}
+\deflabel{quorum.fairorder}{fair ordering}
+\deflabel{quorum.onephaseless}{one phase fewer}
+\deflabel{quorum.twostep}{two-step lower bound}
+\deflabel{quorum.xlabel}{faults tolerated}
+\deflabel{quorum.ylabel}{nodes required}
+\deflabel{quote.close}{\textquotedblright}
+\deflabel{quote.open}{\textquotedblleft}
+\deflabel{scaling.legend.geo}{geo-distributed}
+\deflabel{scaling.panel.geo}{(b) LAN versus geo-distributed}
+\deflabel{scaling.panel.lan}{(a) one datacenter (LAN)}
+\deflabel{scaling.ylabel}{throughput reduction}
+\deflabel{smr.agreement.order}{agreement $+$ order}
+\deflabel{smr.clients}{clients}
+\deflabel{smr.consensus}{CONSENSUS /\\ATOMIC BROADCAST}
+\deflabel{smr.deterministic}{DETERMINISTIC}
+\deflabel{smr.here.live}{here live}
+\deflabel{smr.machine}{machine}
+\deflabel{smr.same.io}{same input $\Rightarrow$ same output}
+\deflabel{sync.liveness.guaranteed}{liveness guaranteed}
+\deflabel{sync.liveness.none}{liveness: no guarantee}
+\deflabel{sync.model.asynchronous}{Asynchronous}
+\deflabel{sync.model.partial}{Partially synchronous}
+\deflabel{sync.model.synchronous}{Synchronous}
+\deflabel{sync.note.asynchronous}{no bound}
+\deflabel{sync.note.safety}{Safety holds along the WHOLE axis, both before and after GST.}
+\deflabel{sync.note.synchronous}{every message $\le\Delta$, and $\Delta$ is known}
+\deflabel{timeline.milestone.byzmodel}{Byzantine fault model}
+\deflabel{timeline.milestone.clocks}{logical clocks}
+\deflabel{timeline.milestone.linearizability}{linearizability}
+\deflabel{timeline.milestone.partialsync}{partial synchrony}
+\deflabel{timeline.milestones.title}{Theoretical milestones (not protocols):}

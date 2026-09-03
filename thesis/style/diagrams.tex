@@ -1,0 +1,177 @@
+% =====================================================================
+%  diagrams.tex — THE diagram standard. One file, every figure.
+%
+%  The rule this file exists to enforce: a reader should be able to look
+%  at any two figures in the thesis and see the same visual language.
+%  Same palette, same line weights, same type size, same width.
+%
+%  There are exactly TWO kinds of figure, and every figure is one of them:
+%
+%    dgdata  — numbers on axes (pgfplots). Anything measured or computed.
+%    dgflow  — structure and sequence (TikZ). Anything explained.
+%
+%  Nothing in content/ may define a colour, a width, or a font size.
+%  tools/diagram-check.py fails the build if it does.
+% =====================================================================
+
+% ---------------------------------------------------------------------
+%  Palette — Okabe & Ito, chosen because it survives the three common
+%  colour-vision deficiencies AND greyscale printing. A thesis gets
+%  printed in black and white more often than anyone admits.
+%
+%  Each colour has ONE meaning across the whole thesis:
+% ---------------------------------------------------------------------
+\definecolor{dgCFT}{HTML}{0072B2}   % crash-fault protocols            (blue)
+\definecolor{dgBFT}{HTML}{D55E00}   % Byzantine-fault protocols     (vermilion)
+\definecolor{dgAux}{HTML}{009E73}   % the third series / "correct"     (green)
+\definecolor{dgSand}{HTML}{E69F00}  % the fourth series / "attention" (orange)
+\definecolor{dgPurple}{HTML}{CC79A7}% the fifth series                (purple)
+\definecolor{dgGrey}{HTML}{6E6E6E}  % structure only — never a series   (grey)
+\definecolor{dgInk}{HTML}{1A1A1A}   % text and axes
+\definecolor{dgPaper}{HTML}{FFFFFF} % label backgrounds over lines
+
+% Colour is never the only difference between two series. Every series
+% also gets its own mark and its own dash pattern, so the figure still
+% reads on a photocopy. These four cycles stay in lockstep.
+\pgfplotscreateplotcyclelist{dgcycle}{%
+  {dgCFT,   mark=*,        mark size=1.9pt, solid},
+  {dgBFT,   mark=square*,  mark size=1.8pt, dashed},
+  {dgAux,   mark=triangle*,mark size=2.1pt, dotted},
+  {dgSand,  mark=diamond*, mark size=2.1pt, dashdotted},
+  {dgPurple,mark=pentagon*,mark size=1.9pt, densely dashed},
+}
+
+% ---------------------------------------------------------------------
+%  Fixed geometry. Every figure is the same width, so the eye does not
+%  have to re-scale between them.
+% ---------------------------------------------------------------------
+% Computed at \begin{document}, NOT here: in the preamble \linewidth is
+% still the class default (360pt), not the real text block set by
+% geometry. Setting it here silently made every figure 10.9cm wide on a
+% 15.9cm page.
+\newlength{\dgwidth}
+\newlength{\dgheight}
+\AtBeginDocument{%
+  \setlength{\dgwidth}{0.86\linewidth}%
+  \setlength{\dgheight}{0.50\dgwidth}%
+}
+
+% ---------------------------------------------------------------------
+%  KIND 1 — dgdata: numbers on axes
+%
+%    \begin{dgdata}{xlabel={...}, ylabel={...}}
+%      \addplot ... ;
+%    \end{dgdata}
+%
+%  Everything that could drift between figures is set here once.
+% ---------------------------------------------------------------------
+\pgfplotsset{
+  dgbase/.style={
+    width=\dgwidth, height=\dgheight,
+    cycle list name=dgcycle,
+    every axis plot/.append style={line width=0.9pt},
+    tick label style={font=\footnotesize, color=dgInk},
+    label style={font=\small, color=dgInk},
+    title style={font=\small\bfseries, color=dgInk},
+    legend style={font=\footnotesize, draw=dgGrey!45, fill=dgPaper,
+                  fill opacity=0.92, text opacity=1,
+                  cells={anchor=west}, row sep=1pt},
+    legend cell align=left,
+    axis line style={color=dgGrey!70, line width=0.6pt},
+    grid=major,
+    major grid style={color=dgGrey!22, line width=0.4pt},
+    tick align=outside, tick style={color=dgGrey!70},
+    enlarge x limits=0.06, enlarge y limits=0.10,
+    axis on top,
+  },
+  % Bar charts share the same skin but need their own spacing.
+  dgbars/.style={
+    dgbase,
+    ybar, bar width=8pt, enlarge x limits=0.14,
+    ymin=0, grid=major, ymajorgrids=true, xmajorgrids=false,
+    % "fill=." means "fill with this plot's own cycle colour". Without it
+    % the cycle list sets only the line colour and every bar comes out as
+    % an empty outline.
+    every axis plot/.append style={fill=., fill opacity=0.85,
+                                   draw=dgInk!55, line width=0.4pt},
+    xtick style={draw=none},
+  },
+}
+
+\newenvironment{dgdata}[1][]
+  {\begin{tikzpicture}\begin{axis}[dgbase,#1]}
+  {\end{axis}\end{tikzpicture}}
+
+\newenvironment{dgbarchart}[1][]
+  {\begin{tikzpicture}\begin{axis}[dgbars,#1]}
+  {\end{axis}\end{tikzpicture}}
+
+% ---------------------------------------------------------------------
+%  KIND 2 — dgflow: structure and sequence
+%
+%    \begin{dgflow}
+%      \node[dgbox] (a) {...};
+%      \node[dgbox, right=of a] (b) {...};
+%      \draw[dgarrow] (a) -- (b) node[dgtag,midway]{...};
+%    \end{dgflow}
+%
+%  Node styles are deliberately few. Five box styles is already too many
+%  for a reader to hold; these are four, and each means one thing.
+% ---------------------------------------------------------------------
+\tikzset{
+  dgflowbase/.style={
+    node distance=9mm and 13mm,
+    every node/.append style={font=\small, text=dgInk, align=center},
+    >={Stealth[length=2.4mm,width=1.8mm]},
+  },
+  % a thing that exists: a node, a component, a layer
+  dgbox/.style={
+    draw=dgGrey!75, line width=0.6pt, rounded corners=1.5pt,
+    fill=dgGrey!7, inner sep=4pt, minimum height=7mm, minimum width=20mm,
+  },
+  % the same, but this one is the subject of the figure
+  dgboxkey/.style={dgbox, draw=dgCFT, line width=0.9pt, fill=dgCFT!8},
+  % the same, but this one is where it goes wrong
+  dgboxbad/.style={dgbox, draw=dgBFT, line width=0.9pt, fill=dgBFT!8},
+  % a moment in time, or a state
+  dgstate/.style={
+    draw=dgGrey!75, line width=0.6pt, circle, fill=dgPaper,
+    inner sep=2.5pt, minimum size=9mm,
+  },
+  % movement: a message, a step, a dependency
+  dgarrow/.style={->, draw=dgGrey!85, line width=0.7pt},
+  dgarrowkey/.style={dgarrow, draw=dgCFT, line width=0.9pt},
+  dgarrowbad/.style={dgarrow, draw=dgBFT, line width=0.9pt, dashed},
+  % a label sitting on a line — the white background is what stops it
+  % colliding with the line underneath
+  % NOTE: text=, not color=. TikZ's color= sets the fill too, so
+  % "color=dgInk" here would override fill=dgPaper and render every tag
+  % as dark text on a dark box.
+  dgtag/.style={
+    font=\footnotesize, text=dgInk, fill=dgPaper, inner sep=1.5pt,
+  },
+  % an aside: the sentence that explains what the reader is looking at
+  dgnote/.style={
+    font=\footnotesize\itshape, color=dgGrey, align=left, inner sep=2pt,
+  },
+  % an axis inside a flow figure (a timeline, a spectrum)
+  dgaxis/.style={draw=dgGrey!70, line width=0.6pt, ->},
+}
+
+\newenvironment{dgflow}[1][]
+  {\begin{tikzpicture}[dgflowbase,#1]}
+  {\end{tikzpicture}}
+
+% ---------------------------------------------------------------------
+%  Figure wrapper. Used by every figure so the spacing above and below
+%  a figure is identical everywhere.
+%
+%    \dgfigure{label}{short caption}{long caption}{ ...body... }
+% ---------------------------------------------------------------------
+\newcommand{\dgfigure}[4]{%
+  \begin{figure}[htbp]
+    \centering
+    #4
+    \caption[#2]{#3}
+    \label{#1}
+  \end{figure}}

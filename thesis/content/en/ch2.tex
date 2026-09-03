@@ -1,0 +1,695 @@
+% =====================================================================
+%  CHAPTER 2 — THEORETICAL BACKGROUND
+%  Rules that hold here (Ch. 1 \S1.6):
+%   - a primary source for every bound and every definition
+%   - no verbatim quotation from a paper that is not in the corpus/
+%   - the framework of validity does NOT go here. It belongs to the
+%     methodology chapter, as \S1.4 promises.
+%
+%  ENGLISH IS THE MASTER. content/el/ch2.tex follows this file, block
+%  for block.
+% =====================================================================
+
+%%blk background.head
+\chapter{Theoretical background: models, bounds and criteria of
+correctness}
+\label{ch:background}
+
+%%blk background.intro.01
+Chapter~\ref{ch:intro} showed that every consensus protocol is a
+position in a design space. This chapter defines the axes of that space.
+Without them, the comparisons of the later chapters have no units.
+
+%%blk background.intro.02
+The order is deliberate. First comes the environment in which a protocol
+runs, that is the synchrony and the faults. Then comes the problem that
+it solves. Then come the bounds that no protocol breaks. Last come the
+criteria that judge its correctness and its performance.
+
+%%blk background.synchrony.head
+\section{Two axes of synchrony, not one}
+\label{sec:synchrony}
+
+%%blk background.synchrony.01
+The literature often speaks of \enquote{synchronous} and
+\enquote{asynchronous} systems as if one axis existed. Dwork, Lynch and
+Stockmeyer separate two \cite{dwork1988consensus}:
+
+%%blk background.synchrony.axes
+\begin{enumerate}[label=\textbf{(\alph*)},leftmargin=2.4em]
+  \item \textbf{The communication.} Is there an upper bound $\Delta$ on
+  the delivery time of a message?
+  \item \textbf{The processors.} Is there an upper bound $\Phi$ on the
+  rate at which the clock of one node runs faster than the clock of
+  another?
+\end{enumerate}
+
+%%blk background.synchrony.02
+A system is \emph{synchronous} when both bounds exist and are known in
+advance. It is \emph{asynchronous} when \emph{neither of the two}
+exists. The two axes are independent, so mixed models also exist between
+them, where one dimension is synchronous and the other is not. The
+separation is not pedantry. For exactly this reason the same authors
+give a table of resilience with five columns instead of two, and
+Table~\ref{tab:dls} reproduces three of them.
+
+%%blk background.synchrony.sub.partial
+\subsection{The two forms of partial synchrony}
+
+%%blk background.synchrony.03
+Between the two extremes lies \emph{partial synchrony}. The same paper
+defines it in two ways, and the difference between them matters for this
+thesis.
+
+%%blk background.synchrony.04
+In the \textbf{first form} the bound $\Delta$ exists, but we do not know
+it. We ask for a protocol that works correctly whatever the value is,
+that is a protocol with no $\Delta$ built into it.
+
+%%blk background.synchrony.05
+In the \textbf{second form} we know $\Delta$, but the message system
+does not always respect it. The authors add one constraint. In every
+execution there is a moment in time that the nodes do not know. From
+that moment on, the message system respects $\Delta$. They call it the
+\emph{global stabilization time} and they abbreviate it GST.
+
+%%blk background.synchrony.06
+The same two forms are defined for $\Phi$ as well. For that reason the
+table of the paper has a separate column for partially synchronous
+processors with synchronous communication. This thesis uses the second
+form for both axes, and so do the protocols that it evaluates.
+
+%%blk background.synchrony.fig.synchrony
+\dgfigure{fig:synchrony}%
+{The three synchrony models, with one vertical stroke per message.}%
+{The three synchrony models, with one vertical stroke per message. In
+the synchronous model every message arrives inside a known $\Delta$. In
+the asynchronous model there is no bound. In the partially synchronous
+model there is an unknown moment GST, after which $\Delta$ holds
+\cite{dwork1988consensus}. The GST is a \textbf{model of analysis} and
+not a mechanism. No code computes it. The term belongs to the paper of
+1988 itself and is not a later addition.}%
+{\input{figures/src/fig-synchrony}}
+
+%%blk background.synchrony.07
+The second form is the one that the Byzantine protocols of this thesis
+adopt \cite{yin2019hotstuff} and \cite{malkhi2023hotstuff2}\prep. The
+practical consequence appears in Figure~\ref{fig:synchrony}. Safety
+holds along the whole axis. Liveness is guaranteed only to the right of
+the GST.
+
+%%blk background.faults.head
+\section{Fault models}
+\label{sec:faults}
+
+%%blk background.faults.01
+The second axis asks what a broken node is allowed to do. This thesis
+uses four grades, with rising malice.
+
+%%blk background.faults.02
+One convention of symbols, stated once for the whole chapter. The
+letters $t$ and $f$ name the \emph{same} quantity, the maximum number of
+faulty nodes. The chapter keeps the symbol of each primary source, so
+that the values stay recognizable in it.
+
+%%blk background.faults.list
+\begin{description}[leftmargin=2.2em,style=nextline,font=\normalfont\bfseries]
+  \item[Crash.] The node stops and never speaks again. The fault is an
+  \emph{absence} of information. The more specific \emph{fail-stop}
+  model adds that the other nodes detect the stop \emph{reliably}. The
+  distinction returns in Section~\ref{sec:smr}, where the bound $t{+}1$
+  of Schneider assumes fail-stop and not plain crash.
+  \item[Omission.] The node loses messages, but everything that it sends
+  is correct.
+  \item[Byzantine with authentication.] The node behaves in an arbitrary
+  way, but it cannot forge the signature of another node.
+  \item[Byzantine without authentication.] No guarantee. The node says
+  whatever it wants to whoever it wants, and it coordinates with the
+  other faulty nodes \cite{lamport1982byzantine}.
+\end{description}
+
+%%blk background.faults.03
+The behaviour that separates the Byzantine model from the others has a
+name. It is \emph{equivocation}. The same node says different things to
+different receivers, and the receivers cannot detect this on their own.
+Figure~\ref{fig:equivocation} shows it.
+
+%%blk background.faults.fig.equivocation
+\dgfigure{fig:equivocation}%
+{Crash against equivocation: the one behaviour that makes the Byzantine
+model expensive.}%
+{Crash against equivocation: the one behaviour that makes the Byzantine
+model expensive. On the left, $K_2$ stops. $K_1$ and $K_3$ have less
+information, but not contradictory information. On the right, $K_2$
+sends a different value to each one and continues to work. Neither $K_1$
+nor $K_3$ can detect this alone. Trusted hardware lowers the bound from
+$3f{+}1$ to $2f{+}1$ exactly because it stops this behaviour. The
+classification comes from the survey \cite{amiri2024bedrock} (App.~A,
+O7). The primary source of the bound is the line of work on trusted
+hardware to which that survey points: TrInc, which it names, and others
+that it cites by reference number without naming them. This thesis has
+\emph{not} checked them independently.}%
+{\input{figures/src/fig-equivocation}}
+
+%%blk background.faults.04
+Table~\ref{tab:dls} combines the two axes. It is the most compressed
+result of the chapter, and it explains why partial synchrony is not
+free.
+
+%%blk background.faults.tab.dls
+\begin{table}[t]
+\centering
+\caption[The minimum number of nodes per model: the smallest $N$ for
+which a consensus protocol that tolerates $t$ faults exists.]%
+{The minimum number of nodes per model: the smallest $N$ for which a
+consensus protocol that tolerates $t$ faults exists. The table
+reproduces \textbf{three of the five columns} of Table~I of
+\cite{dwork1988consensus}. The note justifies the choice. The symbol
+$\infty$ means that no such $N$ exists, that is the FLP result.
+\emph{Two readings that are worth the effort:} in the synchronous model
+with authentication you tolerate \emph{any} number of faults, and
+partial synchrony raises the cost of fail-stop from $t$ to $2t{+}1$,
+that is you pay for not knowing when stability begins.}
+\label{tab:dls}
+\small
+\begin{tabular}{@{}l c c c@{}}
+\toprule
+\textbf{Kind of fault} & \textbf{Synchronous} & \textbf{Asynchronous} &
+\textbf{Partially synchronous} \\
+\midrule
+Fail-stop (in the sense of the source) & $t$ & $\infty$ & $2t+1$ \\
+Omission                  & $t$      & $\infty$ & $2t+1$ \\
+Byzantine with authentication & $t$  & $\infty$ & $3t+1$ \\
+Byzantine                 & $3t+1$   & $\infty$ & $3t+1$ \\
+\bottomrule
+\end{tabular}
+
+\vspace{4pt}
+\begin{minipage}{0.94\linewidth}\setstretch{1.08}\footnotesize
+\textbf{Note on precision.} The column \enquote{Partially synchronous}
+corresponds to the case where \emph{both} the communication \emph{and}
+the processors are partially synchronous. The original gives five
+columns, because it also separates the combinations where one dimension
+is synchronous and the other is not. The version here keeps the three
+that this thesis uses. The paper itself is outside the corpus. The
+\emph{reference copy} is the open institutional copy of Lynch's group at
+MIT (\texttt{groups.csail.mit.edu/tds/papers/Lynch/jacm88.pdf}). From
+there we read the quantities of the table, the definitions of $\Delta$
+and $\Phi$, the two forms of partial synchrony and the term GST. Nothing
+is quoted verbatim.
+
+\smallskip
+\textbf{One word, two meanings.} The source names the first row
+\emph{fail-stop}, and defines it as a processor that executes correctly
+and can stop at any time, and once stopped cannot restart. There is
+\textbf{no clause about detection}. That is not the sense in which
+Section~\ref{sec:faults} of this chapter uses the word, following
+\cite{schneider1990implementing}, where fail-stop adds that the other
+nodes detect the stop \emph{reliably}. The difference decides the
+asynchronous column: reliable detection is a strictly stronger
+assumption than the one this table makes, and the $\infty$ in that column
+belongs to the weaker assumption of the source. The row is therefore
+labelled as the source labels it, and the reader is told which of the
+two meanings is in force. This is the same trap as
+Section~\ref{sec:smr}: one word, two counts.
+\end{minipage}
+\end{table}
+
+%%blk background.smr.head
+\section{Consensus, atomic broadcast and SMR are not the same}
+\label{sec:smr}
+
+%%blk background.smr.01
+The three names are often used interchangeably. They are not synonyms,
+and the confusion produces wrong comparisons in the later chapters.
+
+%%blk background.smr.list
+\begin{description}[leftmargin=2.2em,style=nextline,font=\normalfont\bfseries]
+  \item[Consensus.] The nodes agree on \emph{one} value.
+  \item[Atomic broadcast.] The nodes deliver the \emph{same sequence} of
+  messages in the same order.
+  \item[State machine replication (SMR).] The atomic broadcast is
+  applied to a deterministic machine, so that all the replicas reach the
+  same state \cite{schneider1990implementing}.
+\end{description}
+
+%%blk background.smr.02
+Figure~\ref{fig:smr} summarizes the stack. SMR is the level where this
+thesis lives. Schneider divides its requirement into two conditions.
+Every non-faulty replica receives every request, and every non-faulty
+replica processes the requests in the same relative order. The first
+condition is called \emph{agreement}, the second one \emph{order}. Note
+that the second one speaks of \emph{relative} order, and not of a global
+timestamp.
+
+%%blk background.smr.03
+Above all of this stands an assumption that breaks easily in practice.
+The sequence of requests must fix the outputs of the machine completely,
+and nothing else must affect them \cite{schneider1990implementing}. If
+the machine calls a generator of random numbers or a clock, SMR stops
+holding.
+
+%%blk background.smr.fig.smr
+\dgfigure{fig:smr}%
+{The stack: where each thing lives.}%
+{The stack: where each thing lives. Consensus solves the order. The
+state machine executes. All the protocols of this thesis live in the
+middle box, and for that reason they compare. The determinism of the
+machines is an assumption and not a conclusion
+\cite{schneider1990implementing}.}%
+{\input{figures/src/fig-smr}}
+
+%%blk background.smr.sub.trap
+\subsection{A counting trap: $2t{+}1$ and $3t{+}1$ do not count the same
+thing}
+
+%%blk background.smr.04
+Schneider writes that Byzantine faults need at least $2t{+}1$ replicas,
+while fail-stop faults need only $t{+}1$
+\cite{schneider1990implementing}. The second value assumes that the
+failure is \emph{detectable}. In that case it is enough to believe any
+node that is alive. Chapter~\ref{ch:intro} writes $3f{+}1$ for the
+Byzantine model. The two do not conflict, because they count different
+things.
+
+%%blk background.smr.trap.list
+\begin{itemize}
+  \item Schneider counts replicas whose \emph{outputs are voted on}.
+  With $2t{+}1$ replicas the majority of the outputs stays correct even
+  after $t$ faults. Agreement and order are already taken as solved.
+  \item The bound $3f{+}1$ is the bound for \emph{solving} agreement,
+  that is the bound for the consensus protocol itself
+  \cite{pease1980reaching}.
+\end{itemize}
+
+%%blk background.smr.05
+The two are easy to confuse, because both quantities are written as a
+function of the number of faults. This thesis uses $3f{+}1$ everywhere,
+because it measures consensus protocols and not the voting of outputs.
+
+%%blk background.bounds.head
+\section{What is impossible and what it costs}
+\label{sec:bounds}
+
+%%blk background.bounds.roadmap
+Four results bound every protocol in this thesis. The first says that in
+a fully asynchronous system no deterministic protocol always terminates.
+The second gives the smallest number of nodes that tolerates a given
+number of Byzantine faults. The third gives the cost in messages. The
+fourth gives the smallest number of communication steps. They are taken
+in that order, because each one narrows the space that the one before it
+left open.
+
+%%blk background.bounds.sub.flp
+\subsection{FLP}
+
+%%blk background.bounds.01
+The fundamental negative result fits in one line. Fischer, Lynch and
+Paterson prove that \enquote{No consensus protocol is totally correct in
+spite of one fault} \cite{fischer1985impossibility}. The original is in
+the corpus and the sentence is quoted verbatim.
+
+%%blk background.bounds.02
+The one line, however, carries two assumptions, and the paper itself
+states both of them explicitly. The system is \emph{fully asynchronous}
+and the protocol is \emph{deterministic}. The second assumption is the
+way out. Randomized protocols do not fall under the theorem, and the
+paper itself points to such work. All the protocols of this thesis are
+deterministic, so the theorem binds them.
+
+%%blk background.bounds.03
+Three points of precision change the way the result is stated. We read
+all three in the paper itself.
+
+%%blk background.bounds.flp.list
+\begin{enumerate}
+  \item The paper does \textbf{not} define correctness through the named
+  properties \enquote{agreement} and \enquote{validity}. The word
+  \emph{validity} does not appear at all, and the word \emph{agreement}
+  appears only as the name of the problem. It defines a protocol as
+  \emph{partially correct} with two conditions. No accessible
+  configuration has more than one decision value, and for every value
+  there is an accessible configuration that decides it. The second
+  condition is \emph{non-triviality}, which is weaker than validity.
+  \item The paper does \textbf{not} examine Byzantine faults, and it
+  states this explicitly. It assumes a reliable message system and one
+  single crash. This makes the result \emph{stronger}. If consensus is
+  impossible in the weaker fault model, it is all the more impossible in
+  the Byzantine one.
+  \item The requirement of termination is \textbf{extremely weak}, and
+  the paper states this. It is enough that \emph{some} node decides
+  eventually, and not all of them. The negative result therefore comes
+  neither from malicious nodes nor from lost messages. It comes only
+  from the fact that silence does not differ from delay.
+\end{enumerate}
+
+%%blk background.bounds.sub.third
+\subsection{The bound of one third}
+
+%%blk background.bounds.04
+The bound $n \ge 3f+1$ for Byzantine agreement without authentication is
+published first in 1980, in the form of the problem of \emph{interactive
+consistency} \cite{pease1980reaching}. The name states the same
+condition from the other side. The faulty nodes must be fewer than one
+third of the nodes, so the correct ones are more than two thirds. Two
+years later the same authors state it again as the allegory of the
+Byzantine generals \cite{lamport1982byzantine}.
+
+%%blk background.bounds.05
+The same paper of 1980 already examines the \emph{authenticated} case as
+well \cite{pease1980reaching}. There the faulty nodes can stay silent,
+but they cannot alter what they relay. The bound of one third does not
+hold in that case.
+
+%%blk background.bounds.06
+The allegory of 1982 adds the cleanest statement. The algorithm SM($m$)
+solves the problem for any number of generals, provided that no one can
+forge the signature of a loyal general \cite{lamport1982byzantine}. The
+same paper adds one clause. The problem is empty with fewer than
+$m{+}2$ generals. The result about signatures is therefore not a
+contribution of 1982 but of 1980.
+
+%%blk background.bounds.07
+The bound $3f{+}1$ that all the protocols of this thesis use does
+therefore not come from the absence of signatures. It comes from
+\emph{partial synchrony}, as the row \enquote{Byzantine with
+authentication} of Table~\ref{tab:dls} shows. There the requirement is
+$n \ge 3t{+}1$ even when the messages are signed.
+
+%%blk background.bounds.quote
+\begin{quote}\small
+If someone asks you \enquote{why do signatures not save you from
+$3f{+}1$?}, the answer is that row of the table. Signatures are enough
+in the \emph{synchronous} model. In the partially synchronous model they
+are not enough.
+\end{quote}
+
+%%blk background.bounds.sub.messages
+\subsection{The cost in messages}
+
+%%blk background.bounds.08
+Impossibility is not the only bound. There is also a lower bound on the
+number of messages. Dolev and Reischuk prove that every
+\textbf{deterministic} algorithm for Byzantine agreement that tolerates
+$t$ faults has an execution in which the correct nodes send a number of
+messages that is quadratic in $t$ \cite{dolev1985bounds}.
+
+%%blk background.bounds.09
+Three points need attention, and the chapter states all three here
+instead of hiding them.
+
+%%blk background.bounds.messages.list
+\begin{itemize}
+  \item The theorem is \textbf{not} limited to the unauthenticated
+  algorithms. Its hypothesis contains no clause about authentication, so
+  it covers both cases. Many secondary sources state this wrongly.
+  \item The restriction to \textbf{determinism} is not decoration.
+  Randomized protocols can reach subquadratic communication, and they
+  pay with a probability of error. This does not hold always. Against a
+  \emph{strongly adaptive} adversary, which erases messages after the
+  fact, the quadratic bound holds for them as well
+  \cite{abraham2019ccba}. They therefore do not break the bound. They
+  step outside its hypothesis, and only under a weaker model of the
+  adversary. All the protocols of this thesis are deterministic.
+  \item The journal paper itself is behind a paywall and outside the
+  corpus. We checked the content in the earlier conference version, and
+  the numbering of the theorems may differ.
+\end{itemize}
+
+%%blk background.bounds.10
+The consequence concerns the chapters on the Byzantine protocols
+directly. When HotStuff advertises a \emph{linear} view change, the
+claim holds for the view change as well, provided that the leader who
+takes over is correct and the network is stable \cite{yin2019hotstuff}.
+The lower bound is not violated. It moves to the worst case. The same
+paper reports $O(fn)$ \emph{authenticators} over $f$ consecutive faulty
+leaders, and that is $O(n^{2})$ when $f$ grows with $n$.
+
+%%blk background.bounds.11
+\textbf{Attention to the unit.} HotStuff counts \emph{authenticators},
+while the bound of Dolev and Reischuk counts \emph{messages}. The two
+quantities are not the same, and the HotStuff paper itself states this.
+One message that carries $n$ signatures counts as much as $n$ messages
+with one signature each. The comparison here is qualitative and not an
+exact accounting.
+
+%%blk background.bounds.sub.twostep
+\subsection{The two-step bound}
+
+%%blk background.bounds.12
+The last category of bounds concerns the number of phases. \emph{Two
+steps} means that a command commits with two consecutive phases only.
+These are the proposal of the leader and one round of votes.
+
+%%blk background.bounds.13
+\textbf{Attention to the counting convention.} The survey
+\cite{amiri2024bedrock} counts PBFT with \emph{three} phases of ordering
+and FaB with \emph{two}. Table~\ref{tab:delays} follows the convention
+of \cite{malkhi2023hotstuff2}\prep, where PBFT appears with two. The two
+countings do not compare with each other.
+
+%%blk background.bounds.14
+Saving one phase cost $5f{+}1$ nodes at first \cite{martin2006fab}\unver.
+With authentication $5f{-}1$ nodes are enough, and that is the lower
+bound \cite{kuznetsov2021optimal,abraham2021goodcase}\unver.
+
+%%blk background.bounds.15
+The survey \cite{amiri2024bedrock} carries both quantities, and this
+thesis took them from there. The text names the primary sources, but
+this thesis has not checked them independently.
+Table~\ref{tab:bounds} states this.
+
+%%blk background.bounds.tab.bounds
+\begin{table}[t]
+\centering
+\caption[Summary of the bounds that this thesis uses, with their primary
+source.]%
+{Summary of the bounds that this thesis uses, with their primary source.
+The column \enquote{Documentation} is part of the evidence and has three
+values. \emph{Corpus}: the paper exists and we read it.
+\emph{Index}: the bibliographic data were verified in a DOI or in an
+index, and the content in an open institutional copy, in an authentic
+copy of the author, or in an earlier version. \emph{Unverified}: the
+data come from the reference list of \cite{amiri2024bedrock}. Where the
+column does not say \emph{corpus}, the text quotes nothing verbatim.}
+\label{tab:bounds}
+\small
+\begin{tabular}{@{}l l c@{}}
+\toprule
+\textbf{Bound} & \textbf{Primary source} & \textbf{Documentation} \\
+\midrule
+Impossibility in asynchrony, 1 crash & \cite{fischer1985impossibility} & corpus \\
+$n \ge 3f+1$, Byzantine & \cite{pease1980reaching} & index \\
+Signatures: the bound collapses (synchronous) &
+  \cite{pease1980reaching,lamport1982byzantine} & index \\
+$n \ge 2f+1$ / $3f+1$ in partial synchrony & \cite{dwork1988consensus} & index \\
+$\Omega(t^2)$ messages, deterministic & \cite{dolev1985bounds} & index \\
+$5f{+}1$ for one phase fewer & \cite{martin2006fab}\unver\ & unverified \\
+$5f{-}1$ two-step lower bound &
+  \cite{kuznetsov2021optimal,abraham2021goodcase}\unver\ & unverified \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%%blk background.bounds.16
+Table~\ref{tab:bounds} collects the bounds of the chapter together with
+their documentation.
+
+%%blk background.quorums.head
+\section{Quorums: the one property that does the work}
+\label{sec:quorums}
+
+%%blk background.quorums.01
+A \emph{quorum} is the smallest set of nodes that makes a decision
+final. The only property that it needs is intersection.
+
+%%blk background.quorums.sub.derivation
+\subsection{The derivation}
+
+%%blk background.quorums.02
+Figure~\ref{fig:quorum} of Chapter~\ref{ch:intro} gives the sizes. Here
+is the argument that produces them, in three steps.
+
+%%blk background.quorums.list
+\begin{enumerate}
+  \item You cannot wait for more than $n-f$ answers. The $f$ faulty
+  nodes may stay silent, and silence does not differ from delay. The
+  quorum therefore has size $q = n-f$.
+  \item Two quorums intersect in at least $2q - n = n - 2f$ nodes.
+  \item In the Byzantine model the intersection must contain at least
+  one \emph{honest} node. Up to $f$ Byzantine nodes hide inside the
+  intersection, so $n - 2f > f$, that is $n \ge 3f+1$.
+\end{enumerate}
+
+%%blk background.quorums.03
+In the crash model step~3 does not exist. It is enough that
+$n - 2f > 0$, that is $n \ge 2f+1$. That one step is the whole
+difference of cost between the two models.
+
+%%blk background.quorums.quote
+\begin{quote}\small
+\textbf{What this is and what it is not.} The derivation above is an
+argument about \emph{quorum design}. It shows that quorums of size $n-f$
+need $n \ge 3f+1$. It is not the general proof of impossibility, which
+belongs to \cite{pease1980reaching}.
+\end{quote}
+
+%%blk background.quorums.sub.intersection
+\subsection{Intersection is required less than we thought}
+
+%%blk background.quorums.04
+From Paxos onward, the majority quorum was taken to be necessary.
+Howard, Malkhi and Spiegelman show that it is not
+\cite{howard2016flexiblepaxos}. In Paxos, intersection is required only
+\emph{between} the two phases. The quorums of Phase~1 do not need to
+intersect with each other, and neither do the quorums of Phase~2.
+
+%%blk background.quorums.05
+The practical consequence is that you can make the quorum of Phase~2
+smaller, that is the quorum of the steady state. You pay with a larger
+quorum in the election of the leader. The chapter on Paxos returns to
+this, because it changes the reading of the arithmetic of
+Figure~\ref{fig:quorum}.
+
+%%blk background.correctness.head
+\section{Criteria of correctness}
+\label{sec:correctness}
+
+%%blk background.correctness.roadmap
+Two questions decide whether a replicated service is correct, and they
+are separate questions. The first is what the protocol guarantees about
+the order it builds; that is safety and liveness. The second is what a
+client is entitled to observe from outside; that is linearizability.
+This section takes them in that order, because the second is stated in
+terms of the first.
+
+%%blk background.correctness.sub.safety
+\subsection{Safety and liveness}
+
+%%blk background.correctness.01
+Two categories of properties judge a protocol. \emph{Safety} says that
+something bad never happens. \emph{Liveness} says that something good
+happens eventually.
+
+%%blk background.correctness.02
+The asymmetry that governs all the protocols of this thesis is simple.
+Safety holds at all times, even in a complete partition of the network.
+Liveness is sacrificed. The choice is one of design and not an accident.
+A system that stops can be repaired, while a system that wrote two
+different values cannot.
+
+%%blk background.correctness.sub.lin
+\subsection{Linearizability}
+
+%%blk background.correctness.03
+Herlihy and Wing define the criterion that the client expects
+\cite{herlihy1990linearizability}. Every operation appears to happen at
+one instant between its invocation and its response. Operations that do
+not overlap in time keep their order.
+
+%%blk background.correctness.04
+The second half does all the work. It is a constraint of \emph{real
+time}, and for that reason linearizability costs coordination.
+
+%%blk background.correctness.05
+Two properties separate it from the serializability of the databases,
+and both of them matter for this thesis.
+
+%%blk background.correctness.list
+\begin{description}[leftmargin=2.2em,style=nextline,font=\normalfont\bfseries]
+  \item[Locality.] A system is linearizable if every object of it is
+  linearizable. The property \emph{composes}. Neither serializability
+  nor strict serializability is local
+  \cite{herlihy1990linearizability}.
+  \item[Nonblocking.] A pending invocation of a total operation is never
+  forced to wait for another pending invocation. Serializability is
+  inherently blocking \cite{herlihy1990linearizability}.
+\end{description}
+
+%%blk background.correctness.06
+The same authors describe linearizability as a special case of strict
+serializability, where each transaction is restricted to one operation
+on one object.
+
+%%blk background.performance.head
+\section{What \enquote{performance} means for a protocol}
+\label{sec:performance}
+
+%%blk background.performance.01
+This section is short and it carries weight. It defines, once, the
+difference between two quantities that Chapter~\ref{ch:intro} showed to
+be confused with each other.
+
+%%blk background.performance.list
+\begin{description}[leftmargin=2.2em,style=nextline,font=\normalfont\bfseries]
+  \item[Phases.] How many consecutive rounds of proposal and vote a
+  command needs before it commits. This is a property of the
+  \emph{protocol} and it \emph{compares} between papers, provided that
+  the counting convention is stated.
+  \item[Message delays.] How many consecutive transmissions a command
+  needs before it commits. In HotStuff one phase corresponds to two
+  delays. Elsewhere the correspondence differs, and for that reason it
+  is stated.
+  \item[Real time.] How many milliseconds pass. This depends on the
+  implementation, the hardware and the topology of the network. It does
+  not compare between papers. This thesis reports its own measurements
+  of real time in the evaluation chapter.
+\end{description}
+
+%%blk background.performance.02
+Table~\ref{tab:delays} gives the first quantity, in \emph{phases}, and
+its note states the conversion into delays. It is the only table of
+performance in the chapter, because it is the only one that does not
+depend on an environment.
+
+%%blk background.performance.tab.delays
+\begin{table}[t]
+\centering
+\caption[Phases on the happy path: how many phases one decision needs,
+with a correct leader and after the GST.]%
+{Phases on the happy path: how many phases one decision needs, with a
+correct leader and after the GST. There are no milliseconds here, and
+that is the point of the section. Sources:
+\cite{malkhi2023hotstuff2}\prep\ (Table~1) for the four Byzantine
+protocols, and \cite{ongaro2014raft} \S5.3 for the Multi-Paxos / Raft
+row, where in the steady state \enquote{a new entry can be replicated
+with a single round of RPCs to a majority of the cluster}.}
+\label{tab:delays}
+\small
+\begin{tabular}{@{}l c c@{}}
+\toprule
+\textbf{Protocol} & \textbf{Phases} & \textbf{Model} \\
+\midrule
+Multi-Paxos / Raft & 1 & crash \\
+PBFT               & 2 & Byzantine \\
+Tendermint         & 2 & Byzantine, not responsive \\
+HotStuff           & 3 & Byzantine \\
+HotStuff-2\prep    & 2 & Byzantine \\
+\bottomrule
+\end{tabular}
+
+\vspace{4pt}
+\begin{minipage}{0.94\linewidth}\setstretch{1.08}\footnotesize
+\textbf{Attention to the accounting.} The table counts \emph{phases},
+with the same meaning and the same source that
+Table~\ref{tab:viewchange} of Chapter~\ref{ch:intro} uses. In HotStuff
+each phase corresponds to \emph{two} consecutive message delays, that is
+the proposal of the leader and the votes. The source itself states this
+\emph{for HotStuff}, so its three phases are six delays. The
+correspondence is \textbf{not} universal. PBFT appears with $2$ because
+it has two rounds of voting after the proposal, that is three delays in
+total and not four. The table therefore compares \emph{phases as its
+source counts them}, and not delays. The Multi-Paxos / Raft row does not
+come from the same source and the caption marks it separately. The
+number of phases does \textbf{not} translate into time without a
+statement of the network. Three phases in a LAN cost less than two in a
+wide-area network.
+\end{minipage}
+\end{table}
+
+%%blk background.performance.03
+The section closes with the rule that every later chapter applies. A
+comparison of protocols compares phases. A comparison of implementations
+compares times --- and only when the environment is stated. The full
+framework of validity, the levels of comparability and the threats to
+validity belong to the methodology chapter, as \S1.4 promises.

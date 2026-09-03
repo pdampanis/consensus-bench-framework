@@ -1,0 +1,60 @@
+% =====================================================================
+%  abbreviations.tex — one list, both languages.
+%
+%  RULE (project rule R1 applied to definitions): an expansion goes in
+%  this list only if it can be traced to the thesis text itself or to
+%  the title of a source the thesis already cites. The third argument of
+%  each entry records where. An expansion written from memory is exactly
+%  the kind of small unsourced claim an examiner enjoys finding.
+%
+%  Each language file defines \abbrentry to pick the column it wants.
+%    #1 short   #2 English   #3 Greek   #4 provenance (never printed)
+% =====================================================================
+\newcommand{\abbrlist}{%
+  \abbrentry{FLP}
+    {Fischer--Lynch--Paterson (impossibility of deterministic consensus
+     in an asynchronous system)}
+    {Fischer--Lynch--Paterson (αδυναμία ντετερμινιστικής συναίνεσης σε
+     ασύγχρονο σύστημα)}
+    {§1.1 names Fischer, Lynch and Paterson; used as FLP in §2.4}
+  \abbrentry{GST}
+    {Global Stabilization Time}
+    {Global Stabilization Time --- καθολικός χρόνος σταθεροποίησης}
+    {§2.1 spells the term out and gives the abbreviation}
+  \abbrentry{PBFT}
+    {Practical Byzantine Fault Tolerance}
+    {Practical Byzantine Fault Tolerance}
+    {title of \cite{castro1999pbft}}
+  \abbrentry{SMR}
+    {State Machine Replication}
+    {State Machine Replication --- αναπαραγωγή μηχανής καταστάσεων}
+    {§2.3 spells the term out and gives the abbreviation}
+  \abbrentry{VR}
+    {Viewstamped Replication}
+    {Viewstamped Replication}
+    {title of \cite{oki1988viewstamped}; §1.2}
+}
+
+% =====================================================================
+%  NOT IN THE LIST, AND WHY
+%
+%  These five appear in the thesis but have no expansion that traces to
+%  a source we hold. tools/abbr-check.py reports them on every run so
+%  they cannot be quietly forgotten.
+%
+%    BFT, CFT  appear only as labels inside Figure 1.1, which is
+%              rendered as an image — a reader cannot find them in the
+%              text at all
+%    EPaxos    \cite{moraru2013epaxos} is titled "There Is More Consensus
+%              in Egalitarian Parliaments"; it does not contain
+%              "Egalitarian Paxos"
+%    ZAB       \cite{junqueira2011zab} is titled "Zab: High-Performance
+%              Broadcast for Primary-Backup Systems"; and that entry's
+%              own verification field records that the paper was not read
+%    KIP       no cited source expands the acronym
+%
+%  The fix is in the text, not in this file: the Guidelines require that
+%  a term be introduced in both languages at first use. Introduce them
+%  and they can move up into \abbrlist.
+% =====================================================================
+\newcommand{\abbrpending}{BFT, CFT, EPaxos, ZAB, KIP}

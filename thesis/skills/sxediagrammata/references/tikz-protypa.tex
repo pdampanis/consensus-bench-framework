@@ -1,0 +1,163 @@
+% =====================================================================
+%  tikz-protypa.tex — τα ΠΡΟΤΥΠΑ ΣΧΗΜΑΤΑ της εργασίας
+%
+%  ΟΙΚΟΓΕΝΕΙΑ Α — ΠΟΣΟΤΙΚΑ (άξονες, αριθμοί).  Μόνο pgfplots.
+%  ΟΙΚΟΓΕΝΕΙΑ Β — ΔΟΜΙΚΑ (ροή, καταστάσεις).  TikZ, με πηγή σε Mermaid.
+%
+%  Χρησιμοποιεί ΜΟΝΟ ό,τι φορτώνει ήδη το preamble.tex.
+%  ΟΛΑ ΤΑ ΜΠΛΟΚ ΜΕΤΑΓΛΩΤΤΙΣΤΗΚΑΝ ΜΕ XeLaTeX ΠΡΙΝ ΜΠΟΥΝ ΕΔΩ.
+% =====================================================================
+
+% ---------------------------------------------------------------------
+%  ΚΟΙΝΟ ΥΦΟΣ — αντέγραψέ το ΜΙΑ ΦΟΡΑ στο preamble.tex και μετά κάθε
+%  σχήμα λέει μόνο τα δεδομένα του. Αυτό είναι το «τυποποιημένο».
+% ---------------------------------------------------------------------
+%
+% \pgfplotsset{
+%   thesisaxis/.style={
+%     width=0.80\linewidth, height=5.6cm,
+%     grid=major, grid style={cGrey!20, line width=0.3pt},
+%     axis line style={cGrey!70, line width=0.5pt},
+%     tick label style={font=\scriptsize, /pgf/number format/1000 sep={}},
+%     label style={font=\small},
+%     legend style={at={(0.5,-0.28)}, anchor=north, legend columns=2,
+%                   font=\scriptsize, draw=cGrey!40, fill=white,
+%                   /tikz/every even column/.append style={column sep=8pt}},
+%     every axis plot/.append style={thick, mark size=2pt},
+%   },
+%   thesisbar/.style={thesisaxis, ybar, bar width=7pt, ymin=0,
+%     nodes near coords, nodes near coords style={font=\tiny, text=cGrey},
+%     enlarge x limits=0.12},
+% }
+%
+% ΣΕΙΡΑ ΧΡΩΜΑΤΩΝ, ΣΤΑΘΕΡΗ, ΠΟΤΕ ΚΥΚΛΙΚΗ:
+%   1. cCFT   #0072B2   2. cBFT  #D55E00   3. cAux #009E73
+%   4. cSand  #E69F00   5. cPurple #CC79A7
+%   cGrey #6E6E6E ΔΕΝ είναι σειρά δεδομένων — μόνο πλέγμα, άξονες, βοηθητικά.
+
+
+% ---------------------------------------------------------------------
+%  Α1 — ΚΑΜΠΥΛΗ ΦΡΑΓΜΑΤΩΝ
+%  Πότε: όταν το μέγεθος είναι ΑΡΙΘΜΗΤΙΚΗ ΣΥΝΕΠΕΙΑ ενός φράγματος και
+%  όχι μέτρηση. Πέντε σειρές, άρα υπόμνημα· κάθε σειρά με ΔΙΚΟ της
+%  σύμβολο, ώστε η ταυτότητα να μη στηρίζεται στο χρώμα.
+% ---------------------------------------------------------------------
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.80\linewidth, height=5.6cm,
+  xlabel={πλήθος ανεκτών σφαλμάτων $f$},
+  ylabel={απαιτούμενοι κόμβοι $n$},
+  xmin=0.7, xmax=5.3, ymin=0, ymax=28,
+  xtick={1,2,3,4,5}, ytick={0,5,10,15,20,25},
+  grid=major, grid style={cGrey!20, line width=0.3pt},
+  axis line style={cGrey!70},
+  tick label style={font=\scriptsize}, label style={font=\small},
+  legend style={at={(0.5,-0.30)},anchor=north,legend columns=2,
+                font=\scriptsize,draw=cGrey!40,fill=white,
+                /tikz/every even column/.append style={column sep=8pt}},
+  every axis plot/.append style={thick,mark size=2pt},
+]
+\addplot[cCFT,   mark=*]         coordinates {(1,3)(2,5)(3,7)(4,9)(5,11)};
+  \addlegendentry{$2f{+}1$ — κατάρρευση}
+\addplot[cBFT,   mark=square*]   coordinates {(1,4)(2,7)(3,10)(4,13)(5,16)};
+  \addlegendentry{$3f{+}1$ — βυζαντινό}
+\addplot[cAux,   mark=triangle*] coordinates {(1,5)(2,9)(3,13)(4,17)(5,21)};
+  \addlegendentry{$4f{+}1$ — δίκαιη διάταξη}
+\addplot[cSand,  mark=diamond*]  coordinates {(1,6)(2,11)(3,16)(4,21)(5,26)};
+  \addlegendentry{$5f{+}1$ — μία φάση λιγότερη}
+\addplot[cPurple,dashed,mark=o]  coordinates {(1,4)(2,9)(3,14)(4,19)(5,24)};
+  \addlegendentry{$5f{-}1$ — κάτω φράγμα δύο βημάτων}
+\end{axis}
+\end{tikzpicture}
+\caption[Πρότυπο Α1: αριθμητική φραγμάτων]%
+{\textbf{Πρότυπο Α1.} Καθαρή αριθμητική, όχι μετρήσεις — και η λεζάντα το
+λέει πρώτη, γιατί αλλιώς ο αναγνώστης νομίζει ότι βλέπει δεδομένα. Κάθε
+σειρά έχει δικό της σύμβολο, ώστε να ξεχωρίζει και σε ασπρόμαυρη εκτύπωση.
+Το $5f{-}1$ είναι διακεκομμένο επειδή είναι \emph{κάτω φράγμα} και όχι
+κατασκευή: δεύτερη κωδικοποίηση για διαφορετικό είδος μεγέθους.}
+\label{fig:protypoA1}
+\end{figure}
+
+
+% ---------------------------------------------------------------------
+%  Α2 — ΣΥΓΚΡΙΤΙΚΕΣ ΡΑΒΔΟΙ
+%  Πότε: ΜΙΑ μετρική, πολλά συστήματα. Ποτέ δύο άξονες y.
+%  Οι τιμές τυπώνονται πάνω από κάθε ράβδο: το #E69F00 και το #CC79A7
+%  έχουν αντίθεση κάτω από 3:1 σε λευκό, άρα η ταυτότητα ΔΕΝ επιτρέπεται
+%  να στηρίζεται στο χρώμα.
+% ---------------------------------------------------------------------
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+  width=0.80\linewidth, height=5.2cm,
+  ybar, bar width=13pt, ymin=0, ymax=78,
+  ylabel={μείωση \en{throughput} (\%)},
+  symbolic x coords={PBFT,FaB,SBFT,HotStuff,PoE,FTB,Kauri},
+  xtick=data, enlarge x limits=0.10,
+  x tick label style={rotate=30,anchor=east,font=\tiny},
+  tick label style={font=\scriptsize}, label style={font=\small},
+  grid=major, ymajorgrids=true, xmajorgrids=false,
+  grid style={cGrey!20, line width=0.3pt},
+  axis line style={cGrey!70},
+  nodes near coords, nodes near coords style={font=\tiny,text=cGrey},
+]
+\addplot[fill=cBFT!70,draw=cBFT,line width=0.6pt] coordinates
+  {(PBFT,65) (FaB,63) (SBFT,55) (HotStuff,45) (PoE,39) (FTB,32) (Kauri,31)};
+\end{axis}
+\end{tikzpicture}
+\caption[Πρότυπο Α2: μία μετρική, πολλά συστήματα]%
+{\textbf{Πρότυπο Α2.} Μία σειρά, άρα \emph{κανένα υπόμνημα} — ο τίτλος του
+άξονα λέει τι μετριέται. Οι τιμές τυπώνονται πάνω από κάθε ράβδο, ώστε ο
+πίνακας να είναι αναγνώσιμος χωρίς να μετρά κανείς με το μάτι. Οριζόντιο
+πλέγμα μόνο: το κατακόρυφο δεν προσθέτει τίποτα σε κατηγορικό άξονα.
+Η λεζάντα κάθε πραγματικού σχήματος οφείλει να δηλώνει υλικό, μοντέλο
+φόρτου, μέγεθος συστάδας και πλήθος επαναλήψεων.}
+\label{fig:protypoA2}
+\end{figure}
+
+
+% ---------------------------------------------------------------------
+%  Β2 — ΑΚΟΛΟΥΘΙΑ ΜΗΝΥΜΑΤΩΝ  (η TikZ εκδοχή του Mermaid sequenceDiagram)
+%  Πότε: όταν σημασία έχει η ΣΕΙΡΑ και το ΠΛΗΘΟΣ των διαδρομών.
+%  Κανόνας ευθυγράμμισης: οι κατακόρυφοι άξονες σε ΣΤΑΘΕΡΟ βήμα, τα
+%  μηνύματα σε ΣΤΑΘΕΡΟ βήμα ύψους. Καμία διαγώνιος δεν διασταυρώνεται.
+% ---------------------------------------------------------------------
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+    font=\footnotesize,
+    x=3.05cm, y=-0.78cm,                 % y αρνητικό: ο χρόνος πάει κάτω
+    msg/.style={->,semithick,cGrey,>={Stealth[length=4pt]}},
+    ret/.style={->,semithick,cGrey,dashed,>={Stealth[length=4pt]}},
+    role/.style={draw=cCFT,fill=cCFT!8,rounded corners=2pt,
+                 minimum width=2.3cm,minimum height=6mm,inner sep=2pt},
+    lbl/.style={fill=white,inner sep=1.5pt,font=\scriptsize},
+  ]
+  % --- ρόλοι, σε σταθερό βήμα x ---
+  \foreach \i/\name in {0/πελάτης, 1/ηγέτης, 2/{ακόλουθος 1}, 3/{ακόλουθος 2}}{
+    \node[role] (r\i) at (\i,0) {\name};
+    \draw[cGrey!55,line width=0.5pt] (\i,0.45) -- (\i,7.6);
+  }
+  % --- μηνύματα, σε σταθερό βήμα y ---
+  \draw[msg] (0,1.4) -- node[lbl,above]{αίτημα}            (1,1.4);
+  \draw[msg] (1,2.4) -- node[lbl,above]{πρόταση}           (2,2.4);
+  \draw[msg] (1,3.4) -- node[lbl,above]{πρόταση}           (3,3.4);
+  \draw[ret] (2,4.4) -- node[lbl,above]{ψήφος}             (1,4.4);
+  \draw[ret] (3,5.4) -- node[lbl,above]{ψήφος}             (1,5.4);
+  \node[draw=cSand,fill=cSand!12,rounded corners=2pt,inner sep=3pt,
+        font=\scriptsize,anchor=west] at (0.62,6.4)
+       {πλειοψηφία: η εντολή δεσμεύεται};
+  \draw[msg] (1,7.3) -- node[lbl,above]{απόκριση}          (0,7.3);
+\end{tikzpicture}
+\caption[Πρότυπο Β2: ακολουθία μηνυμάτων]%
+{\textbf{Πρότυπο Β2.} Ο χρόνος τρέχει προς τα κάτω και κάθε μήνυμα παίρνει
+δική του γραμμή: έτσι το πλήθος των διαδρομών \emph{μετριέται} αντί να
+εκτιμάται. Συνεχής γραμμή = πρόταση του ηγέτη, διακεκομμένη = απόκριση
+ακολούθου — η κατεύθυνση φαίνεται και χωρίς χρώμα. Το πλαίσιο σημειώνει τη
+στιγμή που η εντολή γίνεται οριστική, που είναι το μόνο σημείο του
+σχήματος με σημασία για την ορθότητα.}
+\label{fig:protypoB2}
+\end{figure}

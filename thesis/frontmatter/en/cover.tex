@@ -1,0 +1,30 @@
+% Cover page — the layout of the department template, in English.
+\begin{titlepage}
+\centering
+\thispagestyle{empty}
+
+\includegraphics[width=2.6cm]{assets/pada-logo.png}
+
+\vspace{0.8em}
+{\large \thUniversityEN\par}
+{\large \thSchoolEN\par}
+{\large \thDepartmentEN\par}
+
+\vfill
+{\Large\bfseries DIPLOMA THESIS\par}
+\vspace{1.5em}
+{\LARGE\bfseries \thTitleEN\par}
+\vspace{0.8em}
+{\large\itshape\gr{\thTitleEL}\par}
+\vfill
+{\Large\bfseries \thAuthorEN\par}
+{\large Registration number \thAM\par}
+\vspace{2em}
+{\large Supervisor: \thSupervisorEN\par}
+\vfill
+\end{titlepage}
+
+% The titlepage environment resets the page counter on \end. Without
+% this the cover and the next page are both "page 1" and every roman
+% numeral afterwards is one behind the .docx.
+\setcounter{page}{2}
