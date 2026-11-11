@@ -172,7 +172,7 @@ partial synchrony raises the cost of fail-stop from $t$ to $2t{+}1$,
 that is you pay for not knowing when stability begins.}
 \label{tab:dls}
 \small
-\begin{tabular}{@{}l c c c@{}}
+\begin{tabularx}{\linewidth}{@{}X c c c@{}}
 \toprule
 \textbf{Kind of fault} & \textbf{Synchronous} & \textbf{Asynchronous} &
 \textbf{Partially synchronous} \\
@@ -182,7 +182,7 @@ Omission                  & $t$      & $\infty$ & $2t+1$ \\
 Byzantine with authentication & $t$  & $\infty$ & $3t+1$ \\
 Byzantine                 & $3t+1$   & $\infty$ & $3t+1$ \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 
 \vspace{4pt}
 \begin{minipage}{0.94\linewidth}\setstretch{1.08}\small

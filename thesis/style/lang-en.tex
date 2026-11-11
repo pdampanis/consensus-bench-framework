@@ -14,7 +14,7 @@
 % (the msttcorefonts Times New Roman, for one), and latexmk gives up.
 \newfontfamily\greekfont[Ligatures=TeX]{\thesisserif}
 \newfontfamily\greekfontsf[Ligatures=TeX]{\thesissans}
-\newfontfamily\greekfonttt[Scale=0.90,Ligatures=TeX]{\thesismono}
+\newfontfamily\greekfonttt[Scale=\thesismonoscale,Ligatures=TeX]{\thesismono}
 
 % \gr{...} is the mirror of \en{...} in the Greek edition: a Greek word
 % inside English text, hyphenated by Greek rules.
@@ -31,13 +31,24 @@
 % Names. Called explicitly from main-en.tex after \begin{document},
 % because polyglossia rewrites them inside \AtBeginDocument and would
 % otherwise have the last word.
+% Capitals in the Word look, as the template; mixed case in the LaTeX
+% look. Same words either way, and the same as the table of contents.
 \newcommand{\thesisnames}{%
-  \renewcommand{\chaptername}{CHAPTER}%
-  \renewcommand{\appendixname}{APPENDIX}%
   \renewcommand{\figurename}{Figure}%
   \renewcommand{\tablename}{Table}%
-  \renewcommand{\bibname}{REFERENCES}%
-  \renewcommand{\contentsname}{TABLE OF CONTENTS}%
-  \renewcommand{\listfigurename}{LIST OF FIGURES}%
-  \renewcommand{\listtablename}{LIST OF TABLES}%
+  \iflatexlook
+    \renewcommand{\chaptername}{Chapter}%
+    \renewcommand{\appendixname}{Appendix}%
+    \renewcommand{\bibname}{References}%
+    \renewcommand{\contentsname}{Table of Contents}%
+    \renewcommand{\listfigurename}{List of Figures}%
+    \renewcommand{\listtablename}{List of Tables}%
+  \else
+    \renewcommand{\chaptername}{CHAPTER}%
+    \renewcommand{\appendixname}{APPENDIX}%
+    \renewcommand{\bibname}{REFERENCES}%
+    \renewcommand{\contentsname}{TABLE OF CONTENTS}%
+    \renewcommand{\listfigurename}{LIST OF FIGURES}%
+    \renewcommand{\listtablename}{LIST OF TABLES}%
+  \fi
 }

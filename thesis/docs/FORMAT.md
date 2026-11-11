@@ -10,6 +10,19 @@ Three sources, in this order of authority:
 When they disagree, the Guidelines win. The disagreements are listed
 under "Open decisions".
 
+## Two looks, one switch
+
+The PDF has the look of a LaTeX research text by default: Computer
+Modern (the CMU fonts, which include Greek), Latin Modern Math, single
+spacing, 3 cm margins, LaTeX's own headings in mixed case, and empty
+blank leaves. The content and the page order are those of the template.
+
+The Guidelines (A.2) ask for the Word look instead: Times New Roman
+11 pt, line spacing 1.5, headings 14/12 pt bold, 2.54 cm margins and
+headings in capitals. To get it, change `\latexlooktrue` to
+`\latexlookfalse` near the top of `style/common.tex`. The .docx always
+has the Word look.
+
 The style files apply most of this. Do not format headings, captions or
 numbers by hand.
 
@@ -30,18 +43,17 @@ The page order is in `main-en.tex` and `main-el.tex`. Keep both files and
 
 There is a blank leaf after the cover, the title page, the declaration
 and the acknowledgements, as in the template. All front-matter headings
-are 14 pt bold and centred, at the same height as the chapter headings.
+have the same size and height as the chapter headings.
 
 Facts such as names, titles and the committee are written once, in
 `frontmatter/meta.tex`.
 
 ## Body
 
-- **Chapters** start on a new page. The heading is two lines, both 14 pt
-  bold: "CHAPTER n" flush left, then the title centred, as in the
-  template. Sections and subsections
-  are 12 pt bold, numbered 1.1 and 1.1.1. `style/common.tex` sets all of
-  these.
+- **Chapters** start on a new page with a two-line heading: "Chapter n"
+  over the title. Sections and subsections are numbered 1.1 and 1.1.1.
+  `style/common.tex` sets the sizes for each look: the LaTeX report
+  headings, or 14/12 pt bold as the Guidelines ask.
 - Start each chapter with a paragraph that says what it covers. End it
   with a short summary paragraph.
 - **Chapter 1** contains the subject, the aim and the research
@@ -129,3 +141,6 @@ From the repository's deposit guide
    accepted that. The Guidelines letter them both "Α, Β, Γ" and
    "Ι, ΙΙ, ΙΙΙ". The slot uses A, B, C (Α, Β, Γ in Greek).
 5. **Page numbering and running header.** See the list above.
+6. **The look.** The PDF uses the LaTeX look; the Guidelines ask for
+   the Word look (see "Two looks, one switch"). Ask the supervisor which
+   one to submit.

@@ -8,35 +8,74 @@
 %  Language-specific setup lives in style/lang-en.tex and lang-el.tex.
 % =====================================================================
 
+% ---- Look ------------------------------------------------------------
+% One source, two looks. The content and the page order are the same.
+%   \latexlooktrue   (default) the typography of a LaTeX research text:
+%                    Computer Modern with Greek (CMU fonts), Latin Modern
+%                    Math, single spacing, LaTeX's own headings, 3 cm
+%                    margins, mixed-case headings, empty blank leaves.
+%   \latexlookfalse  the Guidelines' Word look (A.2): Times New Roman
+%                    11 pt, line spacing 1.5, headings 14/12 pt bold,
+%                    2.54 cm margins, headings in capitals.
+% The .docx always has the Word look (docx/make-reference.py).
+\newif\iflatexlook
+\latexlooktrue
+
 % ---- Fonts ----------------------------------------------------------
 \usepackage{fontspec}
 \usepackage{polyglossia}
 
-% The department requires Times New Roman at 11 pt (Guidelines A.2).
-% Times New Roman itself is not redistributable, so the build asks for it
-% first and falls back to Liberation Serif, which is metric-compatible:
-% same widths, same line breaks, same page count. On a machine that has
-% the real font (Word, Overleaf) the first branch wins and nothing moves.
-\IfFontExistsTF{Times New Roman}{
-  \newcommand{\thesisserif}{Times New Roman}
-  \newcommand{\thesissans}{Arial}
-  \newcommand{\thesismono}{Courier New}
-}{
-  \newcommand{\thesisserif}{Liberation Serif}
-  \newcommand{\thesissans}{Liberation Sans}
-  \newcommand{\thesismono}{Liberation Mono}
-}
+% LaTeX look: CMU (Computer Modern Unicode) is Computer Modern with the
+% Greek alphabet, which Latin Modern does not have. TeX Live ships it as
+% cm-unicode; on Debian/Ubuntu it is the fonts-cmu package. Without it
+% the build falls back to the Word look and says so in the log.
+\iflatexlook
+  \IfFontExistsTF{CMU Serif}{
+    \newcommand{\thesisserif}{CMU Serif}
+    \newcommand{\thesissans}{CMU Sans Serif}
+    \newcommand{\thesismono}{CMU Typewriter Text}
+    \newcommand{\thesismonoscale}{1.0}
+  }{
+    \PackageWarningNoLine{thesis}{CMU fonts not found, so the Word look
+      is used. Install fonts-cmu (Debian/Ubuntu) or cm-unicode (TeX Live)}
+    \latexlookfalse
+  }
+\fi
+
+% Word look: the department requires Times New Roman at 11 pt
+% (Guidelines A.2). Times New Roman itself is not redistributable, so the
+% build asks for it first and falls back to Liberation Serif, which is
+% metric-compatible: same widths, same line breaks, same page count.
+\iflatexlook\else
+  \IfFontExistsTF{Times New Roman}{
+    \newcommand{\thesisserif}{Times New Roman}
+    \newcommand{\thesissans}{Arial}
+    \newcommand{\thesismono}{Courier New}
+  }{
+    \newcommand{\thesisserif}{Liberation Serif}
+    \newcommand{\thesissans}{Liberation Sans}
+    \newcommand{\thesismono}{Liberation Mono}
+  }
+  \newcommand{\thesismonoscale}{0.90}
+\fi
 \setmainfont[Ligatures=TeX]{\thesisserif}
 \setsansfont[Ligatures=TeX]{\thesissans}
-\setmonofont[Scale=0.90,Ligatures=TeX]{\thesismono}
+\setmonofont[Scale=\thesismonoscale,Ligatures=TeX]{\thesismono}
 
 % ---- Page ------------------------------------------------------------
-% 2.54 cm on every side — the margin the department template uses.
-\usepackage[a4paper,margin=2.54cm]{geometry}
+% Word look: 2.54 cm on every side, as the department template.
+% LaTeX look: 3 cm, a line of about 75 characters, easier to read.
+\iflatexlook
+  \usepackage[a4paper,margin=3cm]{geometry}
+\else
+  \usepackage[a4paper,margin=2.54cm]{geometry}
+\fi
 \usepackage{microtype}
 \emergencystretch=1.5em          % prefer loose spacing over an overfull line
 \usepackage{setspace}
-\onehalfspacing                  % Guidelines A.2: line spacing 1.5
+\iflatexlook\else
+  \onehalfspacing                % Guidelines A.2: line spacing 1.5
+\fi
 \setlength{\parskip}{0pt}
 \setlength{\parindent}{1.2em}
 
@@ -86,6 +125,12 @@
 % ί, ό, ύ, ώ — so the Greek edition would be full of missing glyphs.
 % Liberation Serif has the full range, which is why it is the fallback.
 \usepackage{unicode-math}
+\iflatexlook
+  % Latin Modern Math is the maths of Computer Modern: the pairing that
+  % LaTeX papers use. TeX convention: Latin and lowercase Greek italic,
+  % Greek capitals upright (unicode-math's default math-style).
+  \setmathfont{latinmodern-math.otf}
+\else
 \IfFontExistsTF{texgyretermes-math.otf}{
   \setmathfont{texgyretermes-math.otf}
   % unicode-math sets upright Greek capitals by ISO style; LaTeX's own
@@ -96,6 +141,7 @@
     mathematics will be Computer Modern and will not match the text.
     Install the tex-gyre-math package}
 }
+\fi
 
 
 % ---- Citations and links ---------------------------------------------
@@ -130,7 +176,13 @@
 % template sets a chapter as two lines: "ΚΕΦΑΛΑΙΟ 1" flush left, the
 % title centred under it. docx/make-reference.py gives the .docx the
 % same (Chapter Label: left; Heading 1: centred, 14 pt).
+% LaTeX look: the report class's own headings, restated for titlesec.
 \usepackage{titlesec}
+\iflatexlook
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries}{\chaptertitlename\ \thechapter}{20pt}{\Huge}
+\titlespacing*{\chapter}{0pt}{50pt}{40pt}
+\else
 \titleformat{\chapter}[display]
   {\bfseries\fontsize{14}{17}\selectfont}
   {\filright\chaptertitlename\ \thechapter}{6pt}{\filcenter}
@@ -139,25 +191,36 @@
   {\bfseries\fontsize{12}{15}\selectfont}{\thesection}{0.8em}{}
 \titleformat{\subsection}
   {\bfseries\fontsize{12}{15}\selectfont}{\thesubsection}{0.8em}{}
+\fi
 
 % ---- Front-matter heading -------------------------------------------
-% 14 pt bold, centred — the department template's look for the pages
-% before Chapter 1. It is an unnumbered \chapter* (set by titlesec
-% above), so these headings sit at the same height as TABLE OF CONTENTS,
-% the lists and REFERENCES.
-%   #1 = as printed   #2 = as it appears in the table of contents
+% An unnumbered \chapter* (set by titlesec above), so these headings sit
+% at the same height and size as the contents, the lists and the
+% references. The Word look prints #1, in capitals as the template has
+% it; the LaTeX look prints #2, the mixed-case form.
+%   #1 = as the template prints it   #2 = as in the table of contents
+\iflatexlook
+  \newcommand{\frontheadingtext}[2]{#2}
+\else
+  \newcommand{\frontheadingtext}[2]{#1}
+\fi
 \newcommand{\frontheading}[2]{%
-  \chapter*{#1}%
+  \chapter*{\frontheadingtext{#1}{#2}}%
   \phantomsection
   \addcontentsline{toc}{chapter}{#2}%
   \markboth{#2}{#2}}
 
 % Blank leaf, as the template has between front-matter sections. It is
-% counted and numbered, so both editions and the .docx agree page for page.
+% counted, so both editions and the .docx agree page for page. The Word
+% look numbers it and says it is blank; the LaTeX look leaves it empty.
 \newcommand{\blankleaf}{%
   \clearpage
-  \thispagestyle{plain}%
-  \null\vfill\begin{center}\small\dgblankleaftext\end{center}\vfill\null
+  \iflatexlook
+    \thispagestyle{empty}\null
+  \else
+    \thispagestyle{plain}%
+    \null\vfill\begin{center}\small\dgblankleaftext\end{center}\vfill\null
+  \fi
   \clearpage}
 
 % ---- Measurements that do not exist yet ------------------------------

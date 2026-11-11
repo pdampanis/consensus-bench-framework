@@ -27,8 +27,9 @@ make check      every check, nothing built
 
 Needs: XeLaTeX with `polyglossia`, `latexmk`, `pandoc`, `python-docx`,
 `docxcompose`, `lxml`, and LibreOffice (`soffice`) for filling the table
-of contents. Times New Roman if you have it; the build falls back to the
-metric-compatible Liberation Serif and looks the same at the millimetre.
+of contents. The PDF uses the CMU fonts (TeX Live `cm-unicode`, or
+`fonts-cmu` on Debian/Ubuntu); without them it falls back to the Word
+look in Times New Roman or Liberation Serif. See `docs/FORMAT.md`.
 
 ## Why the .docx exists
 
