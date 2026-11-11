@@ -122,6 +122,9 @@ defence: it is written as the questions a committee will ask.
 
 `docs/SYNC.md` — how the two editions stay level.
 
+`docs/FORMAT.md` — what each part must look like (front matter, body,
+figures, tables, back matter), and the format decisions still open.
+
 ## Status
 
 Chapters 1 and 2 are written in both languages. The experimental

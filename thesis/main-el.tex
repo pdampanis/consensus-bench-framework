@@ -72,4 +72,17 @@
 \bibliographystyle{IEEEtran}
 \bibliography{bib/references}
 
+% Τα Παραρτήματα μπαίνουν ΜΕΤΑ τη Βιβλιογραφία: έτσι λένε οι Οδηγίες δύο
+% φορές (Πίνακας Α.1 και «Παραρτήματα»). Το Πρότυπο Word τα βάζει πριν·
+% υπερισχύει ο γραπτός κανόνας. Τιτλοφορούνται ΠΑΡΑΡΤΗΜΑ Α, Β, … και
+% μπαίνουν στα περιεχόμενα. Για να προσθέσεις ένα: content/el/appA.tex
+% με \chapter{Τίτλος}, βγάλε τα σχόλια από τις δύο γραμμές, και το ίδιο
+% στο main-en.tex. ΠΡΩΤΑ διόρθωσε το .docx: το chapters() του
+% docx/config.py παίρνει ΚΑΘΕ content/<lang>/*.tex ως κεφάλαιο, οπότε το
+% appA.tex θα γινόταν Κεφάλαιο 1. Η τρίτη γραμμή δίνει ελληνικά γράμματα
+% (Α, Β, Γ)· χωρίς αυτήν το numerals=arabic τυπώνει λατινικά A, B, C.
+% \appendix
+% \renewcommand{\thechapter}{\ifcase\value{chapter}\or Α\or Β\or Γ\or Δ\or Ε\fi}
+% \include{content/el/appA}
+
 \end{document}

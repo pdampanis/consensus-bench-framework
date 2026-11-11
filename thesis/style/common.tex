@@ -124,16 +124,33 @@
 % follow the citation needs to know that before they try.
 \newcommand{\unver}{\textsuperscript{U}}   % bibliographic data unverified
 
+% ---- Headings --------------------------------------------------------
+% Guidelines A.2: chapter headings 14 pt bold with 12 pt before and
+% after; sub-headings 12 pt bold; every chapter on a new page. The
+% template sets a chapter as two lines: "ΚΕΦΑΛΑΙΟ 1" flush left, the
+% title centred under it. docx/make-reference.py gives the .docx the
+% same (Chapter Label: left; Heading 1: centred, 14 pt).
+\usepackage{titlesec}
+\titleformat{\chapter}[display]
+  {\bfseries\fontsize{14}{17}\selectfont}
+  {\filright\chaptertitlename\ \thechapter}{6pt}{\filcenter}
+\titlespacing*{\chapter}{0pt}{12pt}{12pt}
+\titleformat{\section}
+  {\bfseries\fontsize{12}{15}\selectfont}{\thesection}{0.8em}{}
+\titleformat{\subsection}
+  {\bfseries\fontsize{12}{15}\selectfont}{\thesubsection}{0.8em}{}
+
 % ---- Front-matter heading -------------------------------------------
 % 14 pt bold, centred — the department template's look for the pages
-% before Chapter 1. \chapter* would print a three-line monster instead.
+% before Chapter 1. It is an unnumbered \chapter* (set by titlesec
+% above), so these headings sit at the same height as TABLE OF CONTENTS,
+% the lists and REFERENCES.
 %   #1 = as printed   #2 = as it appears in the table of contents
 \newcommand{\frontheading}[2]{%
+  \chapter*{#1}%
   \phantomsection
   \addcontentsline{toc}{chapter}{#2}%
-  \markboth{#2}{#2}%
-  \begin{center}\large\bfseries #1\end{center}
-  \vspace{0.8em}}
+  \markboth{#2}{#2}}
 
 % Blank leaf, as the template has between front-matter sections. It is
 % counted and numbered, so both editions and the .docx agree page for page.

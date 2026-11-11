@@ -72,4 +72,14 @@
 \bibliographystyle{IEEEtran}
 \bibliography{bib/references}
 
+% Appendices go AFTER the references: the Guidelines say so twice (Table
+% A.1 and "Appendices"). The Word template puts them before; the written
+% rule wins. They are headed APPENDIX A, B, ... and appear in the table
+% of contents. To add one, create content/en/appA.tex starting with
+% \chapter{Title}, uncomment the two lines, and do the same in main-el.tex.
+% FIRST fix the .docx side: docx/config.py chapters() takes EVERY
+% content/<lang>/*.tex as a chapter, so appA.tex would become Chapter 1.
+% \appendix
+% \include{content/en/appA}
+
 \end{document}

@@ -169,7 +169,7 @@ def build_front():
     para(doc, f['Supervisor'], 'Cover Small')
     para(doc, '', 'Front Center')
     para(doc, config.s('committee'), 'Cover Small')
-    for member in (f['ExamA'], f['ExamB'], f['ExamC']):
+    for member in (f['ExamA'], f['ExamB']):
         para(doc, member, 'Cover Small')
     para(doc, '', 'Front Center')
     para(doc, f['ExamDate'], 'Cover Small')

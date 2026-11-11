@@ -66,7 +66,7 @@ def meta(key):
 def facts():
     """Everything the cover and the title page need, in one dict."""
     need = ['Title', 'Author', 'AM', 'Supervisor', 'University', 'School',
-            'Department', 'ExamA', 'ExamB', 'ExamC', 'ExamDate']
+            'Department', 'ExamA', 'ExamB', 'ExamDate']
     d = {k: _todo(meta(k)) for k in need}
     # The examination date in the .tex is a set of rules to write on.
     # In Word they become underscores.
