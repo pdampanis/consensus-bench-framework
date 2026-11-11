@@ -1,0 +1,49 @@
+% ΕΛΛΗΝΙΚΕΣ ετικέτες σχημάτων. Το labels-en.tex είναι το αγγλικό δίδυμο: τα δύο
+% αρχεία πρέπει να ορίζουν ΑΚΡΙΒΩΣ το ίδιο σύνολο κλειδιών, με την ίδια σειρά —
+% ένα κλειδί που υπάρχει στο ένα και όχι στο άλλο τυπώνει σιωπηλό κενό.
+%
+% Οι πηγές των σχημάτων δεν περιέχουν δικό τους αναγνώσιμο κείμενο: κάθε
+% συμβολοσειρά είναι \fl{key} και κάθε κλειδί ορίζεται εδώ. Ονόματα
+% πρωτοκόλλων, συνεδρίων, χρονολογίες, αριθμοί, μαθηματικά και μονάδες είναι
+% ίδια στις δύο εκδόσεις, μένουν αυτούσια στον κώδικα και ΔΕΝ είναι κλειδιά.
+
+\providecommand{\deflabel}[2]{\expandafter\newcommand\csname figlabel@#1\endcsname{#2}}
+\providecommand{\fl}[1]{\csname figlabel@#1\endcsname}
+
+\deflabel{equivocation.byzantine.note}{ο $K_2$ ζει και συνεχίζει\\\textbf{αντιφατική δήλωση}}
+\deflabel{equivocation.byzantine.title}{ΒΥΖΑΝΤΙΝΟ}
+\deflabel{equivocation.crash.note}{ο $K_2$ σταματά\\ίδιο μήνυμα σε όλους}
+\deflabel{equivocation.crash.title}{ΚΑΤΑΡΡΕΥΣΗ}
+\deflabel{quorum.byzantine}{βυζαντινό, κανονική περίπτωση}
+\deflabel{quorum.crash}{κατάρρευση (και βυζαντινό με έμπιστο υλικό)}
+\deflabel{quorum.fairorder}{δίκαιη διάταξη}
+\deflabel{quorum.onephaseless}{μία φάση λιγότερη}
+\deflabel{quorum.twostep}{κάτω φράγμα δύο βημάτων}
+\deflabel{quorum.xlabel}{πλήθος ανεκτών σφαλμάτων}
+\deflabel{quorum.ylabel}{απαιτούμενοι κόμβοι}
+\deflabel{quote.close}{\guillemotright}
+\deflabel{quote.open}{\guillemotleft}
+\deflabel{scaling.legend.geo}{γεωκατανεμημένο}
+\deflabel{scaling.panel.geo}{(β) LAN έναντι γεωκατανεμημένου}
+\deflabel{scaling.panel.lan}{(α) ένα \en{datacenter} (LAN)}
+\deflabel{scaling.ylabel}{μείωση \en{throughput}}
+\deflabel{smr.agreement.order}{συμφωνία $+$ διάταξη}
+\deflabel{smr.clients}{πελάτες}
+\deflabel{smr.consensus}{ΣΥΝΑΙΝΕΣΗ /\\ΑΤΟΜΙΚΗ ΕΚΠΟΜΠΗ}
+\deflabel{smr.deterministic}{ΝΤΕΤΕΡΜΙΝΙΣΤΙΚΕΣ}
+\deflabel{smr.here.live}{εδώ ζουν}
+\deflabel{smr.machine}{μηχανή}
+\deflabel{smr.same.io}{ίδια είσοδος $\Rightarrow$ ίδια έξοδος}
+\deflabel{sync.liveness.guaranteed}{ζωτικότητα εγγυημένη}
+\deflabel{sync.liveness.none}{ζωτικότητα: καμία εγγύηση}
+\deflabel{sync.model.asynchronous}{Ασύγχρονο}
+\deflabel{sync.model.partial}{Μερικώς σύγχρονο}
+\deflabel{sync.model.synchronous}{Σύγχρονο}
+\deflabel{sync.note.asynchronous}{κανένα φράγμα}
+\deflabel{sync.note.safety}{Η ασφάλεια ισχύει σε ΟΛΟ τον άξονα, και πριν και μετά την GST.}
+\deflabel{sync.note.synchronous}{κάθε μήνυμα $\le\Delta$, και το $\Delta$ είναι γνωστό}
+\deflabel{timeline.milestone.byzmodel}{βυζαντινό μοντέλο σφαλμάτων}
+\deflabel{timeline.milestone.clocks}{λογικά ρολόγια}
+\deflabel{timeline.milestone.linearizability}{γραμμικοποιησιμότητα}
+\deflabel{timeline.milestone.partialsync}{μερική συγχρονία}
+\deflabel{timeline.milestones.title}{Θεωρητικά ορόσημα (δεν είναι πρωτόκολλα):}

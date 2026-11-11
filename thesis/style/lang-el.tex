@@ -1,0 +1,36 @@
+% =====================================================================
+%  lang-el.tex — η ελληνική έκδοση.
+%
+%  Η ελληνική ΑΚΟΛΟΥΘΕΙ την αγγλική: το content/en/ είναι το πρωτότυπο,
+%  το content/el/ η μετάφρασή του. Το tools/sync-check.py δείχνει ποια
+%  ελληνικά κομμάτια έχουν μείνει πίσω. Δες docs/SYNC.md.
+% =====================================================================
+\setmainlanguage[numerals=arabic]{greek}
+\setotherlanguage{english}
+
+% Ελληνικές γραμματοσειρές: ίδιες με τις λατινικές, ώστε οι δύο εκδόσεις
+% να μοιάζουν με το ίδιο έγγραφο.
+\newfontfamily\greekfont[Ligatures=TeX]{\thesisserif}
+\newfontfamily\greekfontsf[Ligatures=TeX]{\thesissans}
+\newfontfamily\greekfonttt[Scale=0.90,Ligatures=TeX]{\thesismono}
+
+% \en{...} : αγγλικός όρος μέσα σε ελληνικό κείμενο, με σωστό συλλαβισμό
+\newcommand{\en}[1]{\textenglish{\emph{#1}}}
+% \enup{...}: αγγλικό όνομα χωρίς πλάγια (Paxos, HotStuff, …)
+\newcommand{\enup}[1]{\textenglish{#1}}
+\newcommand{\gr}[1]{#1}
+
+% Ελληνική σύμβαση αριθμών στα σχήματα: υποδιαστολή κόμμα.
+\pgfkeys{/pgf/number format/.cd, use comma, 1000 sep={.}}
+
+\newcommand{\dgblankleaftext}{(Κενό φύλλο)}
+
+\newcommand{\thesisnames}{%
+  \renewcommand{\chaptername}{ΚΕΦΑΛΑΙΟ}%
+  \renewcommand{\figurename}{Σχήμα}%
+  \renewcommand{\tablename}{Πίνακας}%
+  \renewcommand{\bibname}{ΒΙΒΛΙΟΓΡΑΦΙΑ}%
+  \renewcommand{\contentsname}{ΠΕΡΙΕΧΟΜΕΝΑ}%
+  \renewcommand{\listfigurename}{ΚΑΤΑΛΟΓΟΣ ΣΧΗΜΑΤΩΝ}%
+  \renewcommand{\listtablename}{ΚΑΤΑΛΟΓΟΣ ΠΙΝΑΚΩΝ}%
+}

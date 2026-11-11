@@ -1,0 +1,46 @@
+# ---------------------------------------------------------------------
+#  What is NOT versioned, and why.
+#
+#  Rule: a file that a command rebuilds from a file that IS versioned
+#  does not belong here. Every binary in a repository is a merge
+#  conflict that git cannot resolve, and a source of "it works for me".
+#
+#  The four documents (thesis-en.pdf, thesis-el.pdf and the two .docx)
+#  are outputs. `make all` builds them from this tree in about half a
+#  minute. Attach them to a release or an e-mail; do not commit them.
+# ---------------------------------------------------------------------
+
+# LaTeX by-products
+*.aux
+*.bbl
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.out
+*.run.xml
+*.synctex.gz
+*.toc
+*.xdv
+*.dvi
+
+# the built documents
+thesis-en.pdf
+thesis-el.pdf
+/figures/out/
+
+# everything the .docx pipeline generates
+docx/build/
+
+# Python
+__pycache__/
+*.pyc
+
+# editors and operating systems
+.DS_Store
+*.swp
+*~
+.vscode/
+.idea/

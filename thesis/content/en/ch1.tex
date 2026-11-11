@@ -1,0 +1,602 @@
+% =====================================================================
+%  CHAPTER 1 — INTRODUCTION
+%  Every number in this chapter comes with its source and with the
+%  experimental environment that produced it. No measurement of this
+%  thesis appears in this chapter.
+%
+%  ENGLISH IS THE MASTER. content/el/ch1.tex follows this file, block
+%  for block. See docs/SYNC.md.
+% =====================================================================
+
+%%blk intro.head
+\chapter{Introduction: the consensus problem and the question of this thesis}
+\label{ch:intro}
+
+%%blk intro.head.roadmap
+This chapter does four things, in this order. It states the problem that
+consensus solves and the two obstacles that make it hard, faults and
+delays. It explains why one protocol never settled the question, and why
+the published comparisons between protocols do not transfer from one
+paper to the next. It then states the aim of this thesis, its research
+questions and its limits. It closes with the rule this thesis follows
+about the quality of its sources, because a comparison is worth exactly
+as much as the evidence under it.
+
+%%blk intro.problem.head
+\section{Agreement under faults and delays}
+\label{sec:problem}
+
+%%blk intro.problem.01
+A distributed system consists of processes that are separated in space
+and that communicate only by messages. A system is distributed when the
+transmission delay is not negligible against the time between two events
+of the same process \cite{lamport1978time}. This definition has one
+consequence: no global clock exists. For two events in different
+processes it is sometimes impossible to say which one happened first.
+The only inherent order relation is the partial \emph{happened-before}
+relation \cite{lamport1978time}. A service that must behave like one
+single reliable machine must therefore build that order itself, because
+the network does not supply it.
+
+%%blk intro.problem.02
+The standard abstraction that builds this order is \emph{state machine
+replication} (SMR). SMR models the service as a deterministic state
+machine and replicates it on $n$ nodes. If all correct nodes execute the
+same sequence of commands in the same order, they reach the same state
+and produce the same outputs \cite{schneider1990implementing}. The
+reliability problem then reduces to one single coordination problem,
+\emph{consensus}: the agreement of the correct nodes on one common value
+for each position of the sequence. The correctness criterion that the
+client expects from the replicated service is \emph{linearizability}.
+Every operation appears to happen at one instant between its invocation
+and its response, and operations that do not overlap in time keep their
+order \cite{herlihy1990linearizability}.
+
+%%blk intro.problem.03
+Two properties judge a consensus protocol. \emph{Safety} requires that
+two correct nodes never decide differently for the same position.
+\emph{Liveness} requires that the system decides every request of a
+correct client eventually. The fundamental obstacle is that no
+deterministic protocol holds both properties at the same time in a fully
+asynchronous system. Fischer, Lynch and Paterson proved that
+\emph{every deterministic} protocol for this problem can fail to
+terminate, even with one single faulty process
+\cite{fischer1985impossibility}. The result is
+structural and not a technical limitation: in an asynchronous system no
+process can tell a dead process from a slow one.
+
+%%blk intro.problem.04
+All the protocols that this thesis examines take the same way out, the
+model of \emph{partial synchrony} \cite{dwork1988consensus}. In the form
+that modern protocols adopt, an unknown moment exists. It is the GST, the
+\emph{Global Stabilization Time}. After the GST, the network delivers
+messages between correct nodes within a known bound $\Delta$. The
+Byzantine protocols of this thesis state the model in exactly this form
+\cite{yin2019hotstuff} and \cite{malkhi2023hotstuff2}\prep. Safety holds
+at all times, even before the GST, and liveness is guaranteed only after
+it.
+
+%%blk intro.problem.05
+The consequence for every experimental evaluation is important. The
+recovery time after the loss of the leader depends to a large degree on
+the timer settings, not on the algorithm alone. Two works state this
+explicitly. The reproducibility study of Raft notes it first
+\cite{howard2015raftrefloated}. Berger et al.\ repeat it for Byzantine
+systems. They write that the recovery time depends on the timer
+parameters, and that they \emph{do not exclude} that tighter settings
+would be feasible \cite{berger2023simulation}.
+
+%%blk intro.problem.06
+The second dimension that organizes the whole literature is the
+\emph{fault model}. In the \emph{crash-fault} model a node can only
+stop. In the Byzantine model a node can behave in an arbitrary way, send
+contradictory messages to different receivers, and coordinate with other
+faulty nodes \cite{lamport1982byzantine}. The distinction is not
+philosophical. It fixes how many nodes a system needs, as
+Section~\ref{sec:notonce} shows.
+
+%%blk intro.notonce.head
+\section{Why the problem was not solved once}
+\label{sec:notonce}
+
+%%blk intro.notonce.01
+Viewstamped Replication appeared in 1988. It is the first protocol of the
+line that this thesis examines. Almost four decades have passed since
+then, and the production of new protocols has not stopped.
+Figure~\ref{fig:timeline} gives the order in time under one explicit
+rule: each protocol sits at its \emph{first refereed publication}, in
+conference proceedings or in a journal. Three of the ten protocols have
+no such publication. The figure draws them with an empty marker, puts
+them at the first public release of their design, and marks their source.
+This thesis states the rule here, because the word
+\enquote{chronologically} without a rule becomes arbitrary, and the
+arbitrariness shows.
+
+%%blk intro.notonce.fig.timeline
+\dgfigure{fig:timeline}%
+{Timeline of the protocols that this thesis examines, placed by the rule
+of first refereed publication.}%
+{Timeline of the protocols that this thesis examines, placed by the rule
+of first refereed publication. \textbf{Filled marker} = the first
+refereed publication, which also fixes the position: VR
+\cite{oki1988viewstamped}, Paxos \cite{lamport1998parttime}, PBFT
+\cite{castro1999pbft}, ZAB \cite{junqueira2011zab}, EPaxos
+\cite{moraru2013epaxos}, Raft \cite{ongaro2014raft}, HotStuff
+\cite{yin2019hotstuff}. \textbf{Empty marker} = no refereed publication
+exists. The position then comes from the first public release of the
+design, and the figure marks it. KRaft: KIP-500, technical
+documentation\grey\ of 2019 \cite{kafka2019kip500}. General
+availability came later, with Kafka~3.3; the date of that release is not
+documented by the source cited here, and it does not fix the position in
+the figure. Tendermint: algorithmic preprint\prep\ of
+2018 \cite{buchman2018gossip}, whitepaper\grey\ of 2014
+\cite{kwon2014tendermint}. A refereed paper does exist
+\cite{cason2021tendermint}, but it appeared in 2021 and describes the
+design, architecture and performance of the \emph{network}; placing the
+protocol there would put it seven years after the design it implements.
+The figure therefore places Tendermint at its algorithmic preprint and
+marks the marker as empty, and this paragraph is the reservation that
+goes with that choice. HotStuff-2: extended
+abstract on ePrint\prep\ \cite{malkhi2023hotstuff2}. \emph{Two
+reservations about provenance.} The work \cite{lamport1998parttime}
+carries a received date of January 1990 and an accepted date of March
+1998, but the two copies of the corpus \emph{word it} differently (see
+\S\ref{sec:sources}). The technical report SRC~RR-49 is widely dated to
+1989. We did not locate it as evidence, and for that reason it does not
+fix the position. PBFT also has an extended journal version in 2002
+\cite{castro2002pbftrecovery}. Theoretical milestones:
+\cite{lamport1978time,lamport1982byzantine,fischer1985impossibility,%
+dwork1988consensus,schneider1990implementing,herlihy1990linearizability}.}%
+{\input{figures/src/fig-timeline}}
+
+%%blk intro.notonce.02
+The repetition does not happen because the earlier solutions failed to be
+correct. It happens because correctness is only one dimension. Every
+protocol is a \emph{position} in a design space, and every improvement
+there is bought at a specific price. The recent unifying work of Amiri
+et al.\ states this explicitly. It describes Byzantine protocols as
+points of a space with more than ten design dimensions. In that space
+each choice is a one-to-one function from protocol to protocol
+\cite{amiri2024bedrock}.
+
+%%blk intro.notonce.03
+The clearest sign of this is the arithmetic of the quorums
+(Figure~\ref{fig:quorum}). The node count does not rise arbitrarily. It
+moves only when it buys something specific that can be named. With crash
+faults a majority quorum is enough. A cluster of $n = 2f+1$ nodes stays
+available while a majority works, so it tolerates $f$ faults
+\cite{ongaro2014raft}. The general statement of safety as the
+intersection of majority sets goes back to \cite{lamport1998parttime}.
+
+%%blk intro.notonce.04
+With Byzantine faults and messages that are not authenticated, a system
+needs at least $n = 3f+1$ nodes. The bound appears first in 1980, as the
+problem of interactive consistency \cite{pease1980reaching}. The allegory
+of the Byzantine generals came later \cite{lamport1982byzantine}. The
+same bound holds for the partially synchronous protocols examined here
+\cite{dwork1988consensus,amiri2024bedrock}. There, however, it does not
+follow from the absence of signatures, and Section~\ref{sec:bounds} shows
+why.
+
+%%blk intro.notonce.05
+Trusted hardware (a \emph{trusted execution environment}) stops a faulty
+node from sending contradictory messages without detection. If such
+hardware is added, the bound returns to $2f+1$ \cite{amiri2024bedrock}.
+Saving one phase of communication cost $5f+1$ nodes at first
+\cite{martin2006fab}\unver. With authentication, $5f-1$ nodes are enough. That
+number is also the proven lower bound for two-step Byzantine consensus
+\cite{kuznetsov2021optimal}\unver, and practice reaches it
+\cite{amiri2024bedrock}. Finally, support for \emph{order-fairness} needs
+at least $4f+1$ nodes in its \emph{least} demanding parameterization. As
+the parameter $\gamma$ comes near $0.5$ and the fairness requirement
+becomes stricter, the bound $n > 4f/(2\gamma-1)$ rises without limit
+\cite{kelkar2020orderfairness,amiri2024bedrock}\unver.
+
+%%blk intro.notonce.fig.quorum
+\dgfigure{fig:quorum}%
+{Quorum arithmetic: the required number of nodes $n$ as a function of the
+tolerated faults $f$.}%
+{Quorum arithmetic: the required number of nodes $n$ as a function of the
+tolerated faults $f$. These are not measurements. They are pure
+arithmetic from bounds that the literature states. For $f=3$: Byzantine
+tolerance costs 10 nodes against 7, fair ordering costs 13, and one phase
+fewer costs 16. \emph{Sources.} The work \cite{amiri2024bedrock} collects
+all five bounds: $3f{+}1$, $2f{+}1$ and $5f{\pm}1$ in \S3.2 E1, trusted
+hardware in App.~A, O7, and fair ordering in \S3.3 Q1 and in design
+choice 13. For these bounds it is a secondary source. For $3f{+}1$ it
+gives five references, of which this thesis names one,
+\cite{lamport1982byzantine}; the other four are Bracha 1984, Bracha and
+Toueg 1985, Correia et al.\ 2006 and \cite{dwork1988consensus}. The
+primary statement is earlier still, from 1980 \cite{pease1980reaching},
+which \cite{amiri2024bedrock} does \emph{not} cite --- that attribution
+is this thesis's own, and Section~\ref{sec:bounds} gives the argument
+for it. For the remaining bounds the survey attributes $5f{+}1$ to
+\cite{martin2006fab}\unver, $5f{-}1$ to \cite{kuznetsov2021optimal}\unver\
+and \cite{abraham2021goodcase}\unver\ (it cites both), and $4f{+}1$ to
+\cite{kelkar2020orderfairness}\unver. Of these sources, only
+\cite{pease1980reaching} and \cite{lamport1982byzantine} had their
+bibliographic data verified, through an index. The other four were not
+verified, and their data come from the reference list of
+\cite{amiri2024bedrock}. \emph{None of the six is in the corpus.}
+\emph{Note on precision.} The work \cite{amiri2024bedrock} separates the
+size of the quorum from the size of the network. In designs with active
+and passive nodes the quorum falls to $2f{+}1$ while $n$ stays
+$3f{+}1$.}%
+{\input{figures/src/fig-quorum}}
+
+%%blk intro.notonce.06
+The same logic governs the second large dimension, the \emph{view
+change}. On the fault-free path the protocols differ mainly in topology
+and in the number of phases. They diverge much more in the replacement of
+the leader, which the designers of HotStuff call \enquote{the epicenter
+of replication} \cite{yin2019hotstuff}. Table~\ref{tab:viewchange}
+summarizes four representative positions on this axis.
+
+%%blk intro.notonce.tab.viewchange
+\begin{table}[t]
+\centering
+\caption[Four representative positions on the view-change axis: cost,
+responsiveness and number of phases.]%
+{Four representative positions on the view-change axis: cost,
+responsiveness and number of phases. The table reproduces Table~1 of
+\cite{malkhi2023hotstuff2}\prep\ together with the reservation that the
+same source states. It must not be read without that reservation. It is
+not exhaustive, because the same source lists other designs on the same
+axis.}
+\label{tab:viewchange}
+\small
+\begin{tabular}{@{}l c c c@{}}
+\toprule
+\textbf{Protocol} & \textbf{View-change cost} &
+\textbf{Responsive} & \textbf{Phases} \\
+\midrule
+PBFT \cite{castro1999pbft}        & $O(n^{2})$ & yes & 2 \\
+Tendermint \cite{buchman2018gossip}\prep & $O(n)$ & no & 2 \\
+HotStuff \cite{yin2019hotstuff}   & $O(n)$     & yes & 3 \\
+HotStuff-2 \cite{malkhi2023hotstuff2}\prep & $O(n)$ & yes & 2 \\
+\bottomrule
+\end{tabular}
+
+\vspace{4pt}
+\begin{minipage}{0.94\linewidth}\setstretch{1.08}\footnotesize
+\textbf{The reservation of the source itself.} The source
+\cite{malkhi2023hotstuff2}\prep\ states explicitly that PBFT and
+Tendermint have a view-change cost of $O(n^{3})$ and $O(n^{2})$
+respectively, and that the bounds of the table follow after both are
+improved by a factor of $O(n)$ --- an improvement that the same source
+attributes elsewhere to signature aggregation. The detailed count of
+complexity in \cite{yin2019hotstuff} (Table~1) gives PBFT $O(n^{2})$
+authenticators with a stable leader, $O(n^{3})$ on a view change, and
+$O(f n^{3})$ over a sequence of $f$ leader failures. This is not an
+independent confirmation, because the two works share an author. The work
+\cite{jalalzai2023fasthotstuff} returns to two rounds and keeps
+responsiveness, but it states explicitly that it does \emph{not} avoid
+the transfer of a quadratic number of view-change messages when the
+leader fails. What it reduces is the number of signatures that each node
+verifies, from $O(n)$ to two. Malkhi and Nayak publish an extended
+abstract on ePrint that has not been refereed
+\cite{malkhi2023hotstuff2}\prep. It is cited as such.
+
+\smallskip
+\textbf{A phase is not a message delay.} The table counts
+\emph{phases}, with the convention of its source. One phase of HotStuff
+costs two consecutive delays, because it passes through the leader. One
+voting phase of PBFT costs one delay, because it is all-to-all. The two
+units do not compare, and Section~\ref{sec:performance} defines the
+distinction once.
+\end{minipage}
+\end{table}
+
+%%blk intro.notonce.07
+The table shows that none of the four protocols is \enquote{better}. Each
+one pays a different bill. Tendermint removes the view-change
+subprotocol and pays with a wait for the worst possible $\Delta$. That
+is, it pays with \emph{responsiveness}, the property that lets a protocol
+advance at the real network time and not at the maximum network time
+\cite{buchman2018gossip}\prep\ and \cite{malkhi2023hotstuff2}\prep.
+HotStuff pays with a third phase \cite{yin2019hotstuff}. HotStuff-2
+claims that neither of the two prices was necessary
+\cite{malkhi2023hotstuff2}\prep.
+
+%%blk intro.opengap.head
+\section{Why the comparison is still an open question}
+\label{sec:opengap}
+
+%%blk intro.opengap.01
+The design space is known and the complexities are computed. A reader
+could therefore assume that the comparison of the protocols is a solved
+problem. It is not, for three reasons that the literature itself
+documents.
+
+%%blk intro.opengap.02
+\paragraph{First: the published numbers do not transfer.}
+Figure~\ref{fig:scaling} shows this in the hardest possible case for the
+objection: the same work, the same unified implementation, the same
+metric, and the same range of $n$. Only the deployment topology changes.
+The scaling cost of PBFT moves from 65\% to 84\%, that of PoE from 39\%
+to 51\%, and that of FTB from 32\% to 36\% \cite{amiri2024bedrock}. The
+same work also shows a reversal of ranking with no change of environment
+at all. SBFT gives 12\% \emph{higher} throughput than HotStuff at $n=4$,
+and 8\% \emph{lower} at $n=100$, in the same experiment
+\cite{amiri2024bedrock}.
+
+%%blk intro.opengap.03
+When the implementation changes as well, the differences become orders of
+magnitude. In a simulation of a planetary network with $n=256$ nodes,
+Kauri gives about twenty times the throughput of HotStuff-SECP256K1, that
+is 4,917 operations per second against 246. Here each protocol has a
+different implementation, and the values are simulated and not measured
+\cite{berger2023simulation}.
+
+%%blk intro.opengap.fig.scaling
+\dgfigure{fig:scaling}%
+{The same experiment in two deployment topologies: the percentage
+reduction of throughput as the nodes rise from 4 to 100.}%
+{The same experiment in two deployment topologies: the percentage
+reduction of throughput as the nodes rise from 4 to 100. All the numbers
+come from the same work and the same unified implementation of the
+protocols \cite{amiri2024bedrock}. \textbf{(a)}~Deployment in one
+datacenter: Amazon EC2, \texttt{c4.2xlarge} instances (8 vCPU,
+15\,GB RAM, Intel Xeon E5-2666~v3 at 3.50\,GHz), one node per virtual
+machine, batch size 400, payload 128/128\,bytes, clients in a closed loop
+\cite{schroeder2006openclosed}\unver, mean of five runs, no faults. Three
+clarifications for the figure. FaB needs $5f{+}1$, so it starts at $n=6$.
+The work \cite{amiri2024bedrock} implements HotStuff in chained form,
+with pipelining. FTB and FLB are new protocols that the same work
+introduces, and not established ones. \textbf{(b)}~The three protocols
+for which the same work also gives a geo-distributed number (App.~D, same
+implementation framework, same metric, same batch of 400, no faults).
+\emph{Two reservations that the work itself must state.} In the
+geo-distributed set, \cite{amiri2024bedrock} raises the pipelining
+stretch of Kauri and FTB from 4 to 6, and the range of FTB reaches $n=99$
+instead of $n=100$. Neither of the two concerns PoE, so the clean
+comparisons --- with no other change at all --- are two: \textbf{PBFT}
+(65\,\% $\to$ 84\,\%) and \textbf{PoE} (39\,\% $\to$ 51\,\%). For all
+three, however, the algorithm and the metric stay the same, and the
+deployment topology is what changes.}%
+{\input{figures/src/fig-scaling}}
+
+%%blk intro.opengap.04
+\paragraph{Second: the same comparison reverses, depending on what is
+measured.}
+The most instructive example is EPaxos. The original work claims optimal
+commit latency in a wide-area network, uniform load distribution and
+graceful degradation, with experiments on Amazon EC2
+\cite{moraru2013epaxos}. The independent re-evaluation of Tollman et al.\
+reaches three conclusions \cite{tollman2021epaxosrevisited}. It
+\emph{confirms} the claim about \emph{median} latency. It shows, however,
+a tail latency more than four times worse than Multi-Paxos. It also shows
+that the share of operations that finish in one round trip fell to 65\%
+in one of their experiments, under a load with high command conflict that
+the original methodology did not produce. Matte et al.\ change the metric
+again, from absolute throughput to efficiency of resources. They conclude
+that in an environment of a fixed budget of resources, typical of the
+real clouds, unoptimized Multi-Paxos reaches \emph{almost} twice the
+throughput of EPaxos \cite{matte2021wasteful}. All three works are
+correct. They simply do not measure the same thing. The consequence for
+every comparative evaluation is that the choice of the metric is not a
+technical detail but part of the conclusion, and it must be declared
+before the measurement.
+
+%%blk intro.opengap.05
+\paragraph{Third: the difference of the protocol is not where the
+measurement looks for it.}
+Howard and Mortier analyse the two protocols that dominate the production
+systems. They conclude that Paxos and Raft take \enquote{a very similar
+approach to distributed consensus, differing only in their approach to
+leader election} \cite{howard2020paxosraft}. If this holds, then a
+measurement that compares two \emph{systems} which implement these
+protocols measures, on the fault-free path, engineering of the
+implementation and not an algorithmic difference. Such a measurement
+therefore \emph{isolates} the implementation, which is exactly the right
+experiment if that is the question. On the path of the leader change the
+opposite holds. The whole algorithmic difference gathers there, and the
+authors themselves make two separate statements. The first is a
+structural observation: the election phase of Raft is \emph{lighter in
+messages}, because it does not transfer entries of the log. The second is
+an explicit prediction: they expect the election to be \emph{both slower
+and of higher variance} in time \cite{howard2020paxosraft}. Two
+reservations are obligatory. The comparison runs on a \emph{simplified}
+statement of Paxos in the terminology of Raft, and the authors declare
+that both algorithms they present are naive by design
+\cite{howard2020paxosraft}.
+
+%%blk intro.opengap.06
+The gap, finally, has been stated explicitly, and it has been covered in
+part. Ailijiang et al.\ find that the protocols of strong consistency
+\enquote{show widely varying performance under different network,
+workload, and deployment conditions, and no previous study offers a
+comprehensive dissection and comparison of their performance}, and they
+cover it for the crash-fault family \cite{ailijiang2019dissecting}. Amiri
+et al.\ do the same for the Byzantine family \cite{amiri2024bedrock}.
+Alqahtani and Demirbas measure protocols of both families in the same
+framework \cite{alqahtani2021bottlenecks}.
+
+%%blk intro.opengap.07
+What stays open is therefore not the unified measurement in itself. It is
+the measurement of the \emph{production implementations} --- the ones
+that are really deployed --- with one instrument, one load model and
+fault scenarios. All three works above measure research prototypes, or
+unified reimplementations inside one framework, and not the systems that
+run in production. As Figure~\ref{fig:scaling} shows, the
+reimplementation is exactly the variable that can move the result.
+
+%%blk intro.aims.head
+\section{Aim, research questions and limits of the thesis}
+\label{sec:aims}
+
+%%blk intro.aims.01
+The approved thesis proposal (see Appendix~A) gives the thesis three
+aims. The first is the study of the evolution of the consensus
+protocols. The second is the theoretical and architectural analysis of
+the main ones. The third is the comparison of the performance of selected
+implementations in representative scenarios. The comparison has four
+criteria: consensus latency, throughput, fault tolerance and scaling. The
+research questions below make these aims specific.
+
+%%blk intro.aims.rq
+\begin{description}[leftmargin=2.1em,style=nextline,font=\normalfont\bfseries]
+  \item[RQ1 --- Evolution.] Which specific trade-offs explain each move
+  inside the design space, and what price does each one pay? The answer
+  is analytic and comes from the primary sources.
+  \item[RQ2 --- Common structure.] Which invariants do all the protocols
+  share, so that one single scheme can describe them instead of a list of
+  independent algorithms?
+  \item[RQ3 --- Comparability.] Under which conditions is a direct
+  comparison of two implementations legitimate, and when does the
+  measurement capture engineering of the implementation instead of a
+  property of the protocol?
+  \item[RQ4 --- Empirical behaviour.] How do selected production
+  implementations behave in a controlled environment of a small cluster,
+  in latency, throughput and fault tolerance? This thesis reports its own
+  measurements for this in the evaluation chapter.
+  \item[RQ5 --- Scaling.] How does the behaviour change as the quorum
+  grows? The thesis approaches the question on two levels, and it states
+  them separately. The experimental level covers only small cluster
+  sizes, where the thesis tests the cost of the arithmetic of
+  Figure~\ref{fig:quorum}. The literature level covers the large sizes,
+  where the asymptotic behaviour appears. This thesis reports its own
+  measurements for the experimental level in the evaluation chapter.
+\end{description}
+
+%%blk intro.aims.02
+The thesis states its limits here and not in the conclusions. First, the
+thesis evaluates \emph{implementations} and not protocols. The object
+that can be measured is always a system with a specific version and a
+specific configuration. Every claim about the underlying protocol must
+therefore pass through RQ3.
+
+%%blk intro.aims.03
+Second, the available budget for infrastructure limits the range of
+cluster sizes that an experiment can study. That range is small against
+the scales where the interesting asymptotic behaviour appears. This is
+the reason for the split of RQ5 into two levels.
+
+%%blk intro.aims.04
+Third, the thesis can cover a protocol \emph{analytically}, with no
+measurements of our own. Where this happens, the chapter states it at its
+start. Any numbers there come from third publications that the text names
+explicitly, and they never stand in the same table as our own
+measurements. The full framework of validity, the methodological criteria
+and the threats to validity belong to the methodology chapter. This
+chapter does not anticipate them.
+
+%%blk intro.structure.head
+\section{Contribution and structure of the thesis}
+\label{sec:structure}
+
+%%blk intro.structure.01
+The thesis aims at four contributions.
+
+%%blk intro.structure.list
+\begin{enumerate}[label=\textbf{(\alph*)},leftmargin=2.4em]
+  \item An account of the evolution of the protocols in time, with an
+  explicit rule of order. The account attributes each transition to a
+  named trade-off.
+  \item One unified structural description. The same reading scheme
+  covers the protocols of both fault models.
+  \item A comparative evaluation of selected production implementations
+  in a controlled environment, with pre-registered predictions. The
+  thesis also states explicitly what the data \emph{cannot} support. This
+  thesis reports its own measurements for this in the evaluation chapter.
+  \item A decision framework that maps requirements to families of
+  protocols.
+\end{enumerate}
+
+%%blk intro.structure.02
+The structure follows two paths in time, one for each fault model,
+instead of one strictly unified path. The choice is a deliberate
+departure from the strictly chronological presentation, and it is put
+explicitly to the supervisor. With one single order, the sequence of
+Figure~\ref{fig:timeline} forces the reader to change fault model five
+times. The result is that quantities which do not compare stand side by
+side.
+
+%%blk intro.structure.03
+Chapter~\ref{ch:background} establishes the theoretical background: fault
+and synchrony models, SMR, quorums, and criteria of correctness. The
+chapters of the first path cover the crash-fault family, and the chapters
+of the second path cover the Byzantine family. Each protocol follows one
+common template of five subsections:
+
+%%blk intro.structure.template
+\begin{enumerate}[label=\arabic*.,leftmargin=2.4em]
+  \item the historical context and the primary source;
+  \item the algorithm;
+  \item the implementation that was evaluated, or the reason for its
+  absence;
+  \item the measurements;
+  \item the reading of the results against the prediction that was
+  declared in advance.
+\end{enumerate}
+
+%%blk intro.structure.04
+The chapter on methodology and validity comes next. After it come the
+aggregate comparison, the decision framework and, last, the conclusions
+with the limitations and the future work.
+
+%%blk intro.sources.head
+\section{A note on the quality of the sources}
+\label{sec:sources}
+
+%%blk intro.sources.01
+A large part of the literature on consensus protocols circulates as a
+preprint, as a whitepaper, or as technical documentation of a project.
+For that reason the thesis applies three rules in all its chapters.
+First, each algorithm is described from its primary source. The surveys
+and the unified platforms serve for unifying schemes and for
+classifications. Where such a work carries a bound or a number of a third
+party, which happens only by exception, the text names the primary source
+as well, as in the caption of Figure~\ref{fig:quorum}.
+
+%%blk intro.sources.02
+Second, the sources that have not been refereed are declared as such at
+the point where they are used. The marker \grey\ shows the grey
+literature: whitepapers, KIP documents and web pages. The marker \prep\
+shows the preprints and the extended abstracts without review. A third
+marker, \unver, says something different from those two: it says that the
+bibliographic data of the source itself could not be checked against the
+article or against an index, and were taken from the reference list of
+another work. The reader who wants to follow that citation needs to know
+this before trying. Third,
+every published number that the thesis reproduces carries the environment
+that produced it: hardware, load model, deployment topology, cluster size
+and number of repetitions. The captions of Figures~\ref{fig:quorum}
+and~\ref{fig:scaling} do this. A number without its environment is not
+evidence.
+
+%%blk intro.sources.03
+The same principle applies to the bibliographic data. In the bibliography
+file each entry carries a marker for how it was verified: from the first
+page of the article itself, from an authentic index through the DOI, or
+not at all. In the last case the entry is declared as unverified. The
+distinction is not formalism. Three cases where the marking prevented an
+error are worth recording.
+
+%%blk intro.sources.04
+The first case is \cite{berger2023simulation}. The copy that was
+collected is a preprint and would have been declared as such, while the
+work has a refereed version at a conference. The \emph{verification}
+marker describes the copy that we hold. The \prep\ and \grey\ markers
+describe the \emph{work}. Here the two diverge, and only a check against
+an index finds the divergence. The copy is a preprint, the work is not,
+and therefore \cite{berger2023simulation} does \emph{not} carry \prep.
+
+%%blk intro.sources.05
+The second case is \cite{oki1988viewstamped}. Crossref records it with a
+different wording of the title from the wording of the proceedings, and
+the bibliography of \cite{lamport1998parttime} itself confirms the full
+form. The third case is \cite{jalalzai2023fasthotstuff}. Its title is
+\enquote{\dots A Fast and Robust BFT Protocol}, not \enquote{Resilient},
+as some catalogues show it.
+
+%%blk intro.sources.06
+A fourth case shows the same thing at the level of characters. The corpus
+holds \emph{two} copies of \cite{lamport1998parttime}, the version of the
+ACM and the corrected version of the author. They print the same
+information with different letters: \enquote{Received: January 1990;
+accepted: March 1998} in the first, \enquote{Received January 1990;
+Accepted March 1998} in the second. Whichever one is quoted verbatim will
+be wrong for the other. For that reason the caption of
+Figure~\ref{fig:timeline} gives the \emph{content}. When two copies
+differ, a verbatim quotation must name the copy as well.

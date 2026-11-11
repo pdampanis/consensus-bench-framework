@@ -1,0 +1,21 @@
+% fig-smr — where each layer lives. Structure figure: dgflow.
+% The middle box is the subject of the whole thesis, so it is dgboxkey; the
+% clients and the replicas are ordinary components, so they are dgbox. Both
+% CFT and BFT protocols live in the middle box, which is why it cannot carry
+% either series colour.
+\begin{dgflow}
+  \node[dgbox]    (cl) at (0.0,0.0) {\fl{smr.clients}};
+  \node[dgboxkey] (co) at (4.0,0.0)
+       {\bfseries\fl{smr.consensus}\\\mdseries\fl{smr.agreement.order}};
+  \node[dgbox]    (sm1) at (8.4, 0.95) {\fl{smr.machine} 1};
+  \node[dgbox]    (sm2) at (8.4, 0.00) {\fl{smr.machine} 2};
+  \node[dgbox]    (sm3) at (8.4,-0.95) {\fl{smr.machine} 3};
+  \draw[dgarrow] (cl) -- (co);
+  \draw[dgarrow] (co) -- (sm1);
+  \draw[dgarrow] (co) -- (sm2);
+  \draw[dgarrow] (co) -- (sm3);
+  \node[dgnote, anchor=north, align=center] at (8.4,-1.45)
+       {\fl{smr.deterministic}\\\fl{smr.same.io}};
+  \node[dgnote, anchor=north] at (4.0,-1.15)
+       {\fl{smr.here.live} Paxos, Raft, PBFT, HotStuff};
+\end{dgflow}

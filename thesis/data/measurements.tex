@@ -1,0 +1,111 @@
+% =====================================================================
+%  measurements.tex — every number that must come from YOUR OWN
+%  benchmark campaign, declared in one place.
+%
+%  WHY THIS FILE EXISTS
+%
+%  Project rule R1: never print a number that was not measured. The way
+%  that rule gets broken is never on purpose. It gets broken because a
+%  plausible number goes into a draft as a placeholder, the draft gets
+%  edited forty times, and by the submission the number looks like it has
+%  always been there.
+%
+%  So a number that does not exist yet cannot be typed into the text at
+%  all. It is declared here as pending, the text asks for it by name with
+%  \meas{key}, and until you fill it in the page prints a red [PENDING]
+%  that no examiner could miss and no author could forget.
+%
+%  HOW TO FILL ONE IN
+%
+%    \pendingmeasurement{raft.throughput.n3}          <- before
+%    \declaremeasurement{raft.throughput.n3}{12\,400} <- after
+%
+%  Then run `make data` — it lists what is still outstanding.
+%
+%  NAMING
+%
+%    <system>.<quantity>.<condition>
+%    etcd.p99.n5.open      etcd, 99th percentile latency, 5 nodes, open loop
+%
+%  Everything in this file traces back to a research question in §1.4 and
+%  to the four comparison criteria named there: consensus latency,
+%  throughput, fault tolerance, scaling.
+% =====================================================================
+
+% ---------------------------------------------------------------------
+%  RQ4 — empirical behaviour of selected production implementations
+%  (§1.4, "ΕΕ4 / RQ4"). Small controlled cluster.
+%
+%  Instrument: one load generator for every system, open loop for
+%  throughput and latency tails, closed loop for the saturation search
+%  (stated in the abstract). Values below are per implementation, at the
+%  cluster sizes the budget allows.
+% ---------------------------------------------------------------------
+
+% -- Throughput at saturation, requests/s ------------------------------
+\pendingmeasurement{etcd.tput.n3}         % etcd (Raft), 3 nodes
+\pendingmeasurement{etcd.tput.n5}         % etcd (Raft), 5 nodes
+\pendingmeasurement{etcd.tput.n7}         % etcd (Raft), 7 nodes
+\pendingmeasurement{tendermint.tput.n4}   % Tendermint, 4 nodes  (3f+1, f=1)
+\pendingmeasurement{tendermint.tput.n7}   % Tendermint, 7 nodes  (3f+1, f=2)
+\pendingmeasurement{hotstuff.tput.n4}     % HotStuff, 4 nodes
+\pendingmeasurement{hotstuff.tput.n7}     % HotStuff, 7 nodes
+
+% -- Latency, milliseconds. Median AND tail: the tail is the point ------
+\pendingmeasurement{etcd.p50.n3}
+\pendingmeasurement{etcd.p99.n3}
+\pendingmeasurement{etcd.p50.n5}
+\pendingmeasurement{etcd.p99.n5}
+\pendingmeasurement{tendermint.p50.n4}
+\pendingmeasurement{tendermint.p99.n4}
+\pendingmeasurement{hotstuff.p50.n4}
+\pendingmeasurement{hotstuff.p99.n4}
+
+% -- Fault tolerance: what a single leader failure costs ---------------
+%  Time from the failure to the first committed request afterwards, and
+%  how much throughput was lost in between. This is the measurement that
+%  turns "view change costs O(n)" from a formula into a number.
+\pendingmeasurement{etcd.failover.ms}
+\pendingmeasurement{tendermint.failover.ms}
+\pendingmeasurement{hotstuff.failover.ms}
+\pendingmeasurement{etcd.failover.losspct}
+\pendingmeasurement{tendermint.failover.losspct}
+\pendingmeasurement{hotstuff.failover.losspct}
+
+% ---------------------------------------------------------------------
+%  RQ5 — scaling, experimental half only
+%  (§1.4 splits RQ5 deliberately: measured for small clusters, from the
+%  literature for large ones. Only the measured half belongs here.)
+%
+%  The claim under test is the arithmetic of Figure "fig:quorum": if the
+%  node count rises from 3 to 7, what actually happens to throughput?
+% ---------------------------------------------------------------------
+\pendingmeasurement{scaling.etcd.dropn3n7pct}       % % throughput lost, 3 -> 7
+\pendingmeasurement{scaling.tendermint.dropn4n7pct}
+\pendingmeasurement{scaling.hotstuff.dropn4n7pct}
+
+% ---------------------------------------------------------------------
+%  RQ3 — comparability
+%
+%  Not a performance number: the evidence that the comparison is fair.
+%  Same hardware, same load model, same instrument, and a run-to-run
+%  spread small enough that the differences reported are larger than the
+%  noise. Without this, every other number above is decoration.
+% ---------------------------------------------------------------------
+\pendingmeasurement{env.vm.spec}          % e.g. "4 vCPU, 8 GB RAM, ..."
+\pendingmeasurement{env.network.rtt}      % measured RTT between nodes
+\pendingmeasurement{env.repeats}          % runs per configuration
+\pendingmeasurement{env.cv.max}           % worst coefficient of variation
+
+% ---------------------------------------------------------------------
+%  Predictions, registered BEFORE the measurements
+%
+%  The abstract promises this: "Predictions are registered before the
+%  measurements are taken." A prediction written after the fact is not a
+%  prediction. Fill these in when the campaign is designed, not when it
+%  is finished — git history is what makes the claim checkable, so commit
+%  them in their own commit, before the first result lands.
+% ---------------------------------------------------------------------
+\pendingmeasurement{pred.tput.ranking}    % predicted order, fastest first
+\pendingmeasurement{pred.scaling.shape}   % linear? knee? where?
+\pendingmeasurement{pred.failover.ranking}

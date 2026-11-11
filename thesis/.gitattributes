@@ -1,0 +1,22 @@
+# ---------------------------------------------------------------------
+#  Line endings and diffs.
+#
+#  The thesis is written on more than one machine. Without the first
+#  rule, a file saved on Windows comes back as a diff of every line and
+#  the history becomes unreadable.
+# ---------------------------------------------------------------------
+
+* text=auto eol=lf
+
+*.tex     text diff=tex
+*.bib     text diff=bibtex
+*.py      text diff=python
+*.md      text
+Makefile  text
+
+# Binary: never merged, never shown as text.
+*.pdf     binary
+*.docx    binary
+*.png     binary
+*.jpg     binary
+*.zip     binary

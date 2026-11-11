@@ -1,0 +1,64 @@
+% fig-timeline — first-refereed-publication rule, CFT above the axis, BFT below.
+% Structure figure: dgflow. The only geometry it sets is the year-to-length
+% mapping, and that is tied to \dgwidth so the timeline is exactly as wide as
+% every other figure in the thesis: 51 years (1977-2028) across \dgwidth.
+% Every human-readable string is a label key; protocol names, venues and years
+% are identical in both editions and stay literal.
+\begin{dgflow}[x={\dgwidth/51}]
+  \def\yzero{1977}
+
+  % Theoretical milestones. A third category — neither CFT nor BFT protocols —
+  % so dgAux rather than either series colour.
+  \node[dgnote, text=dgAux, anchor=west] at (0,4.45)
+    {\textbf{\fl{timeline.milestones.title}}\\
+     1978 \fl{timeline.milestone.clocks}\, ·\, 1982 \fl{timeline.milestone.byzmodel}\, ·\, 1985 FLP\\
+     1988 \fl{timeline.milestone.partialsync}\, ·\, 1990 SMR\, ·\, 1990 \fl{timeline.milestone.linearizability}};
+
+  % The time axis and its five-year ticks. The year LABELS are drawn last, so
+  % that their dgtag background sits over the leader lines rather than under.
+  \draw[dgaxis] (0,0) -- (51,0);
+  \foreach \yr in {1980,1985,1990,1995,2000,2005,2010,2015,2020,2025}{
+    \pgfmathsetmacro{\xx}{\yr-\yzero}
+    \draw[dgaxis,-] (\xx,-0.08) -- (\xx,0.08);}
+
+  % Which half is which. At the left end, where the axis is still empty.
+  \node[dgtag, fill=dgPaper, text=dgCFT, anchor=west] at (0.4, 1.00) {\textbf{CFT}};
+  \node[dgtag, fill=dgPaper, text=dgBFT, anchor=west] at (0.4,-1.00) {\textbf{BFT}};
+
+  % Crash-fault protocols, above the axis. Three stagger levels: 2011-2019 is
+  % 1.7 cm of axis carrying 5.6 cm of label, and the anchors are chosen so that
+  % no leader line ever runs through another protocol's label.
+  % year / level / anchor / filled marker? / label
+  \foreach \yr/\lvl/\anc/\solid/\lbl in {%
+      1988/1.00/{south}/{1}/{VR\\PODC '88},%
+      1998/1.00/{south}/{1}/{Paxos\\TOCS '98},%
+      2011/1.00/{south east}/{1}/{ZAB\\DSN '11},%
+      2013/1.95/{south east}/{1}/{EPaxos\\SOSP '13},%
+      2014/2.90/{south}/{1}/{Raft\\ATC '14},%
+      2019/1.00/{south west}/{0}/{KRaft\\KIP-500 '19\grey}}{
+    \pgfmathsetmacro{\xx}{\yr-\yzero}
+    \draw[dgarrow,-,draw=dgCFT] (\xx,0.07) -- (\xx,\lvl);
+    \ifnum\solid=1 \fill[dgCFT] (\xx,0.07) circle (1.7pt);
+    \else \draw[dgarrow,-,draw=dgCFT,fill=dgPaper] (\xx,0.07) circle (1.7pt);\fi
+    \node[dgtag, fill=dgPaper, text=dgCFT, anchor=\anc] at (\xx,\lvl) {\lbl};}
+
+  % Byzantine-fault protocols, below the axis. Same three levels, same reason:
+  % 2018, 2019 and 2023 are 1.1 cm apart and their labels are 1.5 cm wide.
+  \foreach \yr/\lvl/\anc/\solid/\lbl in {%
+      1999/-1.00/{north}/{1}/{PBFT\\OSDI '99},%
+      2018/-1.00/{north east}/{0}/{Tendermint\\arXiv '18\prep},%
+      2019/-1.95/{north east}/{1}/{HotStuff\\PODC '19},%
+      2023/-2.90/{north}/{0}/{HotStuff-2\\ePrint '23\prep}}{
+    \pgfmathsetmacro{\xx}{\yr-\yzero}
+    \draw[dgarrow,-,draw=dgBFT] (\xx,-0.07) -- (\xx,\lvl);
+    \ifnum\solid=1 \fill[dgBFT] (\xx,-0.07) circle (1.7pt);
+    \else \draw[dgarrow,-,draw=dgBFT,fill=dgPaper] (\xx,-0.07) circle (1.7pt);\fi
+    \node[dgtag, fill=dgPaper, text=dgBFT, anchor=\anc] at (\xx,\lvl) {\lbl};}
+
+  % Year labels last: 1988, 1999, 2011, 2014 and 2019 all sit within half a
+  % label of a five-year tick, so something has to be on top and it should be
+  % the year.
+  \foreach \yr in {1980,1985,1990,1995,2000,2005,2010,2015,2020,2025}{
+    \pgfmathsetmacro{\xx}{\yr-\yzero}
+    \node[dgtag, fill=dgPaper, text=dgGrey, anchor=north] at (\xx,-0.16) {\yr};}
+\end{dgflow}

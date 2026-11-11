@@ -1,0 +1,51 @@
+% =====================================================================
+%  ABSTRACT
+%
+%  RULE: the abstract is written LAST. Everything it promises must exist
+%  in the body. The [PENDING] marker below is where the findings go, and
+%  it stays until the benchmark campaign has produced them. Project rule
+%  R1: no number that was not measured.
+%
+%  Guidelines: 250-300 words, five keywords. `make check` measures both
+%  and tells you where you stand.
+% =====================================================================
+\frontheading{ABSTRACT}{Abstract}
+
+Consensus is the mechanism by which a distributed system agrees on a
+single order of commands despite faults and delays. Dozens of protocols
+have been proposed since 1988, and the literature has not converged on a
+common basis for comparing them. Published measurements do not transfer
+between papers, because they depend on the hardware, the load model and
+the deployment topology. The same comparison also reverses depending on
+which metric is chosen.
+
+This thesis studies the evolution of consensus protocols and compares
+selected \emph{implementations} of them in a controlled environment. It
+covers the crash-fault protocols Paxos, Raft and EPaxos, and the
+Byzantine protocols Tendermint and HotStuff, together with their
+predecessors and descendants. Each protocol is described from its
+primary source. Each move through the design space is attributed to the
+specific trade-off that explains it.
+
+The evaluation uses a single measurement instrument on a cluster of
+virtual machines, with a hybrid load model. It runs open loop for
+throughput and latency tails, and closed loop for the saturation search.
+Predictions are registered before the measurements are taken. Every
+comparative claim carries its level of comparability, so that what is
+attributable to the protocol is separated from what is attributable to
+implementation engineering.
+
+\textbf{[FILL IN AFTER THE DATA: the findings, in 2--3 sentences.]}
+
+The limits of the work are stated explicitly. What is measured is always
+an implementation at a named version and configuration, not the protocol
+itself. The range of cluster sizes examined experimentally is small
+relative to the scales at which asymptotic behaviour appears.
+
+\vspace{1.2em}
+\noindent\textbf{SCIENTIFIC AREA:} \thScientificAreaEN.
+
+\vspace{0.6em}
+\noindent\textbf{KEYWORDS:} consensus protocols; state machine
+replication; Byzantine fault tolerance; performance evaluation;
+comparability.
