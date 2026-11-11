@@ -814,7 +814,53 @@ commit stale — HEAD had 146 committed tests before this session; NEXT-4b's
 
 ---
 
+## 2026-11-11 seventh review (code review of 9e9fbdd) — F50–F64
+
+Source: a code review of the 9e9fbdd doc sweep against the live code.
+F50/F51 checked end to end and fixed TDD (red shown); the rest were
+found by reading the code only, so verify each one before you fix it.
+
+| # | Finding | Status |
+|---|---------|--------|
+| F50 | A failed injection still wrote `"status": "complete"` (the writer looked only at ops/error rate), then RemoteRunner threw; `MatrixRunner.alreadyComplete` trusts that string, so resume skipped the failed cell forever | **FIXED** — writer: fault scenario + no fault mark ⇒ `failed` (CsvResultsWriterTest, with a marked-run control) |
+| F51 | Gate 3 read a null `fault_injected_at_ms` as "baseline" and SKIPped ⇒ a fault cell with no fault counted as VALID | **FIXED** — "baseline" decided from manifest `scenario`; fault scenario + null mark ⇒ FAIL "never fired" (ValidityCheckerTest) |
+| F52 | `cmt_rounds` (a gauge that drops back to 0 each height) is checked with `counterIncreasesInWindow` (last > first) ⇒ a real Tendermint leader_kill can FAIL | OPEN — check the CometBFT gauge behaviour first |
+| F53 | `metricValues` drops the instance column ⇒ first/last can come from different nodes' series | OPEN — check the M5.4 CSV layout first |
+| F54 | Gate 3 witness is chosen per system, not per scenario: etcd double_kill (quorum lost, no election), slow_node, mild packet_loss need not move it ⇒ whole scenario families FAIL "reclassify" | OPEN — methodology §4 decision (author) |
+| F55 | packet_loss on the private NIC can drop `node_up` scrapes ⇒ gate 3 PASSes with no system witness | OPEN |
+| F56 | RemoteRunner `started` is taken before `connect()`, the mark is relative to EventLog start ⇒ the ±60 s window (and hlog start) is early by the connect time | OPEN |
+| F57 | Fault thread `while (!events.isStarted())` has no exit ⇒ a connect failure leaks a spinning daemon thread per cell | OPEN |
+| F58 | PER_ALGORITHM_TEST_GUIDE §8 canary cannot run as written (no 2-VM variant; 1-node leader_kill has no failover; Kafka/CometBFT smokes need 3–4 nodes) | OPEN (docs) |
+| F59 | §8 "LIVE path proven" only curls 127.0.0.1 on a node (not the obs→node scrape; prometheus.yml ships PRIVATE_* placeholders) and greps names gate 3 does not use | OPEN (docs) |
+| F60 | §8 checks only that `node_timex_offset_seconds` exists; under chrony it is likely ~0 always ⇒ gate 6 passes every run | OPEN — verify on the canary |
+| F61 | MONITORING_GUIDE says Kafka JMX/CometBFT are first scraped live at the canary; the canary is one etcd cell | OPEN (docs) |
+| F62 | MEASUREMENT_DIAGRAMS Kafka+ZK row omits the :7071 JMX agent; "ONE SUT container per VM" is wrong for ZK mode | OPEN (docs) |
+| F63 | Status marks contradict: EXECUTION_AND_COST_MODEL ✅ vs its §8; MEASUREMENT_DIAGRAMS §2/§4.3/§4.7 🔶 | OPEN (docs) |
+| F64 | CAMPAIGN_RUNBOOK worked example uses `manifest.fault_injected_at` (real field: `fault_injected_at_ms`, ms since run start); CLAUDE.md still says the repo is under `~/Downloads` | OPEN (docs) |
+
+**Verification (F50/F51):** red shown for both new tests; the four affected
+classes green (47 tests). Full `clean verify`: 172 run, **171 pass, 1 fail —
+`KafkaPerfTestParityTest`** (laptop noise, N3 below). Pushed with that known
+fail at the author's request; the rerun is NEXT-0.
+
+**N3 (laptop noise, not a regression):** on 2026-11-11 the KafkaPerfTestParityTest
+harness/perf-test ratio missed the 3x band in BOTH directions across three
+runs on the working tree (0.26x, 0.23x, 5.77x). Kafka's own perf-test reference
+also swung 25 662–125 712 rec/s. Unmodified HEAD passed 1/1 in the same window
+(load average up to 34 on 8 cores during the test). Neither the test nor
+KafkaDriver references the F50/F51 classes. Same class as F27/F45: a
+two-measurement ratio on a loaded laptop.
+
+---
+
 ## Immediate next increments (LLM-ready specs)
+
+**NEXT-0 — rerun the full gate (F50/F51 follow-up).** On a quiet machine
+(no other builds or heavy load), run `cd harness && mvn21 clean verify`.
+Expect `Tests run: 172, Failures: 0`. If `KafkaPerfTestParityTest` still
+fails, run it alone on unmodified 9e9fbdd and on HEAD a few times each and
+compare (N3). A real regression would show on HEAD only. Deliverable: one
+line here with the result.
 
 **NEXT-1 — G2 golden read-through (HUMAN, the author).** Read all seven
 goldens in `harness/src/test/resources/goldens/` against their header

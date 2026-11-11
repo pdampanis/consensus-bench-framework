@@ -142,6 +142,20 @@ class ValidityCheckerTest {
     }
 
     @Test
+    void faultScenarioWithoutAFaultMarkFailsGroundTruth(@TempDir Path dir) throws IOException {
+        // The injection never fired, so the writer stamped a null mark. This
+        // is not a leader_kill result and must never pass as a "baseline".
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("manifest.json"), manifest(100, 2, 6, "leader_kill", null));
+        Files.writeString(dir.resolve("throughput.csv"), "0,100\n1,100\n2,100\n3,100\n4,100\n5,100\n");
+        Report r = ValidityChecker.check(dir);
+        assertEquals(State.FAIL, stateOf(r, "fault_ground_truth"));
+        assertTrue(r.gates().stream().anyMatch(g -> g.gate().equals("fault_ground_truth")
+                && g.detail().contains("never fired")));
+        assertFalse(r.valid(), "a fault cell with no fault is not valid thesis data");
+    }
+
+    @Test
     void faultRunCorroboratedByLeaderChangePasses(@TempDir Path dir) throws IOException {
         Files.createDirectories(dir);
         // fault at 3000 ms after start 14:00:00Z -> epoch of 14:00:03.

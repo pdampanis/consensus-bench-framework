@@ -236,6 +236,33 @@ class CsvResultsWriterTest {
     }
 
     @Test
+    void faultScenarioWhoseFaultNeverFiredMayNotClaimComplete() throws IOException {
+        // Injection failed (no leader at inject time, SSH error, ...): the
+        // load itself ran clean, but it is NOT a leader_kill result, and a
+        // "complete" status would make campaign resume skip the cell forever.
+        var faultId = new CsvResultsWriter.RunIdentity(
+                SystemUnderTest.ETCD, Scenario.LEADER_KILL, 3, 0.0, "t1");
+        var rec = new LatencyRecorder();
+        for (int i = 0; i < 100; i++) rec.record(1_000, true);
+
+        var noMark = new EventLog(16);
+        noMark.start(0);
+        noMark.append(10_000_000L, true);
+        writeRun(faultId, new WorkloadEngine.Result(tenGoodSeconds(), rec, 0, noMark), CFG);
+        assertTrue(manifest(faultId).contains("\"fault_injected_at_ms\": null"), manifest(faultId));
+        assertTrue(manifest(faultId).contains("\"status\": \"failed\""),
+                "fault scenario without a fault mark is not a complete cell: " + manifest(faultId));
+
+        // Control: the same cell WITH a mark stays complete.
+        var marked = new EventLog(16);
+        marked.start(0);
+        marked.append(10_000_000L, true);
+        marked.faultInjectedAt(25_000_000L);
+        writeRun(faultId, new WorkloadEngine.Result(tenGoodSeconds(), rec, 0, marked), CFG);
+        assertTrue(manifest(faultId).contains("\"status\": \"complete\""), manifest(faultId));
+    }
+
+    @Test
     void unrecoveredFaultRunHasMarkButNullFailover() throws IOException {
         var events = new EventLog(16);
         events.start(0);

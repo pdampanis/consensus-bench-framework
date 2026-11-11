@@ -275,14 +275,22 @@ public final class ValidityChecker {
      * node_up (node_exporter liveness) is kept as a generic extra witness,
      * but it only moves for VM-level faults — a `docker kill` of the SUT
      * container never silences the host's node_exporter.
-     * Baseline runs: N/A. A fault run with a present-but-unmoved witness is
+     * Baseline runs (by manifest scenario): N/A. A fault scenario with no
+     * fault mark: FAIL (the injection never fired). A fault run with a present-but-unmoved witness is
      * the run analyse.py must reclassify, never average in.
      */
     private static GateResult gateFaultGroundTruth(Path dir, JsonNode m, String system,
                                                    boolean hasMetrics) throws IOException {
         JsonNode mark = m.get("fault_injected_at_ms");
+        String scenario = m.path("scenario").asText("");
         if (mark == null || mark.isNull()) {
-            return GateResult.skip("fault_ground_truth", "baseline run (no fault injected) — N/A");
+            // Decide "baseline" from the scenario, never from the null mark:
+            // a fault cell whose injection failed also has a null mark.
+            return scenario.equals("baseline")
+                    ? GateResult.skip("fault_ground_truth", "baseline run (no fault injected) — N/A")
+                    : GateResult.fail("fault_ground_truth", "scenario '" + scenario
+                            + "' has no fault mark — the injection never fired;"
+                            + " not a fault result (rerun the cell)");
         }
         String witness = switch (system) {
             case "etcd" -> "etcd_leader_chg";

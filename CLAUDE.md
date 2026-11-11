@@ -32,7 +32,7 @@ cd harness && mvn21 clean verify   # ~/tools/maven/mvn21.sh if no alias
 # Needs Docker + BOTH local images, once per machine:
 #   docker build -t paxi:6823d0b infra/paxi
 #   docker build -t hotstuff:dc01ac8 infra/hotstuff
-# Expected count: docs/LOCAL_TESTING.md (170 green as of 2026-07-21).
+# Expected count: docs/LOCAL_TESTING.md (172 as of 2026-11-11).
 ```
 
 ## Next task (as of 2026-07-21 — verify against PROJECT_STATE header)

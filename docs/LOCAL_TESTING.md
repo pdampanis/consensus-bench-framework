@@ -29,10 +29,10 @@ cd $REPO/harness
 mvn21 clean verify
 ```
 
-**Expect** (versions/counts as of 2026-07-21 — counts only grow):
+**Expect** (versions/counts as of 2026-11-11 — counts only grow):
 
 ```
-Tests run: 170, Failures: 0, Errors: 0, Skipped: 0
+Tests run: 172, Failures: 0, Errors: 0, Skipped: 0
 BUILD SUCCESS
 ```
 
@@ -45,8 +45,9 @@ old`, the testcontainers pin regressed below 1.21.4 (Docker 29 needs
 ≥1.21.4). Per-algorithm selections and debugging:
 `docs/PER_ALGORITHM_TEST_GUIDE.md`.
 
-What the 170 tests pin, so you know what a failure means (headline
-additions since 143: the sixth-review batch — ValidityCheckerTest ×19
+What the 172 tests pin, so you know what a failure means (headline
+additions since 170: the F50/F51 pins — a fault cell whose injection never
+fired is `failed` in the manifest and FAILs gate 3; since 143: the sixth-review batch — ValidityCheckerTest ×19
 [the six §4 gates, per-system fault witnesses, the consulted-metrics ↔
 export_queries contract], KafkaJmxAgentTest ×3 [real broker serves the
 pinned JMX names; version pinned across pom/cloud-init], the F45

@@ -5,7 +5,16 @@ It is written for a fresh Claude session with no memory of prior turns.
 When something here conflicts with an older file, this document wins; update
 it at the end of every working session.
 
-Last updated: 2026-07-21 — **sixth hard review (F39–F49, all closed same
+Last updated: 2026-11-11 — **seventh review (code review of 9e9fbdd),
+F50–F64 ledgered in PENDING_TASKS §"2026-11-11".** F50/F51 FIXED (TDD): a
+fault cell whose injection never fired now writes `status: failed` (resume
+reruns it) and FAILs gate 3 instead of passing as a baseline. F52–F64 are
+OPEN (gate 3 witness logic, RemoteRunner timing/thread leak, doc drift).
+**Suite: 172 tests; last full gate 171/172, the one fail being
+KafkaPerfTestParityTest laptop noise (N3); pushed with that known fail at
+the author's request.** Next: NEXT-0 (rerun the full gate on a quiet
+machine), then G2 → P3.5 → P3.4, with F52–F57 before the campaign.
+Prior update, 2026-07-21 — **sixth hard review (F39–F49, all closed same
 session; ledger in PENDING_TASKS §"2026-07-21").** Highlights: the
 in-flight **M5.5 ValidityChecker landed HARDENED** (per-system gate-3
 witnesses, hotstuff-aware gates, loud SKIPs for the two collector-less

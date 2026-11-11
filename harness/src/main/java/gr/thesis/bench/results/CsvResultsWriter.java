@@ -123,7 +123,13 @@ public final class CsvResultsWriter {
         for (long c : r.committedPerSecond()) committedTotal += c;
         long attempts = committedTotal + r.errors();
         double errorRate = attempts == 0 ? 0.0 : r.errors() / (double) attempts;
-        String status = (opsAfterWarmup > 0 && errorRate <= 0.5) ? "complete" : "failed";
+        // A fault scenario with no fault mark (the injection failed, or never
+        // reached its mark) measured a plain run, not that scenario. It may
+        // not call itself complete, or campaign resume skips the cell forever.
+        boolean faultMissing = id.scenario() != Scenario.BASELINE
+                && (r.events() == null || r.events().faultMarkMillis().isEmpty());
+        String status = (opsAfterWarmup > 0 && errorRate <= 0.5 && !faultMissing)
+                ? "complete" : "failed";
 
         // Fault instrumentation (P1.4): explicit nulls for baseline runs —
         // an absent measurement is null, never zero.
