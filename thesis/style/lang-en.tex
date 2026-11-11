@@ -7,6 +7,15 @@
 \setmainlanguage{english}
 \setotherlanguage[numerals=arabic]{greek}
 
+% Greek inside the English edition (the cover's Greek title, the Greek
+% summary, \gr{}) uses the same faces as the Greek edition. Without
+% this, polyglossia stops with "the current latin roman font does not
+% contain the Greek script" on fonts that lack the OpenType Greek tag
+% (the msttcorefonts Times New Roman, for one), and latexmk gives up.
+\newfontfamily\greekfont[Ligatures=TeX]{\thesisserif}
+\newfontfamily\greekfontsf[Ligatures=TeX]{\thesissans}
+\newfontfamily\greekfonttt[Scale=0.90,Ligatures=TeX]{\thesismono}
+
 % \gr{...} is the mirror of \en{...} in the Greek edition: a Greek word
 % inside English text, hyphenated by Greek rules.
 \newcommand{\gr}[1]{\textgreek{#1}}
