@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thesis PDF Build</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Source+Serif+4:opsz,wght@8..60,600;8..60,700&display=swap">
+<style>
+/* Layout: one reading column; commands are the main objects, each in its own copyable block. */
+:root {
+  --bg: #fbfbfd; --fg: #1c2230; --muted: #5a6476; --line: #dfe3ea;
+  --code-bg: #eef1f6; --accent: #24508f; --ok: #1f7a4d; --warn: #8a5a00;
+  --f-head: "Source Serif 4", Georgia, "Times New Roman", serif;
+  --f-body: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "DejaVu Sans Mono", monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12151b; --fg: #e3e7ee; --muted: #9aa4b5; --line: #2a303b;
+  --code-bg: #1b2029; --accent: #8db4ec; --ok: #6cc79a; --warn: #e2b45c; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12151b; --fg: #e3e7ee; --muted: #9aa4b5; --line: #2a303b;
+  --code-bg: #1b2029; --accent: #8db4ec; --ok: #6cc79a; --warn: #e2b45c; color-scheme: dark }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 var(--f-body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+main { max-width: 760px; margin: 0 auto; padding-block: 2rem 4rem; }
+h1, h2 { font-family: var(--f-head); line-height: 1.2; text-wrap: balance; }
+h1 { font-size: 2rem; margin: 0 0 .4rem; }
+h2 { font-size: 1.35rem; margin: 2.4rem 0 .6rem; padding-top: 1rem; border-top: 1px solid var(--line); }
+h3 { font-size: 1rem; margin: 1.4rem 0 .4rem; }
+p, li { max-width: 68ch; }
+a { color: var(--accent); }
+.lede { color: var(--muted); margin: 0 0 1rem; }
+code { font-family: var(--f-mono); font-size: .88em; background: var(--code-bg); padding: .1em .35em; border-radius: 4px; }
+.cmd { position: relative; margin: .5rem 0 1rem; }
+.cmd pre { margin: 0; background: var(--code-bg); border: 1px solid var(--line); border-radius: 6px;
+  padding: .75rem 4.6rem .75rem .9rem; overflow-x: auto; font: 13px/1.55 var(--f-mono); white-space: pre; }
+.cmd button { position: absolute; top: .45rem; right: .45rem; font: 500 12px var(--f-body); color: var(--accent);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: .2rem .55rem; cursor: pointer; }
+.cmd button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tbl { overflow-x: auto; margin: .6rem 0 1rem; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: .45rem .6rem; border-bottom: 1px solid var(--line); }
+th { font-weight: 600; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+@media (min-width: 640px) { td:first-child { white-space: nowrap; } }
+ol, ul { padding-left: 1.3rem; }
+li { margin: .25rem 0; }
+.tag { font: 600 11px var(--f-body); letter-spacing: .04em; text-transform: uppercase; padding: .1rem .45rem; border-radius: 3px; border: 1px solid currentColor; }
+.tag.ok { color: var(--ok); } .tag.warn { color: var(--warn); }
+.note { border-left: 3px solid var(--line); padding: .2rem 0 .2rem .9rem; color: var(--muted); }
+kbd { font: 12px var(--f-mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 .3rem; background: var(--code-bg); }
+footer { margin-top: 3rem; color: var(--muted); font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Thesis PDF build</h1>
+<p class="lede">Edit the <code>.tex</code> files and build the PDF by hand on Ubuntu. The build commands on this page were run on your laptop on 20 Nov 2026. The footer lists what was not tested.</p>
+
+<div class="tbl"><table>
+<thead><tr><th>Way</th><th>Use it for</th><th>Verdict</th></tr></thead>
+<tbody>
+<tr><td><a href="#vscode">VS Code + LaTeX Workshop</a></td><td>Daily writing: source on the left, PDF on the right, rebuild on save, click to jump between them</td><td><span class="tag ok">Recommended</span></td></tr>
+<tr><td><a href="#terminal">Terminal + Evince</a></td><td>Any editor; one command watches and rebuilds</td><td>Simplest</td></tr>
+<tr><td><a href="#docker">Docker</a></td><td>A new machine, or a clean final build that does not depend on what is installed</td><td>Optional here</td></tr>
+</tbody></table></div>
+<p class="note">On this laptop TeX is already installed, so you do not need Docker to build the PDF. Docker gives a PDF with the same page count, with nothing installed except Docker.</p>
+
+<h2 id="setup">1. One-time setup</h2>
+<p>Ubuntu 24.04. All of these are already installed on your laptop (checked 20 Nov). On a new machine:</p>
+<div class="cmd"><pre>sudo apt install make latexmk python3 fontconfig \
+  texlive-xetex texlive-latex-base texlive-latex-recommended texlive-latex-extra \
+  texlive-pictures texlive-plain-generic texlive-publishers texlive-lang-greek \
+  texlive-fonts-recommended fonts-cmu fonts-lmodern fonts-texgyre-math fonts-liberation</pre><button type="button">Copy</button></div>
+
+<h2 id="build">2. Build the PDF</h2>
+<div class="cmd"><pre>cd ~/consensus-bench-framework/thesis
+make</pre><button type="button">Copy</button></div>
+<p>Output: <code>thesis-en.pdf</code> (38 pages) and <code>thesis-el.pdf</code> (39 pages), in <code>thesis/</code>. Git ignores both.</p>
+<div class="tbl"><table>
+<thead><tr><th>Command</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td><code>make thesis-en.pdf</code></td><td>English only. <code>make thesis-el.pdf</code> for Greek only.</td></tr>
+<tr><td><code>make check</code></td><td>Runs every check and prints a report. Always exits 0.</td></tr>
+<tr><td><code>make check-strict</code></td><td>Fewer checks (sync, parity, diagrams, measurements, citations), and it stops at the first failure. Run it before you submit.</td></tr>
+<tr><td><code>make sync</code></td><td>Lists the Greek blocks that are behind the English.</td></tr>
+<tr><td><code>make data</code></td><td>Lists the measurements still marked [PENDING].</td></tr>
+<tr><td><code>make clean</code></td><td>Deletes the build files and both PDFs. Use it when a build acts strangely, then run <code>make</code>.</td></tr>
+</tbody></table></div>
+<p>After an error, <code>make</code> ends with <code>Errors, so I did not complete making targets</code>, but it can still write a PDF. Find the error with <code>grep -n -A1 '^!' thesis-en.log</code>: the <code>l.120</code> line gives the line number.</p>
+
+<h2 id="vscode">3. Edit with live preview in VS Code</h2>
+<p>Do steps 1–3 once.</p>
+<ol>
+<li>Install the extension:
+<div class="cmd"><pre>code --install-extension James-Yu.latex-workshop</pre><button type="button">Copy</button></div></li>
+<li>Tell it to use XeLaTeX. Its default recipe uses pdflatex, which cannot build this thesis. This creates <code>thesis/.vscode/settings.json</code>, which git already ignores. If the file already exists, it stops and you add the lines by hand:
+<div class="cmd"><pre>mkdir -p ~/consensus-bench-framework/thesis/.vscode
+f=~/consensus-bench-framework/thesis/.vscode/settings.json
+[ -e "$f" ] &amp;&amp; echo "$f exists: add the lines by hand" || cat &gt; "$f" &lt;&lt;'EOF'
+{
+  "latex-workshop.latex.recipe.default": "latexmk (xelatex)",
+  "latex-workshop.latex.autoBuild.run": "onSave",
+  "latex-workshop.latex.search.rootFiles.include": ["**/main-en.tex", "**/main-el.tex"]
+}
+EOF</pre><button type="button">Copy</button></div></li>
+<li>The preview is named <code>main-en.pdf</code> (or <code>main-el.pdf</code>), not <code>thesis-en.pdf</code>. Hide it from <code>git status</code> on this machine only:
+<div class="cmd"><pre>echo 'thesis/main-*.pdf' &gt;&gt; ~/consensus-bench-framework/.git/info/exclude</pre><button type="button">Copy</button></div></li>
+</ol>
+<p>Then, every time:</p>
+<ol>
+<li>Open the thesis folder, not the whole repo: <code>code ~/consensus-bench-framework/thesis</code></li>
+<li>The first time only: open <code>main-en.tex</code> and press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>B</kbd>, then do the same with <code>main-el.tex</code>. After that, each chapter builds its own edition.</li>
+<li>Open a chapter, for example <code>content/en/ch1.tex</code>.</li>
+<li><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>B</kbd> builds. <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>V</kbd> opens the PDF in a tab on the right.</li>
+<li>Save with <kbd>Ctrl</kbd>+<kbd>S</kbd>. The PDF rebuilds and refreshes, in about 5 seconds after a small edit.</li>
+<li><kbd>Ctrl</kbd>+click in the PDF jumps to that line of the source. <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>J</kbd> jumps from the source to the PDF.</li>
+<li>Errors appear in the Problems panel (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd>), with the file and the line.</li>
+<li>The PDF tab name, <code>main-en.pdf</code> or <code>main-el.pdf</code>, shows which edition you are looking at. <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>C</kbd> deletes the preview's build files.</li>
+<li>For the final PDFs, run <code>make</code> in the VS Code terminal (<kbd>Ctrl</kbd>+<kbd>`</kbd>).</li>
+</ol>
+<p class="note">Do not set an output folder (<code>outDir</code>). The chapters are included with <code>\include</code>, and TeX then cannot write their <code>.aux</code> files into subfolders that do not exist, so the build stops.</p>
+
+<h2 id="terminal">4. Terminal + Evince (any editor)</h2>
+<p>One terminal watches the sources and rebuilds when you save any file:</p>
+<div class="cmd"><pre>cd ~/consensus-bench-framework/thesis
+latexmk -xelatex -pvc -view=none -interaction=nonstopmode -file-line-error -jobname=thesis-en main-en.tex</pre><button type="button">Copy</button></div>
+<p>Open the PDF next to your editor. Evince reloads it after each rebuild:</p>
+<div class="cmd"><pre>evince ~/consensus-bench-framework/thesis/thesis-en.pdf &amp;</pre><button type="button">Copy</button></div>
+<p><kbd>Ctrl</kbd>+<kbd>C</kbd> stops the watcher. For Greek, use <code>-jobname=thesis-el main-el.tex</code>.</p>
+
+<h2 id="docker">5. Docker (optional)</h2>
+<p>The image is Ubuntu 24.04 with the packages from step 1: about 820 MB, built in about 2 minutes. Its recipe is <code>thesis/docker/Dockerfile</code>, new on 20 Nov; commit it so a new clone has it. Build the image once:</p>
+<div class="cmd"><pre>cd ~/consensus-bench-framework
+docker build -t thesis-tex thesis/docker</pre><button type="button">Copy</button></div>
+<p>Then build from the thesis folder. Your files are mounted, not copied, and the PDFs belong to you, not to root:</p>
+<div class="cmd"><pre>cd ~/consensus-bench-framework/thesis
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/thesis" thesis-tex make
+docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/thesis" thesis-tex make check</pre><button type="button">Copy</button></div>
+<p>Docker does not cover <code>make docx</code>, which also needs pandoc, python-docx, docxcompose and LibreOffice.</p>
+
+<h2 id="look">6. Switch to the department's Word look</h2>
+<p>In <code>style/common.tex</code>, line 22, change <code>\latexlooktrue</code> to <code>\latexlookfalse</code>, then run <code>make</code>. It uses Times New Roman when it is installed (it is on your laptop), otherwise Liberation Serif, which has the same widths. Either way the English PDF has 37 pages and the Greek 38. Change it back for the LaTeX look.</p>
+
+<h2 id="rules">7. Rules the build enforces</h2>
+<ul>
+<li>Edit the English first (<code>content/en/</code>), then the Greek. After you translate a block, run <code>python3 tools/sync.py --stamp --id BLOCKID</code>.</li>
+<li>New text: start each English paragraph with <code>%%blk chapter.topic.01</code>. Above its Greek translation, write <code>%%blk chapter.topic.01 from=PLACEHOLDER</code>, then stamp it. <code>python3 tools/sync.py --new</code> lists the blocks not translated yet.</li>
+<li>New chapter: <code>content/en/chN.tex</code> and <code>content/el/chN.tex</code>, with an <code>\include</code> line at the same place in <code>main-en.tex</code> and <code>main-el.tex</code>. <code>make check</code> compares the two page orders.</li>
+<li>A number from your own measurements goes into <code>data/measurements.tex</code> and is used as <code>\meas{key}</code>. It prints [PENDING] until you fill it in.</li>
+<li>Do not commit PDFs or <code>.docx</code> files. They are build outputs.</li>
+</ul>
+
+<h2 id="trouble">8. When something goes wrong</h2>
+<div class="tbl"><table>
+<thead><tr><th>You see</th><th>Do this</th></tr></thead>
+<tbody>
+<tr><td>VS Code: <code>fontspec package requires either XeTeX or LuaTeX</code></td><td>The pdflatex recipe ran. Check the settings file from section 3, step 2, and open the thesis folder, not the repo.</td></tr>
+<tr><td><code>I can't write on file `frontmatter/en/cover.aux'</code></td><td>An output folder is set. Remove it (see the note in section 3).</td></tr>
+<tr><td><code>pzdr ... not loadable</code></td><td>Install <code>texlive-fonts-recommended</code>.</td></tr>
+<tr><td>Log: <code>CMU fonts not found, so the Word look is used</code></td><td>Install <code>fonts-cmu</code>.</td></tr>
+<tr><td>Odd results after many edits</td><td><code>make clean</code>, then <code>make</code>.</td></tr>
+</tbody></table></div>
+
+<h2 id="editors">9. Other editors</h2>
+<div class="tbl"><table>
+<thead><tr><th>Editor</th><th>Fits this repo?</th></tr></thead>
+<tbody>
+<tr><td>VS Code + LaTeX Workshop</td><td>Yes. Live preview beside the source, jumps both ways, and a terminal for <code>make</code>. Free, and already installed.</td></tr>
+<tr><td>TeXstudio</td><td>Yes, if you prefer a LaTeX-only app: <code>sudo apt install texstudio</code>. Set XeLaTeX as the compiler, BibTeX for the bibliography, and <code>main-en.tex</code> (or <code>main-el.tex</code>) as the root document. It has its own PDF viewer. Not tested here.</td></tr>
+<tr><td>Overleaf</td><td>Only to view or share. The PDF builds there (Menu → Compiler → XeLaTeX, as <code>main-en.tex</code> says), but <code>make</code>, the checks and the Greek sync do not run. Git sync needs a paid plan (from memory, not checked).</td></tr>
+</tbody></table></div>
+
+<footer>
+<p><strong>Tested on 20 Nov 2026</strong> on Ubuntu 24.04.5 (TeX Live 2023, latexmk 4.83), on clean copies of commit 121cf05 plus the new Dockerfile, then rerun by an independent reviewer:</p>
+<ul>
+<li><code>make</code> builds both PDFs.</li>
+<li>The Docker image passes 25 test assertions: fonts embedded, no missing characters, no undefined references, files owned by you, and the Word look.</li>
+<li><code>latexmk -pvc</code> rebuilds after an edit.</li>
+<li>The exact command of LaTeX Workshop's "latexmk (xelatex)" recipe builds <code>main-en.pdf</code> with SyncTeX.</li>
+<li>The settings above are valid for LaTeX Workshop 10.20.0.</li>
+<li>The git exclude line hides the preview PDFs.</li>
+</ul>
+<p><strong>Not tested:</strong> clicking inside VS Code (the preview tab, the jumps, the Problems panel, the first-time root choice), Evince's reload, TeXstudio, Overleaf and <code>make docx</code>.</p>
+</footer>
+</main>
+
+<script>
+document.querySelectorAll('.cmd button').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var pre = b.parentElement.querySelector('pre'), text = pre.textContent;
+    function selectIt() { var r = document.createRange(); r.selectNodeContents(pre); var s = getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = 'Selected'; }
+    try {
+      navigator.clipboard.writeText(text).then(function () { b.textContent = 'Copied'; }, selectIt);
+    } catch (e) { selectIt(); }
+    setTimeout(function () { b.textContent = 'Copy'; }, 1600);
+  });
+});
+</script>
+</body>
+</html>
